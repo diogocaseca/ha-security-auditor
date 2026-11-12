@@ -5,10 +5,16 @@
 # Princípios:
 #  - nenhuma regra "capability": o root do container fica sem capacidades
 #    (sem dac_override, sys_admin, net_admin, etc.);
-#  - escrita apenas em /data (estado e relatórios) e /tmp;
-#  - /config somente leitura, com negação explícita de escrita;
-#  - execução permitida só para binários do sistema e do Python, sempre
-#    herdando este mesmo perfil (ix), nunca sem confinamento.
+#  - escrita apenas em /data (estado e relatórios), /tmp e /dev/shm;
+#  - NADA pode ser executado de onde o add-on escreve (/data, /tmp, /dev/shm)
+#    nem de /config: código baixado ou analisado nunca roda;
+#  - execução permitida só nas pastas do sistema, que são somente leitura no
+#    container, e sempre herdando este mesmo perfil (ix), nunca sem confinamento.
+#
+# Atenção: o AppArmor avalia o caminho REAL do executável, depois de resolver
+# links simbólicos (ex.: /usr/bin/bashio -> /usr/lib/bashio/bashio e o
+# semgrep-core dentro de site-packages). Por isso as pastas de bibliotecas
+# também têm "ix".
 profile security_auditor flags=(attach_disconnected,mediate_deleted) {
   #include <abstractions/base>
 
@@ -25,19 +31,22 @@ profile security_auditor flags=(attach_disconnected,mediate_deleted) {
   signal (send, receive) peer=security_auditor,
   signal (receive) peer=unconfined,
   signal (receive) peer=docker-default,
+  ptrace (read, readby) peer=security_auditor,
 
-  # --- Entrada: tini do Docker, run.sh e bashio.
-  /sbin/docker-init ix,
+  # --- Execução (sempre ix = herda este perfil).
+  /sbin/docker-init rix,
   /run.sh rix,
   /bin/** rix,
+  /sbin/** rix,
   /usr/bin/** rix,
-  /usr/lib/bashio/** r,
-
-  # --- Python e ferramentas de análise (instaladas via pip).
+  /usr/sbin/** rix,
   /usr/local/bin/** rix,
-  /usr/local/lib/** mr,
-  /usr/lib/** mr,
-  /lib/** mr,
+  /lib/** rmix,
+  /usr/lib/** rmix,
+  /usr/local/lib/** rmix,
+  /usr/libexec/** rmix,
+
+  # --- Leitura do sistema.
   /usr/share/** r,
   /etc/** r,
 
@@ -45,37 +54,48 @@ profile security_auditor flags=(attach_disconnected,mediate_deleted) {
   /app/ r,
   /app/** r,
 
-  # --- Configuração do Home Assistant: somente leitura.
+  # --- Configuração do Home Assistant: somente leitura, nunca executável.
   /config/ r,
   /config/** r,
-  deny /config/** wlk,
+  deny /config/** wlkx,
 
-  # --- Estado do add-on.
+  # --- Estado do add-on: escrita, mas nunca execução.
   /data/ r,
   /data/** rwk,
   /tmp/ r,
   /tmp/** rwkl,
+  /dev/shm/ r,
   /dev/shm/** rwk,
+  deny /data/** x,
+  deny /tmp/** x,
+  deny /dev/shm/** x,
 
   # --- Dispositivos e pseudo-sistemas de arquivos mínimos.
   /dev/null rw,
   /dev/zero r,
+  /dev/full rw,
   /dev/random r,
   /dev/urandom r,
   /dev/tty rw,
   /dev/pts/* rw,
   @{PROC}/@{pid}/** r,
-  @{PROC}/{cpuinfo,meminfo,stat,loadavg,uptime,version} r,
-  @{PROC}/sys/kernel/{osrelease,hostname,random/*} r,
-  @{PROC}/sys/net/core/somaxconn r,
+  @{PROC}/@{pid}/fd/* rw,
+  @{PROC}/{cpuinfo,meminfo,stat,loadavg,uptime,version,mounts,filesystems,cgroups} r,
+  @{PROC}/sys/** r,
   /sys/devices/system/cpu/** r,
+  /sys/devices/system/node/** r,
   /sys/fs/cgroup/** r,
+  /sys/kernel/mm/transparent_hugepage/* r,
 
   # --- Negações explícitas.
   deny @{PROC}/sys/** w,
   deny /sys/** w,
   deny /etc/** w,
   deny /app/** w,
+  deny /usr/** w,
+  deny /bin/** w,
+  deny /sbin/** w,
+  deny /lib/** w,
   deny mount,
   deny umount,
   deny pivot_root,

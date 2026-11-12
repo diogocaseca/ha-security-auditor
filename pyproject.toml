@@ -16,3 +16,7 @@ src = ["security_auditor/app"]
 
 [tool.ruff.lint]
 exclude = ["tests/fixtures/**"]
+
+[tool.ruff.lint.per-file-ignores]
+# Caminhos em /tmp aqui são só texto para conferir as regras do AppArmor.
+"tests/test_apparmor.py" = ["S108"]
