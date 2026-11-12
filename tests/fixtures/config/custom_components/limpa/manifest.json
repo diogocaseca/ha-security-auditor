@@ -1,0 +1,10 @@
+{
+  "domain": "limpa",
+  "name": "Integração Limpa",
+  "version": "1.0.0",
+  "documentation": "https://github.com/exemplo/ha-limpa",
+  "issue_tracker": "https://github.com/exemplo/ha-limpa/issues",
+  "codeowners": ["@exemplo"],
+  "iot_class": "local_polling",
+  "requirements": ["pyexemplo>=1.0"]
+}

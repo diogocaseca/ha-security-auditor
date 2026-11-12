@@ -1,0 +1,10 @@
+{
+  "domain": "adulterada",
+  "name": "Integração Adulterada",
+  "version": "1.0.0",
+  "documentation": "https://github.com/exemplo/ha-adulterada",
+  "issue_tracker": "https://github.com/exemplo/ha-adulterada/issues",
+  "codeowners": ["@exemplo"],
+  "iot_class": "local_push",
+  "requirements": []
+}

@@ -1,0 +1,8 @@
+{
+  "domain": "ofuscada",
+  "name": "Otimizador de Energia",
+  "version": "2.1.0",
+  "documentation": "https://example.com",
+  "iot_class": "cloud_polling",
+  "requirements": ["requests==2.19.0", "git+https://example.com/lib.git"]
+}

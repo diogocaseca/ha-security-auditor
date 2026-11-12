@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token }}">
   <title>Security Auditor</title>
+  <script src="static/theme.js"></script>
   <link rel="stylesheet" href="static/app.css">
   <script src="static/app.js" defer></script>
 </head>
@@ -24,6 +25,11 @@
     </div>
   </div>
   <div class="actions">
+    <div class="theme-switch" role="group" aria-label="Tema">
+      <button type="button" data-theme-choice="system" aria-pressed="true" title="Seguir o tema do sistema">Sistema</button>
+      <button type="button" data-theme-choice="light" aria-pressed="false">Claro</button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false">Escuro</button>
+    </div>
     <span class="muted small" id="scan-status">
       {% if status.running %}
         Varrendo{% if status.progress.step %}: {{ status.progress.step }}{% endif %}…

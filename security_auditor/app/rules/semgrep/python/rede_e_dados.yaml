@@ -1,0 +1,217 @@
+# Destinos de rede fixos, acesso a arquivos sensíveis e download+execução.
+rules:
+  - id: auditor.py.download-e-execucao
+    languages: [python]
+    severity: ERROR
+    message: Conteúdo baixado da rede é executado
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+          - pattern: requests.$M(...)
+          - pattern: httpx.$M(...)
+          - pattern: urllib.request.urlopen(...)
+          - pattern: urlopen(...)
+          - pattern: await $R.text(...)
+          - pattern: await $R.read(...)
+          - pattern: await $R.json(...)
+    pattern-sinks:
+      - pattern-either:
+          - pattern: exec(...)
+          - pattern: eval(...)
+          - pattern: compile(...)
+          - pattern: marshal.loads(...)
+          - pattern: pickle.loads(...)
+          - pattern: subprocess.$F(...)
+          - pattern: os.system(...)
+          - pattern: $SPEC.loader.exec_module(...)
+    metadata:
+      titulo: Código baixado da internet e executado
+      categoria: download_execucao
+      severidade: critica
+      explicacao: >-
+        Dados recebidos pela rede chegam a uma função que executa código ou
+        comandos. Isso permite que o código real da integração seja trocado a
+        qualquer momento pelo servidor remoto, sem passar por nenhuma revisão; a
+        análise estática não consegue ver o que será executado.
+      recomendacao: >-
+        Identifique a URL de origem e o conteúdo servido. Trate como execução
+        remota de código até prova em contrário.
+
+  - id: auditor.py.carregamento-dinamico-de-modulo
+    languages: [python]
+    severity: WARNING
+    message: Carregamento de módulo a partir de arquivo/caminho dinâmico
+    pattern-either:
+      - pattern: importlib.util.spec_from_file_location(...)
+      - pattern: importlib.machinery.SourceFileLoader(...)
+      - pattern: imp.load_source(...)
+      - pattern: sys.path.insert(...)
+    metadata:
+      titulo: Carregamento dinâmico de módulo
+      categoria: download_execucao
+      severidade: media
+      explicacao: >-
+        Carregar módulos de caminhos arbitrários permite executar código que não
+        está no pacote da integração (por exemplo, um arquivo baixado depois).
+      recomendacao: Verifique qual arquivo é carregado e de onde ele vem.
+
+  - id: auditor.py.instalacao-de-pacote-em-tempo-de-execucao
+    languages: [python]
+    severity: WARNING
+    message: Instalação de pacote em tempo de execução
+    pattern-either:
+      - pattern: pip.main(...)
+      - pattern: subprocess.$F([..., "pip", ...], ...)
+      - pattern: subprocess.$F([..., "install", ...], ...)
+      - pattern: subprocess.$F("=~/pip\s+install/", ...)
+      - pattern: os.system("=~/pip\s+install/")
+    metadata:
+      titulo: Instalação de pacotes em tempo de execução
+      categoria: download_execucao
+      severidade: alta
+      explicacao: >-
+        A integração instala pacotes por conta própria, fora do mecanismo de
+        requirements do manifest.json. Esses pacotes não aparecem no manifest e
+        não passam pela auditoria de dependências.
+      recomendacao: Confira quais pacotes e de qual índice/URL são instalados.
+
+  - id: auditor.py.destino-suspeito
+    languages: [python]
+    severity: ERROR
+    message: URL de serviço usado para exfiltração ou hospedagem de payloads
+    patterns:
+      - pattern: '"$S"'
+      - metavariable-regex:
+          metavariable: $S
+          regex: (?i).*(pastebin\.com|paste\.ee|hastebin|ghostbin|transfer\.sh|ngrok(-free)?\.(io|app|dev)|webhook\.site|requestbin|pipedream\.net|interact\.sh|oast\.(fun|me|pro|live|site|online)|burpcollaborator|discord(app)?\.com/api/webhooks|api\.telegram\.org/bot|\.onion\b|gist\.githubusercontent\.com|raw\.githubusercontent\.com|cdn\.discordapp\.com/attachments|anonfiles|file\.io)
+    metadata:
+      titulo: Destino de rede suspeito
+      categoria: destino_suspeito
+      severidade: alta
+      explicacao: >-
+        O código referencia um serviço frequentemente usado para enviar dados
+        roubados (webhooks, bots, túneis) ou para hospedar código baixado depois
+        (pastebins, arquivos "raw").
+      recomendacao: Veja o que é enviado ou baixado desse endereço e por quê.
+
+  - id: auditor.py.ip-fixo-publico
+    languages: [python]
+    severity: WARNING
+    message: Endereço IP público fixo no código
+    patterns:
+      - pattern: '"$S"'
+      - metavariable-regex:
+          metavariable: $S
+          regex: (?:.*?[^\d.])?(?!(?:10|127|0)\.)(?!192\.168\.)(?!172\.(?:1[6-9]|2\d|3[01])\.)(?!169\.254\.)(?!2(?:2[4-9]|[3-5]\d)\.)(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])
+    metadata:
+      titulo: IP público fixo no código
+      categoria: url_ip_fixo
+      severidade: media
+      explicacao: >-
+        Um IP público fixo costuma indicar um servidor controlado pelo autor
+        (sem DNS, mais difícil de rastrear). Pode ser um DNS público ou um
+        dispositivo do fabricante, mas merece verificação.
+      recomendacao: Descubra a quem pertence o IP e o que a integração troca com ele.
+
+  - id: auditor.py.url-fixa
+    languages: [python]
+    severity: INFO
+    message: URL fixa no código
+    patterns:
+      - pattern: '"$S"'
+      - metavariable-regex:
+          metavariable: $S
+          regex: ^(?i)(https?|wss?|ftp)://[^\s"']+
+      - pattern-not-inside: |
+          _LOGGER.$F(...)
+    metadata:
+      titulo: URL fixa no código
+      categoria: url_ip_fixo
+      severidade: informativa
+      explicacao: >-
+        Lista os endereços com que a integração conversa. Normalmente é a API do
+        fabricante; serve para conferir se os destinos fazem sentido para o que a
+        integração diz fazer.
+      recomendacao: Confira se o domínio pertence ao serviço que a integração controla.
+
+  - id: auditor.py.acesso-secrets-yaml
+    languages: [python]
+    severity: ERROR
+    message: Referência direta ao secrets.yaml
+    patterns:
+      - pattern: '"$S"'
+      - metavariable-regex:
+          metavariable: $S
+          regex: (?i).*secrets\.ya?ml
+    metadata:
+      titulo: Leitura direta do secrets.yaml
+      categoria: acesso_sensivel
+      severidade: alta
+      explicacao: >-
+        O Home Assistant já entrega à integração os valores que ela precisa. Ler
+        o secrets.yaml diretamente dá acesso a TODAS as senhas e tokens da
+        instalação, não só aos da integração.
+      recomendacao: Verifique o que é lido e para onde esses dados vão.
+
+  - id: auditor.py.acesso-storage-auth
+    languages: [python]
+    severity: ERROR
+    message: Referência aos arquivos de autenticação do HA
+    pattern-either:
+      - patterns:
+          - pattern: '"$S"'
+          - metavariable-regex:
+              metavariable: $S
+              regex: (?i).*\.storage[/\\](auth|onboarding)
+      - pattern: os.path.join(..., ".storage", "=~/^(auth|onboarding)/", ...)
+      - pattern: $H.config.path(".storage", "=~/^(auth|onboarding)/", ...)
+      - pattern: $P / ".storage" / "=~/^(auth|onboarding)/"
+    metadata:
+      titulo: Acesso aos arquivos de autenticação (.storage/auth)
+      categoria: acesso_sensivel
+      severidade: critica
+      explicacao: >-
+        Os arquivos .storage/auth* guardam usuários, hashes de senha e tokens de
+        atualização. Com eles é possível entrar na instalação como qualquer
+        usuário. Nenhuma integração comum precisa lê-los.
+      recomendacao: Desative a integração e investigue; considere revogar os tokens de acesso.
+
+  - id: auditor.py.acesso-storage
+    languages: [python]
+    severity: WARNING
+    message: Referência à pasta .storage
+    patterns:
+      - pattern: '"$S"'
+      - metavariable-regex:
+          metavariable: $S
+          regex: (?i)(.*[/\\])?\.storage([/\\]|$)
+    metadata:
+      titulo: Acesso direto à pasta .storage
+      categoria: acesso_sensivel
+      severidade: alta
+      explicacao: >-
+        A pasta .storage contém o estado interno do Home Assistant, incluindo
+        credenciais de outras integrações (config_entries). Integrações devem
+        usar as APIs do HA em vez de ler esses arquivos.
+      recomendacao: Veja qual arquivo é acessado e se a integração realmente precisa dele.
+
+  - id: auditor.py.tokens-de-acesso
+    languages: [python]
+    severity: WARNING
+    message: Criação ou leitura de tokens/usuários do HA
+    pattern-either:
+      - pattern: $H.auth.async_create_refresh_token(...)
+      - pattern: $H.auth.async_create_access_token(...)
+      - pattern: $H.auth.async_create_user(...)
+      - pattern: $H.auth.async_create_system_user(...)
+      - pattern: $H.auth.async_get_users(...)
+      - pattern: $H.auth._store
+    metadata:
+      titulo: Criação de usuários ou tokens de acesso
+      categoria: acesso_sensivel
+      severidade: media
+      explicacao: >-
+        A integração cria usuários ou tokens de acesso ao Home Assistant. Algumas
+        fazem isso para expor uma API, mas um token criado em segredo dá acesso
+        total à instalação a quem o receber.
+      recomendacao: Confirme para que o token é criado e se ele sai da instalação.

@@ -1,0 +1,2 @@
+DOMAIN = "limpa"
+PLATFORMS = ["sensor"]

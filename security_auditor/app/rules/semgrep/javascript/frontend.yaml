@@ -1,0 +1,126 @@
+# Regras para recursos de frontend em /config/www (cards, temas, plugins).
+# O frontend roda no navegador com a sessão do usuário: um card malicioso pode
+# ler o token de acesso e agir como o usuário logado.
+rules:
+  - id: auditor.js.acesso-token-ha
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Acesso ao token de acesso do Home Assistant
+    pattern-either:
+      - pattern: localStorage.getItem("hassTokens")
+      - pattern: localStorage.hassTokens
+      - pattern: localStorage["hassTokens"]
+      - pattern: window.localStorage.getItem("hassTokens")
+      - pattern: $H.auth.data.access_token
+      - pattern: $H.auth.data.refresh_token
+      - pattern: $H.auth.accessToken
+      - pattern: $C.options.auth.accessToken
+      - pattern: $C.options.auth.data.access_token
+    metadata:
+      titulo: Leitura do token de acesso no navegador
+      categoria: acesso_sensivel
+      severidade: alta
+      explicacao: >-
+        O código lê o token de acesso (ou de atualização) do usuário logado. Com
+        ele, qualquer servidor pode controlar o Home Assistant como esse usuário.
+        Cards comuns usam a conexão "hass" já pronta e não precisam do token.
+      recomendacao: Verifique se o token é enviado para algum lugar (fetch, WebSocket, imagem).
+
+  - id: auditor.js.ofuscacao-decodifica-e-executa
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: Código decodificado e executado
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+          - pattern: atob(...)
+          - pattern: unescape(...)
+          - pattern: decodeURIComponent(...)
+          - pattern: String.fromCharCode(...)
+          - pattern: Buffer.from(...)
+    pattern-sinks:
+      - pattern-either:
+          - pattern: eval(...)
+          - pattern: Function(...)
+          - pattern: new Function(...)
+          - pattern: setTimeout($X, ...)
+          - pattern: setInterval($X, ...)
+          - pattern: document.write(...)
+    metadata:
+      titulo: Código ofuscado sendo executado
+      categoria: ofuscacao
+      severidade: critica
+      explicacao: >-
+        O código decodifica texto (base64, escapes, códigos de caractere) e o
+        executa. É a técnica clássica para esconder código malicioso em scripts.
+      recomendacao: Decodifique o trecho sem executar e leia o que ele faz.
+
+  - id: auditor.js.eval-dinamico
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: eval/Function com dados dinâmicos
+    patterns:
+      - pattern-either:
+          - pattern: eval($X)
+          - pattern: new Function(..., $X)
+          - pattern: Function(..., $X)
+      - pattern-not: eval("...")
+      - pattern-not: new Function("...")
+      - pattern-not: Function("return this")
+      - pattern-not: Function("return this")()
+      - pattern-not: eval(atob(...))
+    metadata:
+      titulo: Execução dinâmica de código (eval/Function)
+      categoria: execucao_dinamica
+      severidade: media
+      explicacao: >-
+        eval e new Function executam texto como código. Algumas bibliotecas
+        empacotadas usam isso de forma legítima, mas também é a porta para
+        executar código vindo de fora.
+      recomendacao: Veja de onde vem o texto executado.
+
+  - id: auditor.js.codigo-remoto
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: Carregamento de script de endereço externo
+    pattern-either:
+      - pattern-regex: import\(\s*["'`](https?:)?//
+      - pattern-regex: \.src\s*=\s*["'`](https?:)?//[^"'`]+\.m?js
+      - pattern-regex: importScripts\(\s*["'`](https?:)?//
+    metadata:
+      titulo: Script carregado de endereço externo
+      categoria: download_execucao
+      severidade: media
+      explicacao: >-
+        O código carrega e executa um script de outro servidor em tempo de
+        execução. O que roda no seu navegador pode mudar a qualquer momento sem
+        alteração no arquivo instalado.
+      recomendacao: Confira o domínio e se o recurso não poderia vir empacotado.
+
+  - id: auditor.js.destino-suspeito
+    languages: [javascript, typescript]
+    severity: ERROR
+    message: URL de serviço usado para exfiltração ou hospedagem de payloads
+    pattern-regex: (?i)(pastebin\.com|paste\.ee|hastebin|transfer\.sh|ngrok(-free)?\.(io|app|dev)|webhook\.site|requestbin|pipedream\.net|interact\.sh|oast\.(fun|me|pro|live|site|online)|burpcollaborator|discord(app)?\.com/api/webhooks|api\.telegram\.org/bot|\.onion\b)
+    metadata:
+      titulo: Destino de rede suspeito
+      categoria: destino_suspeito
+      severidade: alta
+      explicacao: >-
+        O script referencia um serviço frequentemente usado para receber dados
+        roubados (webhooks, bots, túneis) ou hospedar payloads.
+      recomendacao: Veja o que é enviado a esse endereço.
+
+  - id: auditor.js.ip-fixo-publico
+    languages: [javascript, typescript]
+    severity: WARNING
+    message: Endereço IP público fixo
+    pattern-regex: (?i)(?:https?|wss?)://(?!(?:10|127|0)\.)(?!192\.168\.)(?!172\.(?:1[6-9]|2\d|3[01])\.)(?!169\.254\.)(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)
+    metadata:
+      titulo: Conexão com IP público fixo
+      categoria: url_ip_fixo
+      severidade: media
+      explicacao: >-
+        O script se conecta diretamente a um IP público, sem domínio. Isso é
+        incomum em cards e pode indicar um servidor controlado pelo autor.
+      recomendacao: Descubra a quem pertence o IP e o que é trocado com ele.

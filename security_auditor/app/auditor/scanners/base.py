@@ -31,6 +31,18 @@ class ScanContext:
     progress: dict[str, Any] = field(default_factory=dict)
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger("auditor.scan"))
 
+    _inventory: Any = None
+
+    def inventory(self) -> Any:
+        """Inventário de /config, calculado uma vez por varredura e compartilhado."""
+        if self._inventory is None:
+            from ..inventory import discover
+
+            self._inventory = discover(self.paths.config_dir)
+            for comp in self._inventory.components:
+                self.register_component(comp.component_type, comp.name, **comp.metadata())
+        return self._inventory
+
     def register_component(self, component_type: str, name: str, **metadata: Any) -> None:
         self.components.setdefault((component_type, name), {}).update(metadata)
 

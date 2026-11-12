@@ -123,6 +123,10 @@ def _mask_assignment(m: re.Match[str]) -> str:
     val = m["val"]
     if _ASSIGNMENT_SAFE.match(val) or val == MASK or _looks_like_identifier(val):
         return m.group(0)
+    # Sem aspas e com chamada/indexação é código (ex.: token = open(...)), não segredo.
+    # Mascarar aqui esconderia justamente a evidência do achado.
+    if not m["q"] and any(c in val for c in "([{"):
+        return m.group(0)
     return f"{m['key']}{m['sep']}{m['q']}{MASK}{m['q']}"
 
 

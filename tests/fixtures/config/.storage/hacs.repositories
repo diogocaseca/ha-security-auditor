@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "minor_version": 1,
+  "key": "hacs.repositories",
+  "data": {
+    "100": {"full_name": "exemplo/ha-limpa", "category": "integration", "domain": "limpa",
+            "installed": true, "version_installed": "v1.0.0"},
+    "200": {"full_name": "exemplo/ha-adulterada", "category": "integration", "domain": "adulterada",
+            "installed": true, "version_installed": "1.0.0"},
+    "300": {"full_name": "exemplo/card-suspeito", "category": "plugin",
+            "installed": true, "version_installed": "0.3.0"},
+    "400": {"full_name": "exemplo/removida", "category": "integration", "domain": "removida",
+            "installed": false}
+  }
+}

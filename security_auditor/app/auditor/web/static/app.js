@@ -55,6 +55,18 @@
     apply();
   });
 
+  // --- Tema ---------------------------------------------------------------
+  const themeButtons = document.querySelectorAll("[data-theme-choice]");
+  function syncTheme() {
+    const current = window.auditorTheme ? window.auditorTheme.get() : "system";
+    themeButtons.forEach((b) => b.setAttribute("aria-pressed", b.dataset.themeChoice === current ? "true" : "false"));
+  }
+  themeButtons.forEach((b) => b.addEventListener("click", () => {
+    if (window.auditorTheme) window.auditorTheme.set(b.dataset.themeChoice);
+    syncTheme();
+  }));
+  syncTheme();
+
   // --- Varredura ---------------------------------------------------------
   const button = document.getElementById("scan-now");
   const statusEl = document.getElementById("scan-status");

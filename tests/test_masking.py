@@ -37,6 +37,10 @@ def test_assignments(masker: Masker):
     assert masker.mask("password: !secret wifi") == "password: !secret wifi"
     assert masker.mask("token = entry.data") == "token = entry.data"
     assert masker.mask("token = config_token") == "token = config_token"
+    # Código não pode ser confundido com valor de segredo.
+    code = 'tokens = open(hass.config.path(".storage", "auth")).read()'
+    assert masker.mask(code) == code
+    assert masker.mask("api_key = entry.data[CONF_API_KEY]") == "api_key = entry.data[CONF_API_KEY]"
 
 
 def test_private_key_block(masker: Masker):

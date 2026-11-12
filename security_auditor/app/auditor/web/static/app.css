@@ -24,8 +24,9 @@
   color-scheme: light;
 }
 
+/* Tema escuro: segue o sistema, a menos que o usuário tenha escolhido "claro". */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #111317;
     --surface: #1a1d23;
     --surface-2: #22262e;
@@ -49,6 +50,32 @@
     --new-bg: #2a1f45;
     color-scheme: dark;
   }
+}
+
+/* Tema escuro escolhido explicitamente. */
+:root[data-theme="dark"] {
+  --bg: #111317;
+  --surface: #1a1d23;
+  --surface-2: #22262e;
+  --text: #e6e8ec;
+  --muted: #9aa3b2;
+  --border: #2e333d;
+  --accent: #4c8dff;
+  --accent-text: #0b1020;
+  --code-bg: #14171c;
+  --sev-critical: #ff8a80;
+  --sev-critical-bg: #3a1614;
+  --sev-high: #ffa36b;
+  --sev-high-bg: #3a2113;
+  --sev-medium: #f2c94c;
+  --sev-medium-bg: #332a0f;
+  --sev-low: #8ab4ff;
+  --sev-low-bg: #15243d;
+  --sev-info: #b4bcc8;
+  --sev-info-bg: #262a31;
+  --new: #c4a7ff;
+  --new-bg: #2a1f45;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -162,3 +189,11 @@ tr.current td { background: var(--surface-2); }
   .topbar, main { padding-left: 16px; padding-right: 16px; }
   .filters input[type="search"] { min-width: 0; width: 100%; }
 }
+
+/* Seletor de tema */
+.theme-switch { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.theme-switch button {
+  background: var(--surface); color: var(--muted); border: 0; padding: 6px 10px; font: inherit; font-size: 13px; cursor: pointer;
+}
+.theme-switch button + button { border-left: 1px solid var(--border); }
+.theme-switch button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); font-weight: 600; }

@@ -16,8 +16,8 @@ FIXTURES = Path(__file__).parent / "fixtures"
 def paths(tmp_path: Path) -> Paths:
     config = tmp_path / "config"
     data = tmp_path / "data"
-    config.mkdir()
-    data.mkdir()
+    config.mkdir(exist_ok=True)
+    data.mkdir(exist_ok=True)
     return Paths(config_dir=config, data_dir=data, rules_dir=Path(__file__).parents[1] / "security_auditor/app/rules")
 
 

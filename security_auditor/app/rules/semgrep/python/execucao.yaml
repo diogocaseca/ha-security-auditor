@@ -1,0 +1,178 @@
+# Execução dinâmica de código, ofuscação e execução de comandos.
+# Campos em metadata são lidos pelo auditor para montar o relatório.
+rules:
+  - id: auditor.py.ofuscacao-decodifica-e-executa
+    languages: [python]
+    severity: ERROR
+    message: Código decodificado/descompactado e depois executado
+    mode: taint
+    pattern-sources:
+      - pattern-either:
+          - pattern: base64.$DEC(...)
+          - pattern: binascii.$DEC(...)
+          - pattern: zlib.decompress(...)
+          - pattern: lzma.decompress(...)
+          - pattern: bz2.decompress(...)
+          - pattern: gzip.decompress(...)
+          - pattern: marshal.loads(...)
+          - pattern: codecs.decode(...)
+          - pattern: bytes.fromhex(...)
+          - pattern: $X[::-1]
+    pattern-sinks:
+      - pattern-either:
+          - pattern: exec(...)
+          - pattern: eval(...)
+          - pattern: compile(...)
+          - pattern: types.FunctionType(...)
+          - pattern: __import__(...)
+    metadata:
+      titulo: Código ofuscado sendo executado
+      categoria: ofuscacao
+      severidade: critica
+      explicacao: >-
+        O código decodifica ou descompacta dados (base64, zlib, marshal, hex...) e
+        executa o resultado. Integrações legítimas quase nunca fazem isso: é a
+        técnica típica para esconder código malicioso da revisão humana e de
+        ferramentas de análise.
+      recomendacao: >-
+        Decodifique o conteúdo num ambiente isolado (sem executar) e leia o que
+        ele faz. Até lá, considere desativar a integração.
+
+  - id: auditor.py.marshal-loads
+    languages: [python]
+    severity: WARNING
+    message: marshal.loads carrega bytecode Python
+    pattern: marshal.loads(...)
+    metadata:
+      titulo: Carregamento de bytecode com marshal
+      categoria: ofuscacao
+      severidade: alta
+      explicacao: >-
+        marshal.loads transforma bytes em objetos de código Python. É usado para
+        distribuir código já compilado, que não pode ser lido no arquivo-fonte.
+      recomendacao: Descubra de onde vêm os bytes e o que o código carregado faz.
+
+  - id: auditor.py.builtins-indireto
+    languages: [python]
+    severity: WARNING
+    message: Acesso indireto a funções internas
+    pattern-either:
+      - pattern: getattr(__builtins__, ...)
+      - pattern: getattr(builtins, ...)
+      - pattern: __builtins__.__dict__[...]
+      - pattern: globals()["__builtins__"]
+      - pattern: vars(__builtins__)[...]
+    metadata:
+      titulo: Acesso indireto a funções internas (builtins)
+      categoria: ofuscacao
+      severidade: alta
+      explicacao: >-
+        Buscar funções internas pelo nome (ex.: getattr(__builtins__, "ev"+"al"))
+        é uma forma de chamar eval/exec sem que o nome apareça no código.
+      recomendacao: Verifique qual função está sendo obtida e com quais dados ela é chamada.
+
+  - id: auditor.py.blob-codificado
+    languages: [python]
+    severity: INFO
+    message: String longa codificada
+    patterns:
+      - pattern: '"$S"'
+      - metavariable-regex:
+          metavariable: $S
+          regex: '^[A-Za-z0-9+/=_-]{400,}$'
+    metadata:
+      titulo: Bloco longo de dados codificados
+      categoria: ofuscacao
+      severidade: media
+      explicacao: >-
+        Uma string longa em base64/hex embutida no código pode ser um ícone ou um
+        certificado, mas também pode esconder código.
+      recomendacao: Decodifique a string (sem executar) e confirme do que se trata.
+
+  - id: auditor.py.eval-dinamico
+    languages: [python]
+    severity: WARNING
+    message: eval/exec/compile com dados dinâmicos
+    patterns:
+      - pattern-either:
+          - pattern: eval($X, ...)
+          - pattern: exec($X, ...)
+          - pattern: compile($X, ...)
+      - pattern-not: eval("...", ...)
+      - pattern-not: exec("...", ...)
+      - pattern-not: compile("...", ...)
+      - pattern-not: $F(<... base64.$D(...) ...>, ...)
+      - pattern-not: $F(<... zlib.decompress(...) ...>, ...)
+      - pattern-not: $F(<... marshal.loads(...) ...>, ...)
+    metadata:
+      titulo: Execução dinâmica de código (eval/exec/compile)
+      categoria: execucao_dinamica
+      severidade: alta
+      explicacao: >-
+        eval, exec e compile executam texto como código Python. Se esse texto vier
+        de fora (rede, arquivo, configuração), quem controla a origem controla a
+        sua instalação.
+      recomendacao: >-
+        Confira de onde vem o argumento. Se for de uma fonte externa, trate como
+        execução remota de código.
+
+  - id: auditor.py.execucao-de-comandos
+    languages: [python]
+    severity: WARNING
+    message: Execução de comandos do sistema
+    pattern-either:
+      - pattern: subprocess.$F(...)
+      - pattern: os.system(...)
+      - pattern: os.popen(...)
+      - patterns:
+          - pattern: os.$SPAWN(...)
+          - metavariable-regex:
+              metavariable: $SPAWN
+              regex: ^(spawn\w*|exec[lv]\w*|posix_spawn\w*)$
+      - pattern: asyncio.create_subprocess_exec(...)
+      - pattern: asyncio.create_subprocess_shell(...)
+      - pattern: pty.spawn(...)
+    metadata:
+      titulo: Execução de comandos do sistema
+      categoria: execucao_de_comandos
+      severidade: media
+      explicacao: >-
+        A integração executa programas do sistema. Algumas precisam disso (ping,
+        ffmpeg), mas é também o caminho para baixar e rodar ferramentas, abrir
+        shells reversos ou alterar o sistema.
+      recomendacao: Leia quais comandos são executados e com quais argumentos.
+
+  - id: auditor.py.shell-true
+    languages: [python]
+    severity: ERROR
+    message: Comando executado via shell
+    pattern-either:
+      - pattern: subprocess.$F(..., shell=True, ...)
+      - pattern: os.system(...)
+      - pattern: os.popen(...)
+      - pattern: asyncio.create_subprocess_shell(...)
+    metadata:
+      titulo: Comando executado via shell
+      categoria: execucao_de_comandos
+      severidade: alta
+      explicacao: >-
+        Executar pelo shell permite encadear comandos (;, |, &&) e, se parte do
+        texto vier de fora, injetar comandos arbitrários.
+      recomendacao: Verifique a montagem do comando; prefira lista de argumentos sem shell.
+
+  - id: auditor.py.shell-reverso
+    languages: [python]
+    severity: ERROR
+    message: Padrão de shell reverso
+    pattern-either:
+      - pattern: os.dup2($S.fileno(), ...)
+      - pattern: pty.spawn("/bin/sh", ...)
+      - pattern: pty.spawn("/bin/bash", ...)
+    metadata:
+      titulo: Padrão de shell reverso
+      categoria: execucao_de_comandos
+      severidade: critica
+      explicacao: >-
+        Redirecionar a entrada/saída de um socket para um shell é a assinatura de
+        um shell reverso: dá a alguém de fora um terminal na sua instalação.
+      recomendacao: Desative a integração imediatamente e investigue a origem do código.
