@@ -1,0 +1,22 @@
+configuration:
+  scan_interval_hours:
+    name: Intervalo entre varreduras (horas)
+    description: 0 desativa a varredura agendada; use o botão "Varrer agora".
+  scan_on_start:
+    name: Varrer ao iniciar
+    description: Executa uma varredura logo que o add-on inicia.
+  log_level:
+    name: Nível de log
+  github_token:
+    name: Token do GitHub (opcional)
+    description: >-
+      Token sem nenhum escopo, só para aumentar o limite de requisições
+      da API do GitHub. Nunca é registrado em log.
+  report_retention:
+    name: Relatórios mantidos
+    description: Quantos relatórios anteriores guardar em /data.
+  allowlist:
+    name: Exceções (allowlist)
+    description: >-
+      Lista de exceções por componente e regra. Achados suprimidos continuam
+      no relatório, marcados como suprimidos.

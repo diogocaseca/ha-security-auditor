@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>Security Auditor</title>
+  <link rel="stylesheet" href="static/app.css">
+  <script src="static/app.js" defer></script>
+</head>
+<body data-running="{{ 'true' if status.running else 'false' }}">
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark" aria-hidden="true"></span>
+    <div>
+      <h1>Security Auditor</h1>
+      <p class="muted small">
+        {% if result %}
+          Varredura de {{ result.finished_at | dt }}{% if not viewing_latest %} · <strong>visualizando relatório antigo</strong> · <a href="./">ir para o mais recente</a>{% endif %}
+        {% else %}
+          Nenhuma varredura concluída ainda
+        {% endif %}
+      </p>
+    </div>
+  </div>
+  <div class="actions">
+    <span class="muted small" id="scan-status">
+      {% if status.running %}
+        Varrendo{% if status.progress.step %}: {{ status.progress.step }}{% endif %}…
+      {% elif status.next_run %}
+        Próxima: {{ status.next_run | dt }}
+      {% else %}
+        Agendamento desativado
+      {% endif %}
+    </span>
+    {% if result %}
+      <a class="btn btn-ghost" href="api/report.json?scan={{ result.scan_id }}&amp;download=1">Exportar JSON</a>
+    {% endif %}
+    <button class="btn btn-primary" id="scan-now" type="button" {% if status.running %}disabled{% endif %}>
+      {{ 'Varrendo…' if status.running else 'Varrer agora' }}
+    </button>
+  </div>
+</header>
+
+<main>
+  <p class="notice">
+    Este relatório aponta o que <strong>merece revisão humana</strong>. Um achado não significa que
+    o componente seja malicioso; leia a explicação e decida.
+  </p>
+
+  {% if not result %}
+    <section class="empty">
+      <h2>Ainda não há relatório</h2>
+      <p>Clique em <strong>Varrer agora</strong> para executar a primeira varredura. Ela vira a linha de base
+         para destacar o que for novo nas próximas.</p>
+    </section>
+  {% else %}
+    {% set counts = report.counts %}
+    <section class="cards" aria-label="Resumo por severidade">
+      {% for sev in severities %}
+        <button type="button" class="card sev-{{ sev.key }}" data-filter-sev="{{ sev.key }}" aria-pressed="false">
+          <span class="card-count">{{ counts[sev.key] }}</span>
+          <span class="card-label">{{ sev.label }}</span>
+        </button>
+      {% endfor %}
+      <div class="card card-new">
+        <span class="card-count">{{ report.new_count }}</span>
+        <span class="card-label">Novos desde a anterior</span>
+      </div>
+    </section>
+
+    {% if result.errors %}
+      <section class="panel panel-warn">
+        <h2>Etapas com erro</h2>
+        <p class="muted small">Estas etapas não terminaram; o relatório pode estar incompleto.</p>
+        <ul>
+          {% for e in result.errors %}<li><code>{{ e }}</code></li>{% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+
+    {% if result.components %}
+      <section class="panel">
+        <h2>Componentes</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Componente</th><th>Tipo</th><th class="num">Nota de risco</th>
+                  {% for sev in severities %}<th class="num">{{ sev.label }}</th>{% endfor %}</tr>
+            </thead>
+            <tbody>
+              {% for c in result.components %}
+                <tr>
+                  <td><button type="button" class="link" data-filter-component="{{ c.name }}">{{ c.name }}</button></td>
+                  <td>{{ type_label(c.component_type) }}</td>
+                  <td class="num"><span class="score score-{{ 'high' if c.score >= 40 else ('mid' if c.score >= 10 else 'low') }}">{{ c.score }}</span></td>
+                  {% for sev in severities %}<td class="num">{{ c.counts.get(sev.key, 0) or '' }}</td>{% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endif %}
+
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Achados <span class="muted" id="visible-count"></span></h2>
+        <div class="filters">
+          <input type="search" id="filter-text" placeholder="Filtrar por texto, arquivo, regra…" aria-label="Filtrar">
+          <label><input type="checkbox" id="filter-new"> Só novos</label>
+          <label><input type="checkbox" id="filter-suppressed"> Mostrar suprimidos</label>
+          <button type="button" class="btn btn-ghost btn-sm" id="filter-clear">Limpar filtros</button>
+        </div>
+      </div>
+      {% if not result.findings %}
+        <p class="muted">Nenhum achado nesta varredura.</p>
+      {% endif %}
+      <div id="findings">
+        {% for f in result.findings %}
+          <article class="finding sev-{{ f.severity.key }}{% if f.suppressed %} is-suppressed{% endif %}"
+                   data-sev="{{ f.severity.key }}" data-new="{{ 'true' if f.is_new else 'false' }}"
+                   data-suppressed="{{ 'true' if f.suppressed else 'false' }}" data-component="{{ f.component }}">
+            <header>
+              <span class="badge sev-{{ f.severity.key }}">{{ f.severity.label }}</span>
+              {% if f.is_new %}<span class="badge badge-new">Novo</span>{% endif %}
+              {% if f.suppressed %}<span class="badge badge-muted">Suprimido</span>{% endif %}
+              <h3>{{ f.title }}</h3>
+            </header>
+            <dl class="meta">
+              <div><dt>Componente</dt><dd>{{ f.component }} <span class="muted">({{ type_label(f.component_type) }})</span></dd></div>
+              <div><dt>Tipo</dt><dd>{{ f.category }}</dd></div>
+              {% if f.file %}<div><dt>Arquivo</dt><dd><code>{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</code></dd></div>{% endif %}
+              <div><dt>Regra</dt><dd><code>{{ f.rule_id }}</code> <span class="muted">· {{ (f.extra.sources or [f.source]) | join(', ') }}</span></dd></div>
+            </dl>
+            {% if f.snippet %}<pre class="snippet"><code>{{ f.snippet }}</code></pre>{% endif %}
+            <p class="why"><strong>Por que é suspeito:</strong> {{ f.explanation }}</p>
+            <p class="todo"><strong>O que fazer:</strong> {{ f.recommendation }}</p>
+            {% if f.suppressed %}<p class="muted small">Suprimido pela allowlist: {{ f.suppression_reason }}</p>{% endif %}
+          </article>
+        {% endfor %}
+      </div>
+      <p class="muted" id="no-match" hidden>Nenhum achado corresponde aos filtros.</p>
+    </section>
+
+    {% if result.resolved %}
+      <section class="panel">
+        <h2>Resolvidos desde a varredura anterior</h2>
+        <ul class="resolved">
+          {% for r in result.resolved %}
+            <li><span class="badge sev-{{ r.severity }}">{{ r.severity_label }}</span>
+              <strong>{{ r.component }}</strong> · {{ r.title }}{% if r.file %} · <code>{{ r.file }}</code>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+  {% endif %}
+
+  {% if history %}
+    <section class="panel">
+      <h2>Histórico</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Varredura</th><th>Status</th>
+            {% for sev in severities %}<th class="num">{{ sev.label }}</th>{% endfor %}<th class="num">Novos</th></tr></thead>
+          <tbody>
+            {% for h in history %}
+              <tr{% if result and h.scan_id == result.scan_id %} class="current"{% endif %}>
+                <td><a href="./?scan={{ h.scan_id }}">{{ h.finished_at | dt }}</a></td>
+                <td>{{ {'concluida': 'Concluída', 'falhou': 'Falhou', 'em_andamento': 'Em andamento'}.get(h.status, h.status) }}</td>
+                {% for sev in severities %}<td class="num">{{ h.counts.get(sev.key, 0) or '' }}</td>{% endfor %}
+                <td class="num">{{ h.new_count or '' }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+</main>
+</body>
+</html>

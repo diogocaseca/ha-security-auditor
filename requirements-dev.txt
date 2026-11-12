@@ -1,0 +1,5 @@
+-r security_auditor/app/requirements.txt
+pytest
+pytest-asyncio
+pytest-aiohttp
+ruff

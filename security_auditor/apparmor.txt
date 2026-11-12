@@ -1,0 +1,83 @@
+#include <tunables/global>
+
+# Perfil AppArmor do HA Security Auditor.
+#
+# Princípios:
+#  - nenhuma regra "capability": o root do container fica sem capacidades
+#    (sem dac_override, sys_admin, net_admin, etc.);
+#  - escrita apenas em /data (estado e relatórios) e /tmp;
+#  - /config somente leitura, com negação explícita de escrita;
+#  - execução permitida só para binários do sistema e do Python, sempre
+#    herdando este mesmo perfil (ix), nunca sem confinamento.
+profile security_auditor flags=(attach_disconnected,mediate_deleted) {
+  #include <abstractions/base>
+
+  # --- Rede: HTTP(S) e DNS. O filtro por domínio é feito no código (net.py).
+  network inet stream,
+  network inet6 stream,
+  network inet dgram,
+  network inet6 dgram,
+  network unix stream,
+  network unix dgram,
+  network netlink raw,
+
+  # --- Sinais: tini <-> processos do add-on e parada vinda do Docker.
+  signal (send, receive) peer=security_auditor,
+  signal (receive) peer=unconfined,
+  signal (receive) peer=docker-default,
+
+  # --- Entrada: tini do Docker, run.sh e bashio.
+  /sbin/docker-init ix,
+  /run.sh rix,
+  /bin/** rix,
+  /usr/bin/** rix,
+  /usr/lib/bashio/** r,
+
+  # --- Python e ferramentas de análise (instaladas via pip).
+  /usr/local/bin/** rix,
+  /usr/local/lib/** mr,
+  /usr/lib/** mr,
+  /lib/** mr,
+  /usr/share/** r,
+  /etc/** r,
+
+  # --- Código do add-on (somente leitura).
+  /app/ r,
+  /app/** r,
+
+  # --- Configuração do Home Assistant: somente leitura.
+  /config/ r,
+  /config/** r,
+  deny /config/** wlk,
+
+  # --- Estado do add-on.
+  /data/ r,
+  /data/** rwk,
+  /tmp/ r,
+  /tmp/** rwkl,
+  /dev/shm/** rwk,
+
+  # --- Dispositivos e pseudo-sistemas de arquivos mínimos.
+  /dev/null rw,
+  /dev/zero r,
+  /dev/random r,
+  /dev/urandom r,
+  /dev/tty rw,
+  /dev/pts/* rw,
+  @{PROC}/@{pid}/** r,
+  @{PROC}/{cpuinfo,meminfo,stat,loadavg,uptime,version} r,
+  @{PROC}/sys/kernel/{osrelease,hostname,random/*} r,
+  @{PROC}/sys/net/core/somaxconn r,
+  /sys/devices/system/cpu/** r,
+  /sys/fs/cgroup/** r,
+
+  # --- Negações explícitas.
+  deny @{PROC}/sys/** w,
+  deny /sys/** w,
+  deny /etc/** w,
+  deny /app/** w,
+  deny mount,
+  deny umount,
+  deny pivot_root,
+  deny ptrace (trace),
+}

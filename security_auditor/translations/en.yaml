@@ -1,0 +1,16 @@
+configuration:
+  scan_interval_hours:
+    name: Scan interval (hours)
+    description: 0 disables scheduled scans; use the "Scan now" button.
+  scan_on_start:
+    name: Scan on start
+  log_level:
+    name: Log level
+  github_token:
+    name: GitHub token (optional)
+    description: Token with no scopes, only to raise the GitHub API rate limit. Never logged.
+  report_retention:
+    name: Reports kept
+  allowlist:
+    name: Allowlist
+    description: Exceptions per component and rule. Suppressed findings stay in the report, flagged.

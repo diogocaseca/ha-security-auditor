@@ -1,0 +1,97 @@
+"""Leitura das opções do add-on (/data/options.json) e caminhos de trabalho."""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+_LOGGER = logging.getLogger(__name__)
+
+
+@dataclass(frozen=True)
+class AllowlistEntry:
+    component: str  # nome do componente ou "*"
+    rule: str  # id da regra, aceita glob (ex.: "semgrep.*") ou "*"
+    reason: str
+    path: str | None = None  # glob opcional de arquivo
+
+
+@dataclass(frozen=True)
+class Paths:
+    config_dir: Path
+    data_dir: Path
+    rules_dir: Path
+
+    @property
+    def reports_dir(self) -> Path:
+        return self.data_dir / "reports"
+
+    @property
+    def cache_dir(self) -> Path:
+        return self.data_dir / "cache"
+
+    @property
+    def db_path(self) -> Path:
+        return self.data_dir / "auditor.db"
+
+
+@dataclass(frozen=True)
+class Options:
+    scan_interval_hours: int = 24
+    scan_on_start: bool = True
+    log_level: str = "info"
+    github_token: str | None = None
+    report_retention: int = 10
+    allowlist: tuple[AllowlistEntry, ...] = field(default_factory=tuple)
+
+    @classmethod
+    def from_dict(cls, raw: dict[str, Any]) -> Options:
+        entries = []
+        for item in raw.get("allowlist") or []:
+            try:
+                entries.append(
+                    AllowlistEntry(
+                        component=str(item["component"]).strip(),
+                        rule=str(item["rule"]).strip(),
+                        reason=str(item.get("reason", "")).strip(),
+                        path=(str(item["path"]).strip() or None) if item.get("path") else None,
+                    )
+                )
+            except (KeyError, TypeError):
+                _LOGGER.warning("Entrada inválida na allowlist ignorada (precisa de component e rule)")
+        token = raw.get("github_token") or None
+        return cls(
+            scan_interval_hours=max(0, int(raw.get("scan_interval_hours", 24))),
+            scan_on_start=bool(raw.get("scan_on_start", True)),
+            log_level=str(raw.get("log_level", "info")).lower(),
+            github_token=str(token).strip() if token else None,
+            report_retention=max(1, int(raw.get("report_retention", 10))),
+            allowlist=tuple(entries),
+        )
+
+
+def load_paths() -> Paths:
+    """Caminhos padrão do add-on; variáveis AUDITOR_* permitem rodar fora do HA."""
+    app_dir = Path(__file__).resolve().parent.parent
+    return Paths(
+        config_dir=Path(os.environ.get("AUDITOR_CONFIG_DIR", "/config")),
+        data_dir=Path(os.environ.get("AUDITOR_DATA_DIR", "/data")),
+        rules_dir=Path(os.environ.get("AUDITOR_RULES_DIR", str(app_dir / "rules"))),
+    )
+
+
+def load_options(data_dir: Path) -> Options:
+    path = Path(os.environ.get("AUDITOR_OPTIONS", str(data_dir / "options.json")))
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        _LOGGER.warning("Arquivo de opções %s não encontrado; usando padrões", path)
+        raw = {}
+    except (OSError, json.JSONDecodeError) as err:
+        _LOGGER.error("Opções inválidas em %s (%s); usando padrões", path, type(err).__name__)
+        raw = {}
+    return Options.from_dict(raw)
