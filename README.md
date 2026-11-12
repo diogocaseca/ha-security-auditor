@@ -38,6 +38,8 @@ novo desde a varredura anterior e é publicado como sensores
   registros de imagens e consultas a bases de vulnerabilidades, conferidos contra uma
   allowlist de hosts a cada requisição e redirecionamento.
 - Tokens, senhas e o conteúdo do `secrets.yaml` **nunca** aparecem no log ou no relatório.
+- **Não sobrecarrega o HA**: prioridade baixa de CPU e disco, modo leve, espera o sistema
+  desocupar antes das etapas pesadas e horário fixo de varredura, combináveis nas opções.
 
 Detalhes, motivo de cada permissão e limitações em [`security_auditor/DOCS.md`](security_auditor/DOCS.md).
 

@@ -16,6 +16,7 @@ from typing import Any
 
 from ..inventory import MAX_ANALYZED_FILE, Component, Inventory
 from ..models import ComponentType, Finding, Severity
+from ..resources import postponed
 from ..tools import run_tool
 from .base import ScanContext
 
@@ -101,7 +102,12 @@ async def run_semgrep(
     home = ctx.workdir / "semgrep-home"
     results: list[dict[str, Any]] = []
     incomplete: dict[str, str] = {}
+    extra: list[str] = []
+    if ctx.profile.semgrep_max_memory_mb:
+        extra += ["--max-memory", str(ctx.profile.semgrep_max_memory_mb)]
     for i in range(0, len(targets), SEMGREP_BATCH):
+        if i:
+            await ctx.pause()
         batch = targets[i : i + SEMGREP_BATCH]
         res = await run_tool(
             [
@@ -111,7 +117,8 @@ async def run_semgrep(
                 "--no-git-ignore", "--x-ignore-semgrepignore-files", "--no-rewrite-rule-ids",
                 "--max-target-bytes", str(MAX_ANALYZED_FILE),
                 "--timeout", "30", "--timeout-threshold", "3",
-                "--jobs", "2",
+                "--jobs", str(ctx.profile.semgrep_jobs),
+                *extra,
                 *[str(p) for p in batch],
             ],
             home=home,
@@ -153,8 +160,13 @@ class StaticAnalysisScanner:
                     continue
                 semgrep_targets.append(f)
 
+        need = ctx.guard.min_free_mb / 2
+        if semgrep_targets and (reason := await ctx.wait_resources(self.name, need)):
+            findings.append(postponed("auditor", ComponentType.SYSTEM, "análise estática (Semgrep/Bandit)", reason))
+            return findings
         ctx.set_progress(self.name, f"Semgrep em {len(semgrep_targets)} arquivos")
         sg = await self._semgrep(ctx, inv, semgrep_targets)
+        await ctx.pause()
         ctx.set_progress(self.name, f"Bandit em {len(bandit_dirs)} integrações")
         bd = await self._bandit(ctx, inv, bandit_dirs)
         findings.extend(_merge_same_line(sg, bd))

@@ -16,6 +16,7 @@ from .diff import compare
 from .masking import Masker
 from .models import Finding, ScanResult
 from .net import SafeHttpClient
+from .resources import guard_from_options, profile_from_options
 from .scanners.base import Scanner, ScanContext
 from .scoring import summarize
 from .storage import Storage
@@ -70,6 +71,8 @@ class ScanEngine:
             workdir=workdir,
             scan_id=scan_id,
             progress=self.progress,
+            guard=guard_from_options(self.options),
+            profile=profile_from_options(self.options),
         )
         _LOGGER.info("Varredura %s iniciada (%d scanners)", scan_id, len(self.scanners))
         try:

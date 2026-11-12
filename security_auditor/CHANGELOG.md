@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0
+
+- Proteções contra sobrecarga do HA, combináveis na nova opção `modo_execucao`:
+  - `prioridade_baixa`: CPU `nice 19` e disco na classe ociosa para o auditor e as ferramentas;
+  - `modo_leve`: Semgrep com 1 processo e teto de memória, Trivy com paralelismo 1, pausas;
+  - `aguardar_folga`: espera a carga e a memória do host antes das etapas pesadas e adia a
+    etapa (achado "Etapa adiada") se o sistema não desocupar;
+  - `horario_fixo`: varredura diária em `horario_varredura`, no fuso do HA.
+- Padrão: `prioridade_baixa` + `aguardar_folga`.
+- Novas opções: `horario_varredura`, `memoria_minima_mb`, `carga_maxima_por_cpu`.
+- O topo do relatório mostra as proteções ativas.
+
 ## 0.4.2
 
 - Segurança: varreduras canceladas (por exemplo, ao atualizar ou parar o add-on) ou que

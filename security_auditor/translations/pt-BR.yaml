@@ -5,6 +5,24 @@ configuration:
   scan_on_start:
     name: Varrer ao iniciar
     description: Executa uma varredura logo que o add-on inicia.
+  modo_execucao:
+    name: Modo de execução (proteções contra sobrecarga)
+    description: >-
+      Adicione um ou mais modos, combinados. prioridade_baixa: ferramentas com
+      prioridade mínima de CPU e disco. modo_leve: 1 processo por ferramenta,
+      teto de memória e pausas (recomendado em Raspberry Pi). aguardar_folga:
+      espera o sistema desocupar antes das etapas pesadas e adia a etapa se não
+      desocupar. horario_fixo: varredura agendada todo dia no horário abaixo.
+      Lista vazia = sem proteções.
+  horario_varredura:
+    name: Horário da varredura (com horario_fixo)
+    description: Formato HH:MM, no fuso do Home Assistant. Ex. 03:30.
+  memoria_minima_mb:
+    name: Memória livre mínima (MB, com aguardar_folga)
+    description: Abaixo disso as etapas pesadas esperam; a varredura de imagens precisa do valor inteiro, as outras da metade.
+  carga_maxima_por_cpu:
+    name: Carga máxima por núcleo (com aguardar_folga)
+    description: Carga média de 1 minuto dividida pelo número de núcleos. Acima disso as etapas pesadas esperam.
   log_level:
     name: Nível de log
   github_token:

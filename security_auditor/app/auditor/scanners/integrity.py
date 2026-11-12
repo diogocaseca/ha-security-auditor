@@ -101,7 +101,9 @@ class IntegrityScanner:
     async def scan(self, ctx: ScanContext) -> list[Finding]:
         inv: Inventory = ctx.inventory()
         findings: list[Finding] = []
-        for comp in inv.integrations:
+        for n, comp in enumerate(inv.integrations):
+            if n:
+                await ctx.pause()
             ctx.set_progress(self.name, comp.name)
             try:
                 found, status = await self._check(ctx, inv, comp)

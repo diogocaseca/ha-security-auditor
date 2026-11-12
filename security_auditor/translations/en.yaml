@@ -4,6 +4,18 @@ configuration:
     description: 0 disables scheduled scans; use the "Scan now" button.
   scan_on_start:
     name: Scan on start
+  modo_execucao:
+    name: Execution mode (overload protections)
+    description: >-
+      Add one or more, combined. prioridade_baixa = lowest CPU/IO priority;
+      modo_leve = 1 worker, memory cap and pauses; aguardar_folga = wait for the
+      system to be idle before heavy steps; horario_fixo = daily scan at the time below.
+  horario_varredura:
+    name: Scan time (with horario_fixo)
+  memoria_minima_mb:
+    name: Minimum free memory (MB, with aguardar_folga)
+  carga_maxima_por_cpu:
+    name: Maximum load per core (with aguardar_folga)
   log_level:
     name: Log level
   github_token:

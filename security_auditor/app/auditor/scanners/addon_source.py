@@ -30,6 +30,7 @@ from ..addons import AddonInfo
 from ..inventory import walk_files
 from ..models import ComponentType, Finding, Severity
 from ..net import DownloadTooLargeError, EgressDeniedError, HttpError
+from ..resources import postponed
 from ..safe_archive import UnsafeArchiveError, extract
 from .base import ScanContext
 from .static import SEVERITY_BY_LABEL, read_snippet, run_semgrep
@@ -100,6 +101,8 @@ class AddonSourceScanner:
         for addon in await ctx.addons():
             if addon.repository == "local" or not addon.github_candidates():
                 continue
+            if roots:
+                await ctx.pause()
             ctx.set_progress(self.name, addon.slug)
             try:
                 src = await self._locate(ctx, addon)
@@ -121,6 +124,9 @@ class AddonSourceScanner:
             targets.extend(files)
             roots.append((src.root, addon, src))
 
+        if targets and (reason := await ctx.wait_resources(self.name, ctx.guard.min_free_mb / 2)):
+            findings.append(postponed("auditor", ComponentType.SYSTEM, "análise do código dos add-ons", reason))
+            return findings
         if targets:
             ctx.set_progress(self.name, f"Semgrep em {len(targets)} arquivos de add-ons")
             raw, _incomplete = await run_semgrep(ctx, targets, _RULE_DIRS)

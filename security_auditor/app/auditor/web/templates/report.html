@@ -34,7 +34,7 @@
       {% if status.running %}
         Varrendo{% if status.progress.step %}: {{ status.progress.step }}{% endif %}…
       {% elif status.next_run %}
-        Próxima: {{ status.next_run | dt }}
+        Próxima: {{ status.next_run | dt }}{% if status.daily_at %} (todo dia às {{ status.daily_at }}){% endif %}
       {% else %}
         Agendamento desativado
       {% endif %}
@@ -49,6 +49,9 @@
 </header>
 
 <main>
+  {% set mode_labels = {'prioridade_baixa': 'prioridade baixa', 'modo_leve': 'modo leve', 'aguardar_folga': 'aguarda o sistema desocupar', 'horario_fixo': 'horário fixo'} %}
+  <p class="muted small modes">Proteções contra sobrecarga:
+    {% if status.modes %}{% for m in status.modes %}{{ mode_labels.get(m, m) }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}nenhuma{% endif %}</p>
   <p class="notice">
     Este relatório aponta o que <strong>merece revisão humana</strong>. Um achado não significa que
     o componente seja malicioso; leia a explicação e decida.

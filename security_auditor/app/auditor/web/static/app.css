@@ -200,3 +200,4 @@ tr.current td { background: var(--surface-2); }
 
 .comp-meta { color: var(--muted); font-size: 12px; white-space: normal; min-width: 260px; max-width: 520px; margin-top: 2px; }
 .notice-warn { border-left-color: var(--sev-medium); }
+.modes { margin: 0 0 10px; }

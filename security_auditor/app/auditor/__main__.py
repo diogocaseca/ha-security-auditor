@@ -7,16 +7,19 @@ import contextlib
 import logging
 import os
 import signal
+from datetime import UTC, tzinfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import aiohttp
 from aiohttp import web
 
 from . import __version__
-from .config import load_options, load_paths
+from .config import MODE_FIXED_TIME, load_options, load_paths
 from .engine import ScanEngine
 from .masking import MaskingFilter, masker
 from .net import SafeHttpClient
 from .publisher import SensorPublisher
+from .resources import apply_low_priority, wants_low_priority
 from .scanners import default_scanners
 from .scanners.traffic import TrafficCollector
 from .scheduler import SENSOR_REFRESH, Scheduler
@@ -44,6 +47,11 @@ async def main() -> None:
     options = load_options(paths.data_dir)
     setup_logging(options.log_level)
     _LOGGER.info("HA Security Auditor %s", __version__)
+    _LOGGER.info("Modos de execução: %s", ", ".join(sorted(options.execution_modes)) or "nenhuma proteção")
+    if wants_low_priority(options):
+        # Antes de criar threads e subprocessos: tudo herda a prioridade baixa.
+        applied = apply_low_priority()
+        _LOGGER.info("Prioridade baixa aplicada: %s", ", ".join(applied) or "nada")
 
     # Segredos conhecidos, só em memória, para nunca aparecerem em logs/relatórios.
     masker.add_known(os.environ.get("SUPERVISOR_TOKEN"), options.github_token, options.dns_password)
@@ -72,7 +80,14 @@ async def main() -> None:
             latest = await asyncio.to_thread(storage.load_latest)
             await publisher.publish(latest, status)
 
-        scheduler = Scheduler(engine.run, options.scan_interval_hours, options.scan_on_start, on_status)
+        tz = await _timezone(supervisor)
+        daily_at = options.scan_time_parts if options.has_mode(MODE_FIXED_TIME) else None
+        if daily_at:
+            _LOGGER.info("Varredura agendada todo dia às %02d:%02d (%s)", *daily_at, tz)
+        scheduler = Scheduler(
+            engine.run, options.scan_interval_hours, options.scan_on_start, on_status,
+            daily_at=daily_at, tz=tz, modes=sorted(options.execution_modes),
+        )
 
         app = create_app(storage, scheduler, engine.progress)
         runner = web.AppRunner(app, access_log=None)
@@ -107,6 +122,23 @@ async def main() -> None:
             task.cancel()
         await scheduler.stop()
         await runner.cleanup()
+
+
+async def _timezone(supervisor: SupervisorClient) -> tzinfo:
+    """Fuso do HA: variável TZ do add-on, senão o do Supervisor, senão UTC."""
+    names = [os.environ.get("TZ")]
+    if supervisor.available:
+        try:
+            names.append((await supervisor.info()).get("timezone"))
+        except Exception as err:  # noqa: BLE001 - sem fuso do Supervisor, cai para UTC
+            _LOGGER.debug("Fuso do Supervisor indisponível: %s", type(err).__name__)
+    for name in names:
+        if name:
+            try:
+                return ZoneInfo(name)
+            except (ZoneInfoNotFoundError, ValueError):
+                _LOGGER.warning("Fuso horário desconhecido: %s", name)
+    return UTC
 
 
 if __name__ == "__main__":

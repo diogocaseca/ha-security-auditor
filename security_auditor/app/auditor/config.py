@@ -5,11 +5,22 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 _LOGGER = logging.getLogger(__name__)
+
+# Modos de execução (proteções contra sobrecarga), combináveis entre si.
+MODE_LOW_PRIORITY = "prioridade_baixa"
+MODE_LIGHT = "modo_leve"
+MODE_WAIT_IDLE = "aguardar_folga"
+MODE_FIXED_TIME = "horario_fixo"
+EXECUTION_MODES = (MODE_LOW_PRIORITY, MODE_LIGHT, MODE_WAIT_IDLE, MODE_FIXED_TIME)
+DEFAULT_EXECUTION_MODES = (MODE_LOW_PRIORITY, MODE_WAIT_IDLE)
+DEFAULT_SCAN_TIME = "03:30"
+_TIME = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
 
 @dataclass(frozen=True)
@@ -57,6 +68,19 @@ class Options:
     dns_password: str | None = None
     dns_client_ips: tuple[str, ...] = field(default_factory=tuple)
     dns_verify_tls: bool = True
+    execution_modes: frozenset[str] = frozenset(DEFAULT_EXECUTION_MODES)
+    scan_time: str = DEFAULT_SCAN_TIME  # HH:MM, usado com horario_fixo
+    min_free_memory_mb: int = 500
+    max_load_per_cpu: float = 1.5
+
+    def has_mode(self, mode: str) -> bool:
+        return mode in self.execution_modes
+
+    @property
+    def scan_time_parts(self) -> tuple[int, int]:
+        m = _TIME.match(self.scan_time)
+        h, mi = (m.group(1), m.group(2)) if m else DEFAULT_SCAN_TIME.split(":")
+        return int(h), int(mi)
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> Options:
@@ -91,7 +115,32 @@ class Options:
             dns_password=str(raw["dns_password"]) if raw.get("dns_password") else None,
             dns_client_ips=tuple(str(x).strip() for x in (raw.get("dns_client_ips") or []) if str(x).strip()),
             dns_verify_tls=bool(raw.get("dns_verify_tls", True)),
+            execution_modes=_parse_modes(raw.get("modo_execucao")),
+            scan_time=_parse_time(raw.get("horario_varredura")),
+            min_free_memory_mb=max(64, int(raw.get("memoria_minima_mb", 500))),
+            max_load_per_cpu=max(0.2, float(raw.get("carga_maxima_por_cpu", 1.5))),
         )
+
+
+def _parse_modes(raw: Any) -> frozenset[str]:
+    """Lista de modos; ausente = padrão; lista vazia = nenhuma proteção (escolha do usuário)."""
+    if raw is None:
+        return frozenset(DEFAULT_EXECUTION_MODES)
+    modes = {str(x).strip().lower() for x in raw if str(x).strip()}
+    unknown = modes - set(EXECUTION_MODES)
+    if unknown:
+        _LOGGER.warning("Modos de execução desconhecidos ignorados: %s", ", ".join(sorted(unknown)))
+    return frozenset(modes & set(EXECUTION_MODES))
+
+
+def _parse_time(raw: Any) -> str:
+    text = str(raw or "").strip()
+    if not text:
+        return DEFAULT_SCAN_TIME
+    if not _TIME.match(text):
+        _LOGGER.warning("horario_varredura inválido (%s); usando %s", text, DEFAULT_SCAN_TIME)
+        return DEFAULT_SCAN_TIME
+    return text
 
 
 def load_paths() -> Paths:

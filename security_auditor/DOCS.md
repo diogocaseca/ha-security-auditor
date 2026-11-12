@@ -16,6 +16,7 @@ tráfego e domínios suspeitos.
 - [Primeiro uso](#primeiro-uso)
 - [O que é verificado](#o-que-é-verificado)
 - [Opções](#opções)
+- [Proteções contra sobrecarga](#proteções-contra-sobrecarga)
 - [Exceções (allowlist)](#exceções-allowlist)
 - [Sensores](#sensores)
 - [Severidades e nota de risco](#severidades-e-nota-de-risco)
@@ -48,6 +49,9 @@ inicia. Você também pode clicar em **Varrer agora** no topo da página.
   comparação. As seguintes reaproveitam o cache.
 - A primeira varredura é a **linha de base**: nada aparece como "novo". A partir da segunda,
   o relatório destaca o que surgiu e o que foi resolvido.
+- Por padrão o auditor roda com **prioridade baixa** e **espera o sistema desocupar** antes das
+  etapas pesadas; em Raspberry Pi, considere adicionar `modo_leve` e `horario_fixo` (veja
+  [Proteções contra sobrecarga](#proteções-contra-sobrecarga)).
 - A detecção de **picos de tráfego** só começa depois de cerca de 1 hora de coleta
   (12 amostras com o intervalo padrão de 5 minutos).
 
@@ -185,6 +189,10 @@ O Pi-hole v5 não é suportado (API antiga).
 |---|---|---|
 | `scan_interval_hours` | `24` | Intervalo entre varreduras agendadas. `0` desativa o agendamento (só o botão). |
 | `scan_on_start` | `true` | Varre logo que o add-on inicia. |
+| `modo_execucao` | `prioridade_baixa`, `aguardar_folga` | Proteções contra sobrecarga, combináveis. Veja [Proteções contra sobrecarga](#proteções-contra-sobrecarga). |
+| `horario_varredura` | `03:30` | Horário diário (HH:MM, fuso do HA) usado com o modo `horario_fixo`. |
+| `memoria_minima_mb` | `500` | Memória livre mínima para o modo `aguardar_folga`. A varredura de imagens exige o valor inteiro; as demais etapas pesadas, a metade. |
+| `carga_maxima_por_cpu` | `1.5` | Carga média de 1 minuto por núcleo acima da qual o modo `aguardar_folga` espera. |
 | `log_level` | `info` | `debug`, `info`, `warning` ou `error`. |
 | `github_token` | vazio | Token do GitHub **sem nenhum escopo**, só para subir o limite da API de 60 para 5000 requisições/hora. Recomendado com muitas integrações que usam `zip_release`. Nunca é registrado em log. |
 | `report_retention` | `10` | Quantos relatórios guardar. |
@@ -199,6 +207,38 @@ O Pi-hole v5 não é suportado (API antiga).
 | `dns_client_ips` | `[]` | IPs com que o HA aparece no servidor DNS. Vazio = IPs do host (via Supervisor) + `172.30.32.3` (DNS do Supervisor). |
 | `dns_verify_tls` | `true` | Desative só se o servidor DNS usar HTTPS com certificado próprio. |
 | `allowlist` | `[]` | Exceções; veja abaixo. |
+
+## Proteções contra sobrecarga
+
+O HA OS não permite limitar a CPU ou a memória de um add-on, então o próprio auditor se
+contém. Em **`modo_execucao`** você adiciona quantos modos quiser; eles se combinam. Lista
+vazia = sem proteções (a varredura fica mais rápida, mas pode pesar no HA).
+
+| Modo | O que faz | Custo |
+|---|---|---|
+| `prioridade_baixa` | O auditor e tudo o que ele inicia (Semgrep, Bandit, pip-audit, Trivy) rodam com prioridade mínima de CPU (`nice 19`) e de disco (classe "ociosa": só usa o disco quando ninguém mais está usando). | Nenhum perceptível. |
+| `modo_leve` | Semgrep com 1 processo e teto de 768 MB de memória; Trivy com paralelismo 1; pausa de 2 s entre componentes. | Varredura bem mais lenta. Recomendado em Raspberry Pi e máquinas com pouca memória. |
+| `aguardar_folga` | Antes de cada etapa pesada (análise estática, código dos add-ons, cada imagem), confere a carga e a memória livre **do host**. Se passar de `carga_maxima_por_cpu` ou ficar abaixo de `memoria_minima_mb`, espera (até 10 min, checando a cada 30 s). Se não desocupar, **adia** a etapa e registra o achado informativo "Etapa adiada"; ela roda na próxima varredura. | A varredura pode ficar incompleta em horários de pico. |
+| `horario_fixo` | A varredura agendada passa a rodar **uma vez por dia** em `horario_varredura`, no fuso do HA, em vez de a cada `scan_interval_hours` contados do início do add-on. O botão "Varrer agora" continua funcionando a qualquer hora. | Nenhum. |
+
+Combinações úteis:
+
+- **Padrão** (`prioridade_baixa` + `aguardar_folga`): bom para a maioria das instalações.
+- **Raspberry Pi**: os quatro modos, com `horario_varredura` numa hora calma (madrugada).
+- **Máquina folgada que você quer varrer rápido**: só `prioridade_baixa`.
+
+O topo do relatório mostra quais proteções estão ativas e, com `horario_fixo`, o horário da
+próxima varredura.
+
+Limitações:
+
+- O Docker põe cada container num grupo de CPU próprio. A prioridade baixa vale dentro do
+  container e no disco, mas **não garante sozinha** que o HA Core fique com a CPU quando os dois
+  disputam; por isso os outros modos existem.
+- Com `scan_on_start` ligado, a varredura de inicialização ignora o `horario_fixo`. Desligue
+  `scan_on_start` para que as varreduras automáticas rodem só no horário escolhido.
+- A carga do host inclui o que o próprio auditor acabou de fazer; com o limite padrão
+  (1,5 por núcleo), as etapas do auditor sozinhas não costumam disparar a espera.
 
 ## Exceções (allowlist)
 
@@ -406,6 +446,13 @@ existir, desconfie: o código pode não ser o que se diz.
 
 **A varredura de imagens demora ou enche o disco.** Desative `image_scan` ou liste os add-ons
 mais pesados em `image_scan_skip`. A base do Trivy fica em `/data/cache/trivy`.
+
+**O HA fica lento durante a varredura.** Adicione `modo_leve` (e `horario_fixo` com um horário
+de madrugada) em `modo_execucao`; veja [Proteções contra sobrecarga](#proteções-contra-sobrecarga).
+
+**Aparece sempre "Etapa adiada".** O sistema está ocupado no horário da varredura. Use
+`horario_fixo` para um horário calmo ou aumente `carga_maxima_por_cpu` / reduza
+`memoria_minima_mb` (com cuidado: o Trivy é a etapa que mais consome memória).
 
 **A seção de DNS não aparece ou está vazia.**
 

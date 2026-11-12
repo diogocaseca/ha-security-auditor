@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Protocol
+
+from ..resources import Profile, ResourceGuard
 
 if TYPE_CHECKING:
     from ..config import Options, Paths
@@ -30,6 +33,20 @@ class ScanContext:
     components: dict[tuple[str, str], dict[str, Any]] = field(default_factory=dict)
     progress: dict[str, Any] = field(default_factory=dict)
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger("auditor.scan"))
+    guard: ResourceGuard = field(default_factory=ResourceGuard)  # desligado por padrão
+    profile: Profile = field(default_factory=Profile)
+
+    async def wait_resources(self, label: str, need_mb: float | None = None) -> str | None:
+        """Modo aguardar_folga: None = seguir; texto = motivo para adiar a etapa."""
+        reason = await self.guard.wait(label, need_mb)
+        if reason is None and self.guard.enabled:
+            self.set_progress(label)
+        return reason
+
+    async def pause(self) -> None:
+        """Modo leve: pausa curta entre componentes para o sistema respirar."""
+        if self.profile.pause_seconds:
+            await asyncio.sleep(self.profile.pause_seconds)
 
     _inventory: Any = None
 

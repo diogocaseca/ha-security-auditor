@@ -14,6 +14,7 @@ from typing import Any
 
 from ..addons import AddonInfo
 from ..models import ComponentType, Finding, Severity
+from ..resources import postponed
 from ..tools import ToolTimeoutError, run_tool
 from .base import ScanContext
 
@@ -38,6 +39,9 @@ class AddonImageScanner:
             if ref is None:
                 findings.append(_not_scanned(addon, "add-on construído localmente (sem imagem no registro)"))
                 continue
+            if (reason := await ctx.wait_resources(self.name)) is not None:
+                findings.append(postponed(addon.slug, ComponentType.ADDON, "varredura da imagem (Trivy)", reason))
+                continue
             ctx.set_progress(self.name, ref)
             try:
                 data = await self._trivy(ctx, ref)
@@ -50,6 +54,7 @@ class AddonImageScanner:
             found, summary = findings_from_trivy(addon, ref, data)
             findings.extend(found)
             ctx.register_component(ComponentType.ADDON, addon.slug, cves=summary)
+            await ctx.pause()
         return findings
 
     async def _trivy(self, ctx: ScanContext, ref: str) -> dict[str, Any]:
@@ -65,6 +70,7 @@ class AddonImageScanner:
                 "--skip-java-db-update",
                 "--cache-dir", str(ctx.paths.cache_dir / "trivy"),
                 "--timeout", f"{TRIVY_TIMEOUT // 60 - 1}m",
+                "--parallel", str(ctx.profile.trivy_parallel),
                 ref,
             ],
             home=ctx.workdir / "trivy-home",
