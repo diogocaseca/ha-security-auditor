@@ -147,3 +147,19 @@ async def test_web_refuses_non_ingress_peer(aiohttp_client, storage):
     app = create_app(storage, Scheduler(lambda: None, 0, False), {})  # padrão: só 172.30.32.2
     client = await aiohttp_client(app)
     assert (await client.get("/")).status == 403
+
+
+async def test_watchdog_health_endpoint(web_client):
+    client, _ = web_client
+    resp = await client.get("/api/status")
+    assert resp.status == 200
+    data = await resp.json()
+    assert {"running", "next_run", "last_scan_id"} <= set(data)
+
+
+def test_config_declares_watchdog_on_status_endpoint():
+    import yaml
+    from pathlib import Path
+
+    cfg = yaml.safe_load((Path(__file__).parents[1] / "security_auditor/config.yaml").read_text())
+    assert cfg["watchdog"].endswith(f":[PORT:{cfg['ingress_port']}]/api/status")

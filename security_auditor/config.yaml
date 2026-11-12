@@ -1,5 +1,5 @@
 name: HA Security Auditor
-version: "0.4.0"
+version: "0.4.1"
 slug: security_auditor
 description: >-
   Audita integrações customizadas (HACS) e add-ons instalados e gera um
@@ -17,6 +17,9 @@ init: true
 # Interface web pelo Ingress, com atalho na barra lateral.
 ingress: true
 ingress_port: 8099
+# Verificação de saúde para o Watchdog do Supervisor: endpoint leve que só
+# devolve o estado do agendador. Aceito porque vem de 172.30.32.2 (Supervisor).
+watchdog: http://[HOST]:[PORT:8099]/api/status
 panel_icon: mdi:shield-search
 panel_title: Security Auditor
 panel_admin: true

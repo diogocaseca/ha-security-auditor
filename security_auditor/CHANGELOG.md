@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.1
+
+- Verificação de saúde para o Watchdog (`/api/status`): com a chave Watchdog ligada, o
+  Supervisor reinicia o add-on também se ele travar sem cair.
+- Documentação completa (DOCS.md).
+
 ## 0.4.0
 
 - Fase 3: domínios consultados pelo host do HA via AdGuard Home ou Pi-hole v6 (opcional).

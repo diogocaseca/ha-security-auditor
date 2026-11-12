@@ -32,6 +32,9 @@ tráfego e domínios suspeitos.
 2. Adicione `https://github.com/diogocaseca/ha-security-auditor` e feche.
 3. Procure **HA Security Auditor** na loja, instale e clique em **Iniciar**.
 4. Ative **Mostrar na barra lateral** para ter o atalho **Security Auditor** no menu.
+5. (Recomendado) Ative **Watchdog**. O Supervisor reinicia o add-on se ele cair ou se a
+   verificação de saúde (`/api/status`) parar de responder. Varreduras longas não disparam o
+   watchdog: o trabalho pesado roda fora do servidor web.
 
 Arquiteturas suportadas: `amd64` e `aarch64` (Raspberry Pi 4/5 com sistema de 64 bits).
 
@@ -287,6 +290,7 @@ necessário:
 | `ingress: true` | Mostrar o relatório na barra lateral, com o login do próprio HA. O servidor web só aceita conexões vindas do Ingress (`172.30.32.2`), usa CSP restritiva e token anti-CSRF no botão "Varrer agora". Nenhuma porta é aberta na rede. |
 | `apparmor: true` com perfil próprio | Ver abaixo. |
 | `init: true` | O tini do Docker como processo inicial, para repassar sinais e recolher processos das ferramentas. |
+| `watchdog` | Endereço de saúde (`/api/status`) que o Supervisor consulta quando a chave Watchdog está ligada. Só devolve o estado do agendador, sem dados da instalação. |
 
 O que o auditor **não** pede: `docker_api`, `full_access`, `host_network`, `privileged`,
 `host_pid`, acesso a dispositivos ou papel `admin`.
