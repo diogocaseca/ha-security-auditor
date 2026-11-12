@@ -99,6 +99,7 @@ class ScanEngine:
             result.finished_at = utcnow_iso()
             self.progress.clear()
             shutil.rmtree(workdir, ignore_errors=True)
+            self._sanitize(result)
             await asyncio.to_thread(self._persist, result)
         _LOGGER.info(
             "Varredura %s %s: %s, %d novos, %d erros",
@@ -110,12 +111,29 @@ class ScanEngine:
         )
         return result
 
-    def _finalize(self, result: ScanResult, ctx: ScanContext) -> None:
-        result.findings = _dedupe(result.findings)
+    def _sanitize(self, result: ScanResult) -> None:
+        """Mascara segredos em todos os textos do resultado. Idempotente.
+
+        Roda SEMPRE antes de salvar, inclusive em varreduras canceladas (ex.:
+        atualização do add-on) ou que falharam no meio: um relatório parcial
+        nunca pode conter segredos.
+        """
         for f in result.findings:
             f.snippet = _truncate(self.masker.mask(f.snippet))
             f.explanation = self.masker.mask(f.explanation) or ""
             f.title = self.masker.mask(f.title) or ""
+            f.recommendation = self.masker.mask(f.recommendation) or ""
+            if f.file:
+                f.file = self.masker.mask(f.file)
+        result.errors = [self.masker.mask(e) or "" for e in result.errors]
+        result.resolved = [
+            {k: (self.masker.mask(v) if isinstance(v, str) else v) for k, v in r.items()} for r in result.resolved
+        ]
+
+    def _finalize(self, result: ScanResult, ctx: ScanContext) -> None:
+        result.findings = _dedupe(result.findings)
+        # Antes da comparação: a identidade de cada achado usa o trecho já mascarado.
+        self._sanitize(result)
         apply_allowlist(result.findings, self.options.allowlist)
         compare(result, self.storage.load_latest())
         result.findings.sort(key=lambda f: (-int(f.severity), not f.is_new, f.component, f.file or "", f.line or 0))

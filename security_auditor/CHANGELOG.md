@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2
+
+- Segurança: varreduras canceladas (por exemplo, ao atualizar ou parar o add-on) ou que
+  falhavam no meio salvavam o relatório parcial sem mascarar segredos nos trechos de código.
+  Agora o mascaramento é aplicado sempre antes de salvar. Recomenda-se atualizar.
+
 ## 0.4.1
 
 - Verificação de saúde para o Watchdog (`/api/status`): com a chave Watchdog ligada, o

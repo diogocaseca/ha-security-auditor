@@ -1,3 +1,4 @@
+import json
 import asyncio
 import ipaddress
 
@@ -163,3 +164,60 @@ def test_config_declares_watchdog_on_status_endpoint():
 
     cfg = yaml.safe_load((Path(__file__).parents[1] / "security_auditor/config.yaml").read_text())
     assert cfg["watchdog"].endswith(f":[PORT:{cfg['ingress_port']}]/api/status")
+
+
+# --- Relatórios parciais nunca podem conter segredos ---------------------------------
+
+SEGREDO = "token-que-nao-pode-vazar-987"
+
+
+class SlowScanner:
+    """Fica parado até ser cancelado (simula Trivy rodando durante uma atualização)."""
+
+    name = "lento"
+
+    def __init__(self):
+        self.started = asyncio.Event()
+
+    async def scan(self, ctx):
+        self.started.set()
+        await asyncio.Event().wait()
+
+
+def _saved_reports(paths):
+    return [p.read_text(encoding="utf-8") for p in paths.reports_dir.glob("*.json")]
+
+
+async def test_cancelled_scan_saves_masked_partial_report(paths, storage, masker):
+    masker.add_known(SEGREDO)
+    slow = SlowScanner()
+    engine = _engine(paths, storage, masker, Options(),
+                     [FakeScanner([make_finding(snippet=f'api_key = "{SEGREDO}"',
+                                                explanation=f"usa {SEGREDO}")]), slow])
+    task = asyncio.create_task(engine.run())
+    await asyncio.wait_for(slow.started.wait(), 2)
+    task.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await task
+
+    (report,) = _saved_reports(paths)
+    assert SEGREDO not in report
+    data = json.loads(report)
+    assert data["status"] == "falhou" and "Varredura cancelada" in data["errors"]
+    assert data["findings"] and "****" in data["findings"][0]["snippet"]
+
+
+async def test_failed_finalize_saves_masked_report(paths, storage, masker, monkeypatch):
+    import auditor.engine as engine_mod
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("falha simulada na comparação")
+
+    monkeypatch.setattr(engine_mod, "compare", boom)
+    masker.add_known(SEGREDO)
+    engine = _engine(paths, storage, masker, Options(),
+                     [FakeScanner([make_finding(snippet=f"x = '{SEGREDO}'", title=f"t {SEGREDO}")])])
+    result = await engine.run()
+    assert result.status == "falhou"
+    (report,) = _saved_reports(paths)
+    assert SEGREDO not in report
