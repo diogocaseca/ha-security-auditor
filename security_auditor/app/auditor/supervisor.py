@@ -31,6 +31,7 @@ _READ_ONLY_PATHS: tuple[re.Pattern[str], ...] = tuple(
         r"^/info$",
         r"^/core/info$",
         r"^/supervisor/info$",
+        r"^/network/info$",
         r"^/addons/self/info$",
     )
 )

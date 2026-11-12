@@ -29,6 +29,26 @@ configuration:
   stats_interval_minutes:
     name: Intervalo de coleta de estatísticas (minutos)
     description: CPU, memória e rede dos add-ons, para detectar picos de envio. 0 desativa.
+  dns_provider:
+    name: Servidor DNS (Fase 3, opcional)
+    description: >-
+      AdGuard Home ou Pi-hole v6, para listar os domínios consultados pelo host
+      do HA. O DNS de todos os add-ons passa pelo HA: não dá para saber qual
+      add-on fez cada consulta.
+  dns_url:
+    name: URL do servidor DNS
+    description: "Ex.: http://192.168.1.2:3000 (AdGuard) ou http://pi.hole (Pi-hole)."
+  dns_username:
+    name: Usuário (AdGuard Home)
+  dns_password:
+    name: Senha
+    description: Senha do AdGuard Home ou senha de app do Pi-hole v6. Nunca é registrada em log.
+  dns_client_ips:
+    name: IPs do Home Assistant no servidor DNS (opcional)
+    description: Vazio = descobrir automaticamente (IPs do host + 172.30.32.3).
+  dns_verify_tls:
+    name: Verificar certificado TLS
+    description: Desative só se o servidor DNS usar certificado próprio em HTTPS.
   allowlist:
     name: Exceções (allowlist)
     description: >-

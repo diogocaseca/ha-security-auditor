@@ -39,6 +39,12 @@ CREATE TABLE IF NOT EXISTS addon_stats (
     PRIMARY KEY (slug, ts)
 );
 CREATE INDEX IF NOT EXISTS idx_addon_stats_slug_ts ON addon_stats (slug, ts);
+CREATE TABLE IF NOT EXISTS dns_domains (
+    domain     TEXT PRIMARY KEY,
+    first_seen TEXT,
+    last_seen  TEXT,
+    queries    INTEGER NOT NULL DEFAULT 0
+);
 CREATE TABLE IF NOT EXISTS traffic_events (
     slug          TEXT NOT NULL,
     ts            TEXT NOT NULL,
@@ -200,6 +206,21 @@ class Storage:
             ).fetchall()
             conn.execute("UPDATE traffic_events SET reported_scan = ? WHERE reported_scan IS NULL", (scan_id,))
         return [dict(r) for r in rows]
+
+    # --- Domínios DNS (Fase 3) ------------------------------------------------
+
+    def known_dns_domains(self) -> set[str]:
+        with self._conn() as conn:
+            return {r["domain"] for r in conn.execute("SELECT domain FROM dns_domains").fetchall()}
+
+    def upsert_dns_domains(self, rows: list[tuple[str, str | None, str | None, int]]) -> None:
+        with self._conn() as conn:
+            conn.executemany(
+                "INSERT INTO dns_domains (domain, first_seen, last_seen, queries) VALUES (?, ?, ?, ?)"
+                " ON CONFLICT(domain) DO UPDATE SET last_seen = excluded.last_seen,"
+                " queries = dns_domains.queries + excluded.queries",
+                rows,
+            )
 
     def addon_stats_history(self, slug: str, limit: int = 500) -> list[dict[str, Any]]:
         with self._conn() as conn:

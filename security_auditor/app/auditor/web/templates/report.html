@@ -153,6 +153,33 @@
       <p class="muted" id="no-match" hidden>Nenhum achado corresponde aos filtros.</p>
     </section>
 
+    {% for c in result.components if c.component_type == 'rede' and c.metadata.dominios %}
+      <section class="panel">
+        <div class="panel-head">
+          <h2>{{ c.metadata.nome or 'Domínios consultados' }}</h2>
+          <span class="muted small">{{ c.metadata.trafego }}</span>
+        </div>
+        <p class="notice notice-warn">{{ c.metadata.aviso }}</p>
+        <p class="muted small">Clientes considerados: {{ c.metadata.clientes | join(', ') }}.
+          {% if c.metadata.dominios_total > c.metadata.dominios | length %}Mostrando os {{ c.metadata.dominios | length }} mais consultados de {{ c.metadata.dominios_total }}.{% endif %}</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Domínio</th><th class="num">Consultas</th><th class="num">Bloqueadas</th><th>Última</th></tr></thead>
+            <tbody>
+              {% for d in c.metadata.dominios %}
+                <tr>
+                  <td><code>{{ d.dominio }}</code>{% if d.novo %} <span class="badge badge-new">Novo</span>{% endif %}</td>
+                  <td class="num">{{ d.consultas }}</td>
+                  <td class="num">{{ d.bloqueadas or '' }}</td>
+                  <td>{{ d.ultima | dt }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endfor %}
+
     {% if result.resolved %}
       <section class="panel">
         <h2>Resolvidos desde a varredura anterior</h2>

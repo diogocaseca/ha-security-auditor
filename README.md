@@ -11,7 +11,8 @@ sozinho que algo é malicioso.
 >   pip-audit via OSV, integridade contra a release do GitHub): concluída.
 > - Fase 2 (outros add-ons: permissões, código-fonte, imagens com Trivy remoto,
 >   histórico de CPU/memória/rede e picos de tráfego de saída): concluída.
-> - Fase 3 (DNS via AdGuard/Pi-hole): a fazer.
+> - Fase 3 (opcional: domínios consultados pelo host do HA via AdGuard Home ou
+>   Pi-hole v6): concluída.
 
 ## Instalação
 
@@ -29,3 +30,7 @@ uv venv -p 3.12 .venv && uv pip install -p .venv/bin/python -r requirements-dev.
 .venv/bin/python -m pytest
 docker build -t local/security_auditor:dev security_auditor
 ```
+
+## Licença
+
+[MIT](LICENSE).

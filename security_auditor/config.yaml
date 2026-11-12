@@ -1,5 +1,5 @@
 name: HA Security Auditor
-version: "0.3.1"
+version: "0.4.0"
 slug: security_auditor
 description: >-
   Audita integrações customizadas (HACS) e add-ons instalados e gera um
@@ -46,6 +46,12 @@ options:
   image_scan: true
   image_scan_skip: []
   stats_interval_minutes: 5
+  dns_provider: nenhum
+  dns_url: ""
+  dns_username: ""
+  dns_password: ""
+  dns_client_ips: []
+  dns_verify_tls: true
   allowlist: []
 
 schema:
@@ -59,6 +65,13 @@ schema:
   image_scan_skip:
     - str
   stats_interval_minutes: int(0,60)
+  dns_provider: list(nenhum|adguard|pihole)
+  dns_url: str?
+  dns_username: str?
+  dns_password: password?
+  dns_client_ips:
+    - str
+  dns_verify_tls: bool
   allowlist:
     - component: str
       rule: str

@@ -199,3 +199,4 @@ tr.current td { background: var(--surface-2); }
 .theme-switch button[aria-pressed="true"] { background: var(--surface-2); color: var(--text); font-weight: 600; }
 
 .comp-meta { color: var(--muted); font-size: 12px; white-space: normal; min-width: 260px; max-width: 520px; margin-top: 2px; }
+.notice-warn { border-left-color: var(--sev-medium); }

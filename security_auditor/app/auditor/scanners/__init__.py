@@ -7,6 +7,7 @@ from .addon_perms import AddonPermissionsScanner
 from .addon_source import AddonSourceScanner
 from .base import Scanner, ScanContext
 from .deps import DependencyScanner
+from .dns import DnsScanner
 from .integrity import IntegrityScanner
 from .static import StaticAnalysisScanner
 from .traffic import TrafficScanner
@@ -25,5 +26,7 @@ def default_scanners() -> list[Scanner]:
         AddonPermissionsScanner(),
         AddonSourceScanner(),
         TrafficScanner(),
+        # Fase 3: domínios consultados (AdGuard Home / Pi-hole)
+        DnsScanner(),
         AddonImageScanner(),  # por último: é a etapa mais demorada
     ]

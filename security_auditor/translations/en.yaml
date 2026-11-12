@@ -20,6 +20,19 @@ configuration:
   stats_interval_minutes:
     name: Stats collection interval (minutes)
     description: 0 disables.
+  dns_provider:
+    name: DNS server (phase 3, optional)
+    description: AdGuard Home or Pi-hole v6. Add-on DNS goes through HA, so queries cannot be attributed to a specific add-on.
+  dns_url:
+    name: DNS server URL
+  dns_username:
+    name: Username (AdGuard Home)
+  dns_password:
+    name: Password
+  dns_client_ips:
+    name: Home Assistant IPs on the DNS server (optional)
+  dns_verify_tls:
+    name: Verify TLS certificate
   allowlist:
     name: Allowlist
     description: Exceptions per component and rule. Suppressed findings stay in the report, flagged.

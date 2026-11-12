@@ -80,8 +80,13 @@ class SafeHttpClient:
         github_token: str | None = None,
         timeout: float = 60.0,
         session: aiohttp.ClientSession | None = None,
+        allow_http: bool = False,
+        verify_tls: bool = True,
     ) -> None:
         self._allowed = frozenset(h.lower() for h in allowed_hosts)
+        # allow_http: só para o servidor DNS da rede local (Fase 3), nunca para a internet.
+        self._allow_http = allow_http
+        self._verify_tls = verify_tls
         self._github_token = github_token
         self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._session = session
@@ -109,7 +114,7 @@ class SafeHttpClient:
     def check_url(self, url: str) -> None:
         parts = urlsplit(url)
         host = (parts.hostname or "").lower()
-        if parts.scheme != "https":
+        if parts.scheme != "https" and not (self._allow_http and parts.scheme == "http"):
             raise EgressDeniedError(f"Somente HTTPS é permitido: {_redact_url(url)}")
         if host not in self._allowed:
             raise EgressDeniedError(f"Host fora da allowlist de saída: {host}")
@@ -131,6 +136,7 @@ class SafeHttpClient:
         *,
         headers: dict[str, str] | None = None,
         json_body: Any = None,
+        params: dict[str, str] | None = None,
     ) -> aiohttp.ClientResponse:
         """Abre a requisição seguindo redirecionamentos manualmente, checando cada salto."""
         session = self._get_session()
@@ -142,7 +148,9 @@ class SafeHttpClient:
                 current,
                 headers=self._headers_for(current, headers),
                 json=json_body,
+                params=params if current == url else None,
                 allow_redirects=False,
+                ssl=self._verify_tls,
             )
             if resp.status in (301, 302, 303, 307, 308) and "Location" in resp.headers:
                 location = urljoin(current, resp.headers["Location"])
@@ -154,19 +162,30 @@ class SafeHttpClient:
             return resp
         raise EgressDeniedError(f"Redirecionamentos demais a partir de {_redact_url(url)}")
 
-    async def get_json(self, url: str, headers: dict[str, str] | None = None) -> Any:
-        resp = await self._open("GET", url, headers=headers)
+    async def get_json(
+        self,
+        url: str,
+        headers: dict[str, str] | None = None,
+        *,
+        params: dict[str, str] | None = None,
+    ) -> Any:
+        resp = await self._open("GET", url, headers=headers, params=params)
         async with resp:
             if resp.status >= 400:
                 raise HttpError(resp.status, url)
             return await resp.json(content_type=None)
 
-    async def post_json(self, url: str, body: Any) -> Any:
-        resp = await self._open("POST", url, json_body=body)
+    async def post_json(self, url: str, body: Any, headers: dict[str, str] | None = None) -> Any:
+        resp = await self._open("POST", url, json_body=body, headers=headers)
         async with resp:
             if resp.status >= 400:
                 raise HttpError(resp.status, url)
             return await resp.json(content_type=None)
+
+    async def delete(self, url: str, headers: dict[str, str] | None = None) -> int:
+        resp = await self._open("DELETE", url, headers=headers)
+        async with resp:
+            return resp.status
 
     async def download(self, url: str, dest: Path, max_bytes: int = DEFAULT_MAX_DOWNLOAD) -> Path:
         """Baixa para ``dest`` respeitando ``max_bytes``. Remove o arquivo se falhar."""

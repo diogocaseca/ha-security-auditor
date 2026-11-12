@@ -51,6 +51,12 @@ class Options:
     image_scan: bool = True
     image_scan_skip: tuple[str, ...] = field(default_factory=tuple)
     stats_interval_minutes: int = 5
+    dns_provider: str = "nenhum"  # nenhum | adguard | pihole
+    dns_url: str | None = None
+    dns_username: str | None = None
+    dns_password: str | None = None
+    dns_client_ips: tuple[str, ...] = field(default_factory=tuple)
+    dns_verify_tls: bool = True
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> Options:
@@ -79,6 +85,12 @@ class Options:
             image_scan=bool(raw.get("image_scan", True)),
             image_scan_skip=tuple(str(x).strip() for x in (raw.get("image_scan_skip") or []) if str(x).strip()),
             stats_interval_minutes=max(0, min(60, int(raw.get("stats_interval_minutes", 5)))),
+            dns_provider=str(raw.get("dns_provider") or "nenhum").lower(),
+            dns_url=(str(raw["dns_url"]).strip() or None) if raw.get("dns_url") else None,
+            dns_username=(str(raw["dns_username"]).strip() or None) if raw.get("dns_username") else None,
+            dns_password=str(raw["dns_password"]) if raw.get("dns_password") else None,
+            dns_client_ips=tuple(str(x).strip() for x in (raw.get("dns_client_ips") or []) if str(x).strip()),
+            dns_verify_tls=bool(raw.get("dns_verify_tls", True)),
         )
 
 
