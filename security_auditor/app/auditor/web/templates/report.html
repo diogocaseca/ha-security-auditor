@@ -97,7 +97,11 @@
             <tbody>
               {% for c in result.components %}
                 <tr>
-                  <td><button type="button" class="link" data-filter-component="{{ c.name }}">{{ c.name }}</button></td>
+                  <td>
+                    <button type="button" class="link" data-filter-component="{{ c.name }}">{{ c.name }}</button>
+                    {% set details = component_details(c.metadata) %}
+                    {% if details %}<div class="comp-meta">{{ details | join(' · ') }}</div>{% endif %}
+                  </td>
                   <td>{{ type_label(c.component_type) }}</td>
                   <td class="num"><span class="score score-{{ 'high' if c.score >= 40 else ('mid' if c.score >= 10 else 'low') }}">{{ c.score }}</span></td>
                   {% for sev in severities %}<td class="num">{{ c.counts.get(sev.key, 0) or '' }}</td>{% endfor %}

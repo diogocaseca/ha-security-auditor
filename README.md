@@ -9,7 +9,9 @@ sozinho que algo é malicioso.
 > - Fase 0 (base: Ingress, agendamento, sensores, relatório, mascaramento de segredos): concluída.
 > - Fase 1 (integrações customizadas e `www/`: Semgrep + Bandit com regras próprias,
 >   pip-audit via OSV, integridade contra a release do GitHub): concluída.
-> - Fase 2 (outros add-ons) e Fase 3 (DNS): a fazer.
+> - Fase 2 (outros add-ons: permissões, código-fonte, imagens com Trivy remoto,
+>   histórico de CPU/memória/rede e picos de tráfego de saída): concluída.
+> - Fase 3 (DNS via AdGuard/Pi-hole): a fazer.
 
 ## Instalação
 

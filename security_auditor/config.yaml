@@ -1,5 +1,5 @@
 name: HA Security Auditor
-version: "0.2.0"
+version: "0.3.0"
 slug: security_auditor
 description: >-
   Audita integrações customizadas (HACS) e add-ons instalados e gera um
@@ -42,6 +42,10 @@ options:
   log_level: info
   github_token: ""
   report_retention: 10
+  addons_scan: true
+  image_scan: true
+  image_scan_skip: []
+  stats_interval_minutes: 5
   allowlist: []
 
 schema:
@@ -50,6 +54,11 @@ schema:
   log_level: list(debug|info|warning|error)
   github_token: password?
   report_retention: int(1,100)
+  addons_scan: bool
+  image_scan: bool
+  image_scan_skip:
+    - str
+  stats_interval_minutes: int(0,60)
   allowlist:
     - component: str
       rule: str

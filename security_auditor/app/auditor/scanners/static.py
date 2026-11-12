@@ -83,6 +83,51 @@ _BANDIT_INFO: dict[str, tuple[str, str, str]] = {
 }
 
 
+PHASE1_RULE_DIRS = ("python", "javascript")
+
+
+async def run_semgrep(
+    ctx: ScanContext, targets: list[Path], rule_dirs: tuple[str, ...]
+) -> tuple[list[dict[str, Any]], dict[str, str]]:
+    """Roda o Semgrep em lotes sobre ``targets`` com as pastas de regras indicadas.
+
+    Devolve (resultados brutos, {arquivo: tipo de erro} dos analisados só em parte).
+    """
+    if not targets:
+        return [], {}
+    configs: list[str] = []
+    for d in rule_dirs:
+        configs += ["--config", str(ctx.paths.rules_dir / "semgrep" / d)]
+    home = ctx.workdir / "semgrep-home"
+    results: list[dict[str, Any]] = []
+    incomplete: dict[str, str] = {}
+    for i in range(0, len(targets), SEMGREP_BATCH):
+        batch = targets[i : i + SEMGREP_BATCH]
+        res = await run_tool(
+            [
+                "semgrep", "scan", *configs,
+                "--json", "--quiet",
+                "--metrics=off", "--disable-version-check", "--oss-only",
+                "--no-git-ignore", "--x-ignore-semgrepignore-files", "--no-rewrite-rule-ids",
+                "--max-target-bytes", str(MAX_ANALYZED_FILE),
+                "--timeout", "30", "--timeout-threshold", "3",
+                "--jobs", "2",
+                *[str(p) for p in batch],
+            ],
+            home=home,
+            timeout=SEMGREP_TIMEOUT,
+        )
+        if res.returncode not in (0, 1) or not res.stdout.strip():
+            raise RuntimeError(f"semgrep terminou com código {res.returncode}: {res.stderr[-300:]}")
+        data = json.loads(res.stdout)
+        results.extend(data.get("results", []))
+        for err in data.get("errors", []):
+            path = err.get("path") or (err.get("spans") or [{}])[0].get("file")
+            if path:
+                incomplete.setdefault(path, str(err.get("type", "erro")))
+    return results, incomplete
+
+
 class StaticAnalysisScanner:
     name = "analise_estatica"
 
@@ -118,39 +163,8 @@ class StaticAnalysisScanner:
     # --- Semgrep ------------------------------------------------------------
 
     async def _semgrep(self, ctx: ScanContext, inv: Inventory, targets: list[Path]) -> list[Finding]:
-        if not targets:
-            return []
-        home = ctx.workdir / "semgrep-home"
-        results: list[Finding] = []
-        incomplete: dict[str, str] = {}
-        for i in range(0, len(targets), SEMGREP_BATCH):
-            batch = targets[i : i + SEMGREP_BATCH]
-            res = await run_tool(
-                [
-                    "semgrep", "scan",
-                    "--config", str(ctx.paths.rules_dir / "semgrep"),
-                    "--json", "--quiet",
-                    "--metrics=off", "--disable-version-check", "--oss-only",
-                    "--no-git-ignore", "--x-ignore-semgrepignore-files", "--no-rewrite-rule-ids",
-                    "--max-target-bytes", str(MAX_ANALYZED_FILE),
-                    "--timeout", "30", "--timeout-threshold", "3",
-                    "--jobs", "2",
-                    *[str(p) for p in batch],
-                ],
-                home=home,
-                timeout=SEMGREP_TIMEOUT,
-            )
-            if res.returncode not in (0, 1) or not res.stdout.strip():
-                raise RuntimeError(f"semgrep terminou com código {res.returncode}: {res.stderr[-300:]}")
-            data = json.loads(res.stdout)
-            for r in data.get("results", []):
-                f = _from_semgrep(r, inv)
-                if f:
-                    results.append(f)
-            for err in data.get("errors", []):
-                path = err.get("path") or (err.get("spans") or [{}])[0].get("file")
-                if path:
-                    incomplete.setdefault(path, str(err.get("type", "erro")))
+        raw, incomplete = await run_semgrep(ctx, targets, PHASE1_RULE_DIRS)
+        results = [f for f in (_from_semgrep(r, inv) for r in raw) if f]
         for path, kind in incomplete.items():
             p = Path(path)
             comp = inv.owner_of(p)

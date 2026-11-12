@@ -11,6 +11,15 @@ configuration:
     description: Token with no scopes, only to raise the GitHub API rate limit. Never logged.
   report_retention:
     name: Reports kept
+  addons_scan:
+    name: Audit other add-ons
+  image_scan:
+    name: Scan add-on images (Trivy)
+  image_scan_skip:
+    name: Images to skip
+  stats_interval_minutes:
+    name: Stats collection interval (minutes)
+    description: 0 disables.
   allowlist:
     name: Allowlist
     description: Exceptions per component and rule. Suppressed findings stay in the report, flagged.

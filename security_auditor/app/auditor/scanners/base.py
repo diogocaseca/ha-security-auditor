@@ -43,6 +43,24 @@ class ScanContext:
                 self.register_component(comp.component_type, comp.name, **comp.metadata())
         return self._inventory
 
+    _addons: Any = None
+
+    async def addons(self) -> list[Any]:
+        """Add-ons instalados (via Supervisor), coletados uma vez por varredura.
+
+        Sem Supervisor (fora do HA), devolve lista vazia.
+        """
+        if self._addons is None:
+            if self.supervisor is None or not self.options.addons_scan:
+                self._addons = []
+            else:
+                from ..addons import collect
+
+                self._addons = await collect(self.supervisor)
+                for a in self._addons:
+                    self.register_component("addon", a.slug, **a.metadata())
+        return self._addons
+
     def register_component(self, component_type: str, name: str, **metadata: Any) -> None:
         self.components.setdefault((component_type, name), {}).update(metadata)
 

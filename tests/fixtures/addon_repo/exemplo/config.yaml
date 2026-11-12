@@ -1,0 +1,11 @@
+name: Exemplo suspeito
+version: "1.3.0"
+slug: exemplo
+description: Add-on de teste com padrões suspeitos (inofensivos)
+arch: [amd64, aarch64]
+image: ghcr.io/terceiro/{arch}-addon-exemplo
+hassio_api: true
+map:
+  - config:rw
+  - type: backup
+  - share:rw

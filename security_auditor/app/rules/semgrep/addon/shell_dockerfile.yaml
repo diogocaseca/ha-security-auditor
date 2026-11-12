@@ -1,0 +1,142 @@
+# Regras para o código-fonte de add-ons: Dockerfile, scripts de inicialização
+# (run.sh, s6/cont-init.d) e afins. São regex (language "regex") porque muitos
+# scripts de add-on não têm extensão e usam shebangs como "with-contenv bashio".
+rules:
+  - id: auditor.sh.baixa-e-executa
+    languages: [regex]
+    severity: ERROR
+    message: Script baixado e executado direto no shell
+    pattern-regex: (?i)\b(curl|wget)\b[^|;\n]*\|\s*(sudo\s+)?(ba|z|da|a)?sh\b
+    metadata:
+      titulo: Script da internet executado direto (curl | sh)
+      categoria: download_execucao
+      severidade: alta
+      explicacao: >-
+        O conteúdo baixado é executado sem ser salvo nem verificado. Quem controlar
+        o servidor (ou interceptar a conexão) decide o que roda dentro do add-on,
+        e o código pode mudar a cada build ou inicialização.
+      recomendacao: Veja a URL; o ideal é baixar uma versão fixa e conferir o hash antes de executar.
+
+  - id: auditor.sh.decodifica-e-executa
+    languages: [regex]
+    severity: ERROR
+    message: Conteúdo codificado decodificado e executado
+    pattern-either:
+      - pattern-regex: (?i)base64\s+(-d|--decode)\b[^\n]*\|\s*(ba|z|a)?sh\b
+      - pattern-regex: (?i)\beval\s+["']?\$\(\s*(echo|printf)\s+["']?[A-Za-z0-9+/=]{24,}
+      - pattern-regex: (?i)\becho\s+["']?[A-Za-z0-9+/=]{40,}["']?\s*\|\s*base64\s+(-d|--decode)
+    metadata:
+      titulo: Comando ofuscado em base64
+      categoria: ofuscacao
+      severidade: critica
+      explicacao: >-
+        Um comando é guardado codificado e decodificado na hora de executar. Não
+        há motivo legítimo comum para isso em scripts de add-on; é a forma de
+        esconder o que está sendo executado.
+      recomendacao: Decodifique o texto sem executar e leia o comando.
+
+  - id: auditor.sh.shell-reverso
+    languages: [regex]
+    severity: ERROR
+    message: Padrão de shell reverso
+    pattern-either:
+      - pattern-regex: /dev/(tcp|udp)/[^\s/]+/\d+
+      - pattern-regex: \b(nc|ncat|netcat)\b[^\n]*\s-(e|c)\s
+      - pattern-regex: '(?i)\bsocat\b[^\n]*exec:'
+      - pattern-regex: (?i)\bmkfifo\b[^\n]*\b(nc|ncat|netcat)\b
+    metadata:
+      titulo: Padrão de shell reverso
+      categoria: execucao_de_comandos
+      severidade: critica
+      explicacao: >-
+        Conectar um shell a um socket remoto dá a alguém de fora um terminal
+        dentro do add-on, com as permissões dele.
+      recomendacao: Desinstale o add-on e investigue a origem.
+
+  - id: auditor.sh.token-supervisor-externo
+    languages: [regex]
+    severity: ERROR
+    message: SUPERVISOR_TOKEN usado em requisição a host externo
+    pattern-either:
+      - pattern-regex: (?i)SUPERVISOR_TOKEN[^\n]*https?://(?!supervisor\b|localhost\b|127\.0\.0\.1|\$\{?SUPERVISOR)[A-Za-z0-9.-]+
+      - pattern-regex: (?i)https?://(?!supervisor\b|localhost\b|127\.0\.0\.1|\$\{?SUPERVISOR)[A-Za-z0-9.-]+[^\n]*SUPERVISOR_TOKEN
+    metadata:
+      titulo: Token do Supervisor enviado para fora
+      categoria: acesso_sensivel
+      severidade: alta
+      explicacao: >-
+        O SUPERVISOR_TOKEN dá acesso à API do Supervisor com as permissões do
+        add-on. Ele só deveria ser enviado para http://supervisor; aparecer na
+        mesma linha que outro endereço pode significar vazamento.
+      recomendacao: Confira o comando e para onde a requisição vai.
+
+  - id: auditor.sh.acesso-sensivel
+    languages: [regex]
+    severity: ERROR
+    message: Acesso a arquivos sensíveis do Home Assistant
+    pattern-regex: (?i)/(config|homeassistant)/(secrets\.ya?ml|\.storage/(auth|onboarding))
+    metadata:
+      titulo: Acesso ao secrets.yaml ou .storage/auth
+      categoria: acesso_sensivel
+      severidade: alta
+      explicacao: >-
+        O script lê os segredos ou os dados de autenticação do Home Assistant.
+        Poucos add-ons precisam disso (ex.: editores de arquivos acessam por
+        ação do usuário).
+      recomendacao: Verifique o que é lido e para onde vai.
+
+  - id: auditor.sh.destino-suspeito
+    languages: [regex]
+    severity: ERROR
+    message: URL de serviço usado para exfiltração ou hospedagem de payloads
+    pattern-regex: (?i)(pastebin\.com|paste\.ee|hastebin|transfer\.sh|ngrok(-free)?\.(io|app|dev)|webhook\.site|requestbin|pipedream\.net|interact\.sh|oast\.(fun|me|pro|live|site|online)|burpcollaborator|discord(app)?\.com/api/webhooks|api\.telegram\.org/bot|\.onion\b)
+    metadata:
+      titulo: Destino de rede suspeito
+      categoria: destino_suspeito
+      severidade: alta
+      explicacao: >-
+        O código referencia um serviço frequentemente usado para receber dados
+        roubados (webhooks, bots, túneis) ou hospedar payloads.
+      recomendacao: Veja o que é enviado a esse endereço.
+
+  - id: auditor.sh.tls-desativado
+    languages: [regex]
+    severity: WARNING
+    message: Download sem verificar o certificado TLS
+    pattern-either:
+      - pattern-regex: \bcurl\b[^\n]*\s(-k|--insecure)\b
+      - pattern-regex: \bwget\b[^\n]*--no-check-certificate
+    metadata:
+      titulo: Download sem verificação de certificado
+      categoria: tls
+      severidade: media
+      explicacao: >-
+        Sem verificar o certificado, qualquer um no caminho da conexão pode trocar
+        o arquivo baixado.
+      recomendacao: Remova -k/--insecure e use uma URL com certificado válido.
+
+  - id: auditor.docker.add-de-url
+    languages: [regex]
+    severity: WARNING
+    message: ADD de URL remota no Dockerfile
+    pattern-regex: (?im)^\s*ADD\s+(--[a-z-]+=\S+\s+)*https?://
+    metadata:
+      titulo: Dockerfile baixa arquivo com ADD sem verificação
+      categoria: download_execucao
+      severidade: baixa
+      explicacao: >-
+        ADD com URL baixa o arquivo no build sem conferir hash; se o servidor
+        mudar o conteúdo, a imagem muda junto.
+      recomendacao: Prefira baixar com curl e conferir o SHA-256 (ou ADD --checksum=).
+
+  - id: auditor.sh.permissao-777
+    languages: [regex]
+    severity: INFO
+    message: Permissão 777
+    pattern-regex: \bchmod\s+(-R\s+)?0?777\b
+    metadata:
+      titulo: Arquivos com permissão 777
+      categoria: permissao
+      severidade: baixa
+      explicacao: Qualquer processo do container pode alterar esses arquivos.
+      recomendacao: "Use permissões mínimas, por exemplo 755 para executáveis e 644 para arquivos."

@@ -47,6 +47,10 @@ class Options:
     github_token: str | None = None
     report_retention: int = 10
     allowlist: tuple[AllowlistEntry, ...] = field(default_factory=tuple)
+    addons_scan: bool = True
+    image_scan: bool = True
+    image_scan_skip: tuple[str, ...] = field(default_factory=tuple)
+    stats_interval_minutes: int = 5
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> Options:
@@ -71,6 +75,10 @@ class Options:
             github_token=str(token).strip() if token else None,
             report_retention=max(1, int(raw.get("report_retention", 10))),
             allowlist=tuple(entries),
+            addons_scan=bool(raw.get("addons_scan", True)),
+            image_scan=bool(raw.get("image_scan", True)),
+            image_scan_skip=tuple(str(x).strip() for x in (raw.get("image_scan_skip") or []) if str(x).strip()),
+            stats_interval_minutes=max(0, min(60, int(raw.get("stats_interval_minutes", 5)))),
         )
 
 

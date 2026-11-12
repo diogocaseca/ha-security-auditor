@@ -39,6 +39,15 @@ CREATE TABLE IF NOT EXISTS addon_stats (
     PRIMARY KEY (slug, ts)
 );
 CREATE INDEX IF NOT EXISTS idx_addon_stats_slug_ts ON addon_stats (slug, ts);
+CREATE TABLE IF NOT EXISTS traffic_events (
+    slug          TEXT NOT NULL,
+    ts            TEXT NOT NULL,
+    rate          REAL NOT NULL,
+    baseline_mean REAL NOT NULL,
+    baseline_std  REAL NOT NULL,
+    reported_scan TEXT,
+    PRIMARY KEY (slug, ts)
+);
 """
 
 
@@ -162,6 +171,35 @@ class Storage:
                     stats.get("network_tx"),
                 ),
             )
+
+    def addon_stats_since(self, slug: str, since: str) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM addon_stats WHERE slug = ? AND ts >= ? ORDER BY ts", (slug, since)
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def prune_stats(self, older_than: str) -> None:
+        with self._conn() as conn:
+            conn.execute("DELETE FROM addon_stats WHERE ts < ?", (older_than,))
+            conn.execute("DELETE FROM traffic_events WHERE ts < ?", (older_than,))
+
+    def add_traffic_event(self, slug: str, ts: str, rate: float, mean: float, std: float) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                "INSERT OR IGNORE INTO traffic_events (slug, ts, rate, baseline_mean, baseline_std)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (slug, ts, rate, mean, std),
+            )
+
+    def take_unreported_events(self, scan_id: str) -> list[dict[str, Any]]:
+        """Devolve os picos ainda não reportados e os marca como reportados nesta varredura."""
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT * FROM traffic_events WHERE reported_scan IS NULL ORDER BY slug, ts"
+            ).fetchall()
+            conn.execute("UPDATE traffic_events SET reported_scan = ? WHERE reported_scan IS NULL", (scan_id,))
+        return [dict(r) for r in rows]
 
     def addon_stats_history(self, slug: str, limit: int = 500) -> list[dict[str, Any]]:
         with self._conn() as conn:

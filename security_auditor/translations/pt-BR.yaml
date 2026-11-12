@@ -15,6 +15,20 @@ configuration:
   report_retention:
     name: Relatórios mantidos
     description: Quantos relatórios anteriores guardar em /data.
+  addons_scan:
+    name: Auditar outros add-ons
+    description: Permissões, código-fonte, imagens e tráfego dos add-ons instalados.
+  image_scan:
+    name: Varrer imagens dos add-ons (Trivy)
+    description: >-
+      Procura CVEs e segredos nas imagens, direto no registro. É a etapa mais
+      demorada e usa banda e espaço em /data.
+  image_scan_skip:
+    name: Imagens a ignorar
+    description: Slugs de add-ons cujas imagens não devem ser varridas.
+  stats_interval_minutes:
+    name: Intervalo de coleta de estatísticas (minutos)
+    description: CPU, memória e rede dos add-ons, para detectar picos de envio. 0 desativa.
   allowlist:
     name: Exceções (allowlist)
     description: >-

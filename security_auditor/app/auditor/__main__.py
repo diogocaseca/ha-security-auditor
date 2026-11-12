@@ -18,6 +18,7 @@ from .masking import MaskingFilter, masker
 from .net import SafeHttpClient
 from .publisher import SensorPublisher
 from .scanners import default_scanners
+from .scanners.traffic import TrafficCollector
 from .scheduler import SENSOR_REFRESH, Scheduler
 from .storage import Storage
 from .supervisor import CoreStatesPublisher, SupervisorClient
@@ -96,10 +97,14 @@ async def main() -> None:
                 if not scheduler.running:
                     await on_status(status_holder["status"])
 
-        refresher = asyncio.create_task(refresh_sensors())
+        background = [asyncio.create_task(refresh_sensors(), name="auditor-sensores")]
+        if supervisor.available and options.addons_scan:
+            collector = TrafficCollector(storage, supervisor, options.stats_interval_minutes)
+            background.append(asyncio.create_task(collector.run(), name="auditor-estatisticas"))
         await stop.wait()
         _LOGGER.info("Encerrando…")
-        refresher.cancel()
+        for task in background:
+            task.cancel()
         await scheduler.stop()
         await runner.cleanup()
 

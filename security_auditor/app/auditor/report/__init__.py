@@ -32,6 +32,31 @@ def _fmt_dt(value: str | None) -> str:
     return dt.astimezone().strftime("%d/%m/%Y %H:%M")
 
 
+# Metadados exibidos na tabela de componentes, na ordem: (chave, rótulo).
+_DETAIL_KEYS = (
+    ("nome", ""),
+    ("versao", "versão"),
+    ("origem", "origem"),
+    ("integridade", "integridade"),
+    ("codigo_fonte", "código"),
+    ("envio_medio", "envio médio"),
+    ("envio_maximo", "pico de envio"),
+    ("trafego", "tráfego"),
+)
+
+
+def component_details(meta: dict) -> list[str]:
+    out = []
+    for key, label in _DETAIL_KEYS:
+        value = meta.get(key)
+        if value not in (None, ""):
+            out.append(f"{label}: {value}" if label else str(value))
+    cves = meta.get("cves")
+    if isinstance(cves, dict) and any(cves.values()):
+        out.append(f"CVEs: {cves.get('critical', 0)} críticas, {cves.get('high', 0)} altas")
+    return out
+
+
 def _environment() -> Environment:
     env = Environment(
         loader=FileSystemLoader(str(_TEMPLATES)),
@@ -42,6 +67,7 @@ def _environment() -> Environment:
     env.filters["dt"] = _fmt_dt
     env.globals["type_label"] = lambda t: COMPONENT_TYPE_LABELS.get(t, t)
     env.globals["severities"] = sorted(Severity, reverse=True)
+    env.globals["component_details"] = component_details
     return env
 
 
