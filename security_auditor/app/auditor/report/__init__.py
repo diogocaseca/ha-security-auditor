@@ -11,6 +11,7 @@ from jinja2 import Environment, FileSystemLoader, pass_context, select_autoescap
 
 from ..i18n import HTML_LANG, Translator, normalize
 from ..models import ComponentType, ScanResult, Severity
+from ..scanners.dns import is_ignored
 
 _TEMPLATES = Path(__file__).resolve().parent.parent / "web" / "templates"
 
@@ -113,8 +114,10 @@ def render_html(
     config_allowlist: tuple = (),
     history_page: dict[str, Any] | None = None,
     blocklist: dict[str, Any] | None = None,
+    dns_ignored: list[dict[str, Any]] | None = None,
     lang: str = "pt",
 ) -> str:
+    dns_patterns = [e["pattern"] for e in dns_ignored or []]
     lang = normalize(lang)
     tr = Translator(lang)
     sev_labels = {sev.key: sev.label for sev in Severity}
@@ -135,6 +138,9 @@ def render_html(
         ftext=lambda f, field: ((getattr(f, "en", None) or {}).get(field) if lang == "en" else None)
         or getattr(f, field),
         severity_labels=lambda keys: ", ".join(tr.t(sev_labels.get(k, k)) for k in keys),
+        dns_ignored=dns_ignored or [],
+        # A tabela de domínios já reflete a lista atual; os achados mudam na próxima varredura.
+        dns_is_ignored=lambda domain: is_ignored(domain, dns_patterns),
         result=result,
         report=result.to_dict() if result else None,
         status=status,

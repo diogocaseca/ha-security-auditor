@@ -511,7 +511,7 @@
       async function submit() {
         save.disabled = true;
         try {
-          const resp = await post("api/ignored/" + encodeURIComponent(btn.dataset.editReason),
+          const resp = await post((btn.dataset.editUrl || "api/ignored/") + encodeURIComponent(btn.dataset.editReason),
                                   { reason: input.value }, "PATCH");
           if (resp.ok) { window.location.reload(); return; }
           const data = await resp.json().catch(() => ({}));
@@ -553,6 +553,58 @@
     };
     setTimeout(waitDns, 2000);
   }
+
+  // --- Domínios ignorados (aba DNS) ----------------------------------------------------
+  const dnsDialog = document.getElementById("dns-ignore-dialog");
+  const dnsForm = document.getElementById("dns-ignore-form");
+  const dnsError = document.getElementById("dns-ignore-error");
+  function openDnsIgnore(domain) {
+    dnsForm.reset();
+    dnsError.hidden = true;
+    dnsForm.elements.domain.value = domain || "";
+    dnsDialog.showModal();
+    (domain ? dnsForm.elements.reason : dnsForm.elements.domain).focus();
+  }
+  document.getElementById("dns-ignore-add")?.addEventListener("click", () => openDnsIgnore(""));
+  document.querySelectorAll("[data-dns-ignore]").forEach((b) =>
+    b.addEventListener("click", () => openDnsIgnore(b.dataset.dnsIgnore)));
+  document.getElementById("dns-ignore-cancel")?.addEventListener("click", () => dnsDialog.close());
+  dnsForm?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const submit = document.getElementById("dns-ignore-submit");
+    submit.disabled = true;
+    try {
+      const resp = await post("api/dns/ignorados", { dominio: dnsForm.elements.domain.value,
+                                                     motivo: dnsForm.elements.reason.value });
+      if (resp.status === 201) { window.location.reload(); return; }
+      const data = await resp.json().catch(() => ({}));
+      dnsError.textContent = data.error || T("Não foi possível incluir (HTTP {status}).", { status: resp.status });
+      dnsError.hidden = false;
+    } catch (e) {
+      dnsError.textContent = T("Não foi possível incluir.");
+      dnsError.hidden = false;
+    } finally {
+      submit.disabled = false;
+    }
+  });
+  document.querySelectorAll("[data-dns-unignore]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      if (!window.confirm(T("Remover da lista de domínios ignorados? Ele volta aos achados na próxima varredura."))) return;
+      b.disabled = true;
+      try {
+        const resp = await post("api/dns/ignorados/" + encodeURIComponent(b.dataset.dnsUnignore), undefined, "DELETE");
+        if (resp.status === 204 || resp.status === 404) { window.location.reload(); return; }
+        throw new Error("HTTP " + resp.status);
+      } catch (e) {
+        b.disabled = false;
+        window.alert(T("Não foi possível remover da lista."));
+      }
+    }));
+  // "Mostrar domínios ignorados": as linhas ignoradas ficam escondidas por padrão.
+  document.querySelectorAll(".dns-show-ignored").forEach((box) =>
+    box.addEventListener("change", () => {
+      box.closest(".dns-domains").querySelectorAll(".dns-ignored-row").forEach((r) => { r.hidden = !box.checked; });
+    }));
 
   // --- Lista negra pessoal (aba "Lista negra") --------------------------------------
   const blDialog = document.getElementById("blocklist-dialog");

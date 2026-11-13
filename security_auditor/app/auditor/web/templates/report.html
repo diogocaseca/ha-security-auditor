@@ -329,19 +329,27 @@
         </div>
         <p class="notice notice-warn">{{ mtext(c.metadata, 'aviso') }}</p>
         <p class="muted small">{{ _("Clientes considerados: {clientes}.", clientes=(c.metadata.clientes | join(', '))) }}
-          {% if c.metadata.dominios_total > c.metadata.dominios | length %}{{ _("Mostrando os {n} mais consultados de {total}.", n=(c.metadata.dominios | length), total=c.metadata.dominios_total) }}{% endif %}</p>
+          {% if c.metadata.dominios_total > c.metadata.dominios | length %}{{ _("Mostrando os {n} mais recentes de {total}.", n=(c.metadata.dominios | length), total=c.metadata.dominios_total) }}{% endif %}</p>
+        {% set ns = namespace(ign=0) %}
+        {% for d in c.metadata.dominios if dns_is_ignored(d.dominio) %}{% set ns.ign = ns.ign + 1 %}{% endfor %}
+        {% if ns.ign %}
+          <label class="small"><input type="checkbox" class="dns-show-ignored"> {{ _("Mostrar domínios ignorados ({n})", n=ns.ign) }}</label>
+        {% endif %}
         <div class="table-wrap">
           <table>
             {% set multi = (c.metadata.servidores or []) | length > 1 %}
-            <thead><tr><th>{{ _("Domínio") }}</th>{% if multi %}<th>{{ _("Servidor") }}</th>{% endif %}<th class="num">{{ _("Consultas") }}</th><th class="num">{{ _("Bloqueadas") }}</th><th>{{ _("Última") }}</th></tr></thead>
+            <thead><tr><th>{{ _("Domínio") }}</th>{% if multi %}<th>{{ _("Servidor") }}</th>{% endif %}<th class="num">{{ _("Consultas") }}</th><th class="num">{{ _("Bloqueadas") }}</th><th>{{ _("Descoberto em") }}</th><th>{{ _("Última") }}</th><th></th></tr></thead>
             <tbody>
               {% for d in c.metadata.dominios %}
-                <tr>
-                  <td><code>{{ d.dominio }}</code>{% if d.novo %} <span class="badge badge-new">{{ _("Novo") }}</span>{% endif %}</td>
+                {% set ign = dns_is_ignored(d.dominio) %}
+                <tr{% if ign %} class="dns-ignored-row" hidden{% endif %}>
+                  <td><code>{{ d.dominio }}</code>{% if d.novo %} <span class="badge badge-new">{{ _("Novo") }}</span>{% endif %}{% if ign %} <span class="badge badge-muted">{{ _("Ignorado") }}</span>{% endif %}</td>
                   {% if multi %}<td>{{ _('ambos') if (d.servidores or []) | length > 1 else (d.servidores or ['—']) | first }}</td>{% endif %}
                   <td class="num">{{ d.consultas }}</td>
                   <td class="num">{{ d.bloqueadas or '' }}</td>
+                  <td>{{ d.descoberto | dt }}</td>
                   <td>{{ d.ultima | dt }}</td>
+                  <td>{% if not ign %}<button type="button" class="btn btn-ghost btn-sm" data-dns-ignore="{{ d.dominio }}">{{ _("Ignorar…") }}</button>{% endif %}</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -349,6 +357,33 @@
         </div>
       </div>
     {% endfor %}
+    <div class="dns-ignored" id="dns-ignored">
+      <div class="panel-head">
+        <h3>{{ _("Domínios ignorados") }} <span class="muted">({{ dns_ignored | length }})</span></h3>
+        <button type="button" class="btn btn-ghost btn-sm" id="dns-ignore-add">{{ _("Ignorar domínio…") }}</button>
+      </div>
+      <p class="muted small">{{ _h("Domínios que você reconhece saem dos achados de DNS (aleatórios, bloqueados, novos e suspeitos) a partir da <strong>próxima varredura</strong> e ficam escondidos na tabela acima.") }}</p>
+      {% if dns_ignored %}
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>{{ _("Domínio") }}</th><th>{{ _("Motivo") }}</th><th>{{ _("Incluído em") }}</th><th></th></tr></thead>
+            <tbody>
+              {% for e in dns_ignored %}
+                <tr>
+                  <td><code>{{ e.pattern }}</code></td>
+                  <td class="wrap reason-cell" data-reason="{{ e.reason }}"><span class="reason-text">{{ e.reason or '—' }}</span></td>
+                  <td>{{ e.created_at | dt }}</td>
+                  <td class="row-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" data-edit-reason="{{ e.id }}" data-edit-url="api/dns/ignorados/">{{ _("Editar") }}</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-dns-unignore="{{ e.id }}">{{ _("Remover") }}</button>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endif %}
+    </div>
     {% if not dns_components %}
       <p class="muted">{{ _("Os domínios consultados aparecem aqui depois da próxima varredura.") }}</p>
     {% endif %}
@@ -520,6 +555,20 @@
     <div class="dialog-actions">
       <button type="button" class="btn btn-ghost" id="ignore-cancel">{{ _("Cancelar") }}</button>
       <button type="submit" class="btn btn-primary" id="ignore-submit">{{ _("Ignorar") }}</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="dns-ignore-dialog" aria-labelledby="dns-ignore-title">
+  <form method="dialog" id="dns-ignore-form">
+    <h2 id="dns-ignore-title">{{ _("Ignorar domínio") }}</h2>
+    <label>{{ _("Domínio") }} <input type="text" name="domain" maxlength="253" required placeholder="{{ _('ex.: api.exemplo.com ou *.exemplo.com') }}"></label>
+    <p class="muted small">{{ _("*.exemplo.com vale para exemplo.com e todos os subdomínios.") }}</p>
+    <label>{{ _("Motivo") }} <input type="text" name="reason" maxlength="500" placeholder="{{ _('Por que isto pode ser ignorado?') }}" required></label>
+    <p class="error small" id="dns-ignore-error" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-ghost" id="dns-ignore-cancel">{{ _("Cancelar") }}</button>
+      <button type="submit" class="btn btn-primary" id="dns-ignore-submit">{{ _("Ignorar") }}</button>
     </div>
   </form>
 </dialog>

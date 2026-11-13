@@ -169,6 +169,7 @@ JS_KEYS = (
     "Não foi possível incluir (HTTP {status}).", "Não foi possível incluir.",
     "Remover da lista de ignorados? Os achados voltam a contar nos totais.",
     "Não foi possível remover da lista.",
+    "Remover da lista de domínios ignorados? Ele volta aos achados na próxima varredura.",
     "Salvar", "Cancelar", "Motivo",
     "Não foi possível salvar (HTTP {status}).", "Não foi possível salvar.",
     "Testando…", "Editar item {id}", "Adicionar à lista negra pessoal",
@@ -315,7 +316,19 @@ EN: dict[str, str] = {
     # --- DNS e resolvidos ---
     "Domínios consultados": "Queried domains",
     "Clientes considerados: {clientes}.": "Clients considered: {clientes}.",
-    "Mostrando os {n} mais consultados de {total}.": "Showing the {n} most queried out of {total}.",
+    "Mostrando os {n} mais recentes de {total}.": "Showing the {n} most recent out of {total}.",
+    "*.exemplo.com vale para exemplo.com e todos os subdomínios.": "*.example.com covers example.com and all its subdomains.",
+    "Domínios ignorados": "Ignored domains",
+    "Domínios que você reconhece saem dos achados de DNS (aleatórios, bloqueados, novos e suspeitos) a partir da <strong>próxima varredura</strong> e ficam escondidos na tabela acima.":
+        "Domains you recognise are left out of the DNS findings (random, blocked, new and suspicious) from the <strong>next scan</strong> on and are hidden in the table above.",
+    "Ignorado": "Ignored",
+    "Ignorar domínio": "Ignore domain",
+    "Ignorar domínio…": "Ignore domain…",
+    "Incluído em": "Added",
+    "Mostrar domínios ignorados ({n})": "Show ignored domains ({n})",
+    "ex.: api.exemplo.com ou *.exemplo.com": "e.g. api.example.com or *.example.com",
+    "Remover da lista de domínios ignorados? Ele volta aos achados na próxima varredura.":
+        "Remove it from the ignored domains? It comes back to the findings on the next scan.",
     "Domínio": "Domain",
     "Servidor": "Server",
     "Consultas": "Queries",

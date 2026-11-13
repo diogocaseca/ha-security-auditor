@@ -69,11 +69,14 @@ No relatório você encontra:
 - a tabela de componentes com a nota de risco e detalhes (versão, origem, integridade,
   código analisado, tráfego, CVEs). A opção **Esconder componentes sem achados** vem marcada;
   desmarque para ver também os componentes limpos. O seletor **Tipo** mostra só integrações,
-frontend, add-ons etc.;
+frontend, add-ons etc. Os **componentes mais novos vêm primeiro**: a tabela é ordenada pela
+  data de descoberta (a primeira varredura em que o auditor viu o componente, mostrada como
+  "descoberto em"), com a nota de risco como desempate;
 - os achados de um componente: **clique no nome dele na tabela** para abrir uma tela só com
   os achados dele, com filtros por nível. Use **Voltar para o resumo** (ou o voltar do
   navegador); os níveis que estavam marcados no resumo continuam marcados;
-- cada achado com componente, tipo, arquivo e linha, trecho de código (com segredos
+- cada achado com componente, tipo, data de descoberta (os achados também vêm do mais novo
+  para o mais antigo), arquivo e linha, trecho de código (com segredos
   mascarados), por que é suspeito e o que fazer;
 - filtros por texto, "só novos" e "mostrar suprimidos";
 - o botão **Ignorar…** em cada achado e o quadrado **Ignorados**, que mostra quantos achados
@@ -213,6 +216,19 @@ segundo só vê o primeiro como cliente e essas consultas não entram de novo.
 | Domínios com aparência aleatória (exceto CDNs conhecidas e Nabu Casa) | Baixa |
 | Domínios bloqueados pelo seu filtro | Baixa |
 | Domínios novos desde a varredura anterior | Informativa |
+
+A tabela de domínios mostra **primeiro os descobertos por último** (data da primeira consulta que
+o auditor viu), com os mais consultados como desempate, até 150 domínios.
+
+**Domínios ignorados.** Domínios que você reconhece (uma CDN, o seu provedor de nuvem) podem ser
+ignorados: clique em **Ignorar…** na linha do domínio, ou em **Ignorar domínio…** abaixo da
+tabela, e escreva o motivo. Use `*.exemplo.com` para valer para `exemplo.com` e todos os
+subdomínios (`*` e `?` são curingas; só curingas não é aceito). Domínios ignorados saem dos
+achados de DNS (aleatórios, bloqueados, novos e suspeitos) **a partir da próxima varredura** e
+ficam escondidos na tabela (marque **Mostrar domínios ignorados** para vê-los). A lista fica no
+add-on, abaixo da tabela, onde dá para editar o motivo e remover itens. Ela é separada da
+[lista de ignorados](#lista-de-ignorados-e-allowlist), porque um achado de DNS junta vários
+domínios.
 
 Ao iniciar, o add-on **testa a conexão** com cada servidor configurado (login e leitura da
 versão) e mostra o resultado na aba **DNS** e no log:
@@ -596,7 +612,8 @@ Leia antes de concluir que "está tudo limpo":
 Tudo fica em `/data` do add-on (incluído nos backups do add-on):
 
 - `auditor.db` (SQLite): histórico de varreduras, lista de ignorados, lista negra pessoal da tela, estatísticas dos add-ons (30 dias), picos de
-  tráfego e domínios DNS já vistos;
+  tráfego, domínios DNS já vistos, domínios DNS ignorados e a data de descoberta de cada
+  componente e achado;
 - `reports/*.json`: os últimos `report_retention` relatórios, os mesmos do botão Exportar JSON;
 - `cache/`: código de referência do GitHub (integridade e add-ons), base do Trivy, cache do
   pip-audit e a lista negra comunitária (`lista_comunitaria.json`).

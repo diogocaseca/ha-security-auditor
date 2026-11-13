@@ -22,6 +22,7 @@ from ..config import AllowlistEntry
 from ..i18n import LANGS, Bi, english, normalize
 from ..models import Severity
 from ..report import render_html, to_json
+from ..scanners.dns import ignore_pattern
 from ..scheduler import Scheduler
 from ..storage import Storage
 
@@ -201,6 +202,7 @@ def create_app(
             page = 1
         history = await asyncio.to_thread(storage.list_scans, HISTORY_PAGE_SIZE, (page - 1) * HISTORY_PAGE_SIZE)
         ignored = await asyncio.to_thread(storage.list_ignored)
+        dns_ignored = await asyncio.to_thread(storage.list_dns_ignored)
         blocklist = await asyncio.to_thread(_blocklist_view)
         lang = normalize(await asyncio.to_thread(storage.get_setting, "idioma"))
         for row, entry in zip(ignored, await asyncio.to_thread(storage.ignore_entries), strict=True):
@@ -215,6 +217,7 @@ def create_app(
             config_allowlist=config_allowlist,
             history_page={"page": page, "pages": pages, "total": total, "scan": scan_id},
             blocklist=blocklist,
+            dns_ignored=dns_ignored,
             lang=lang,
         )
         return web.Response(text=html, content_type="text/html", charset="utf-8")
@@ -310,6 +313,56 @@ def create_app(
         await _changed()
         return web.Response(status=204)
 
+    # --- Domínios ignorados (aba DNS): valem na próxima varredura ----------------------
+
+    def _entry_id(request: web.Request) -> int:
+        try:
+            return int(request.match_info["entry_id"])
+        except ValueError:
+            raise web.HTTPNotFound() from None
+
+    async def add_dns_ignored(request: web.Request) -> web.Response:
+        try:
+            body = await request.json()
+            if not isinstance(body, dict) or not isinstance(body.get("dominio"), str):
+                raise InvalidEntryError(Bi("Informe o domínio", "Provide the domain"))
+            pattern = ignore_pattern(body["dominio"])
+            reason = parse_reason({"reason": body.get("motivo") if isinstance(body.get("motivo"), str) else ""})
+        except InvalidEntryError as err:
+            return web.json_response({"error": await _say(err.args[0])}, status=400)
+        except ValueError as err:
+            msg = err.args[0] if err.args and isinstance(err.args[0], Bi) else Bi("JSON inválido", "Invalid JSON")
+            return web.json_response({"error": await _say(msg)}, status=400)
+        if len(await asyncio.to_thread(storage.list_dns_ignored)) >= MAX_IGNORED:
+            return web.json_response({"error": await _say(Bi(f"Limite de {MAX_IGNORED} itens na lista",
+                                                             f"Limit of {MAX_IGNORED} items in the list"))}, status=400)
+        now = datetime.now(UTC).isoformat(timespec="seconds")
+        entry_id = await asyncio.to_thread(storage.add_dns_ignored, pattern, reason, now)
+        if entry_id is None:
+            return web.json_response({"error": await _say(Bi(f"{pattern} já está na lista",
+                                                             f"{pattern} is already in the list"))}, status=409)
+        _LOGGER.info("Domínio incluído na lista de ignorados do DNS: %s (#%d)", pattern, entry_id)
+        return web.json_response({"id": entry_id, "dominio": pattern}, status=201)
+
+    async def edit_dns_ignored(request: web.Request) -> web.Response:
+        entry_id = _entry_id(request)
+        try:
+            reason = parse_reason(await request.json())
+        except (InvalidEntryError, ValueError) as err:
+            msg = await _say(err.args[0] if isinstance(err, InvalidEntryError) else Bi("JSON inválido", "Invalid JSON"))
+            return web.json_response({"error": msg}, status=400)
+        if not await asyncio.to_thread(storage.update_dns_ignored_reason, entry_id, reason):
+            raise web.HTTPNotFound(text="Item não encontrado")
+        _LOGGER.info("Motivo editado na lista de domínios ignorados: #%d", entry_id)
+        return web.json_response({"id": entry_id, "reason": reason})
+
+    async def remove_dns_ignored(request: web.Request) -> web.Response:
+        entry_id = _entry_id(request)
+        if not await asyncio.to_thread(storage.remove_dns_ignored, entry_id):
+            raise web.HTTPNotFound(text="Item não encontrado")
+        _LOGGER.info("Domínio removido da lista de ignorados do DNS: #%d", entry_id)
+        return web.Response(status=204)
+
     # --- Idioma da interface (guardado no add-on: vale em qualquer navegador) ---------
 
     async def set_language(request: web.Request) -> web.Response:
@@ -403,6 +456,9 @@ def create_app(
             web.post("/api/ignored", add_ignored),
             web.patch("/api/ignored/{entry_id}", edit_ignored),
             web.delete("/api/ignored/{entry_id}", remove_ignored),
+            web.post("/api/dns/ignorados", add_dns_ignored),
+            web.patch("/api/dns/ignorados/{entry_id}", edit_dns_ignored),
+            web.delete("/api/dns/ignorados/{entry_id}", remove_dns_ignored),
             web.post("/api/idioma", set_language),
             web.get("/api/lista-negra", blocklist_list),
             web.post("/api/lista-negra", blocklist_add),

@@ -67,11 +67,14 @@ The page has the tabs **Components**, **DNS** (when AdGuard Home or Pi-hole is c
 - the components table with the risk score and details (version, source, integrity, analysed
   code, traffic, CVEs). **Hide components without findings** is ticked by default; untick it to see
   clean components too. The **Type** selector shows only integrations, frontend, add-ons, etc., and
-  **Blocklist only** (shown when some component is flagged) shows only blocklisted components;
+  **Blocklist only** (shown when some component is flagged) shows only blocklisted components.
+  The **newest components come first**: the table is ordered by discovery date (the first scan in
+  which the auditor saw the component, shown as "discovered"), with the risk score as tie-breaker;
 - a component's findings: **click its name in the table** to open a page with only its findings,
   with level filters. Use **← Back** (or the browser's back); the levels that were ticked stay
   ticked;
-- each finding with component, type, file and line, code snippet (with secrets masked), why it is
+- each finding with component, type, discovery date (findings are ordered newest first too),
+  file and line, code snippet (with secrets masked), why it is
   suspicious and what to do;
 - filters by text, "New only" and "Show suppressed";
 - the **Ignore…** button on each finding and the **Ignored** card, which shows how many findings are
@@ -210,6 +213,18 @@ those queries are not counted again.
 | Random-looking domains (except known CDNs and Nabu Casa) | Low |
 | Domains blocked by your filter | Low |
 | New domains since the previous scan | Info |
+
+The domain table shows the **most recently discovered domains first** (date of the first query the
+auditor saw), with the most queried as tie-breaker, up to 150 domains.
+
+**Ignored domains.** Domains you recognise (a CDN, your cloud provider) can be ignored: click
+**Ignore…** on the domain's row, or **Ignore domain…** under the table, and write the reason. Use
+`*.example.com` to cover `example.com` and all its subdomains (`*` and `?` are wildcards; wildcards
+alone are not accepted). Ignored domains are left out of the DNS findings (random, blocked, new and
+suspicious) **from the next scan on** and are hidden in the table (tick **Show ignored domains** to
+see them). The list stays in the add-on, under the table, where the reason can be edited and items
+removed. It is separate from the [ignore list](#ignore-list-and-allowlist), because one DNS finding
+groups many domains.
 
 On start, the add-on **tests the connection** to each configured server (login and version read)
 and shows the result in the **DNS** tab and in the log:
@@ -596,7 +611,8 @@ Read this before concluding that "everything is clean":
 Everything lives in the add-on's `/data` (included in the add-on backups):
 
 - `auditor.db` (SQLite): scan history, ignore list, personal blocklist, interface preferences
-  (language), add-on statistics (30 days), traffic spikes and DNS domains already seen;
+  (language), add-on statistics (30 days), traffic spikes, DNS domains already seen, ignored DNS
+  domains and the discovery date of each component and finding;
 - `reports/*.json`: the last `report_retention` reports, the same as the Export JSON button;
 - `cache/`: reference code from GitHub (integrity and add-ons), Trivy's database, pip-audit's cache
   and the community blocklist (`lista_comunitaria.json`).

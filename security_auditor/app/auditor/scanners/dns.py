@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import fnmatch
 import ipaddress
 import logging
 import re
@@ -41,6 +42,7 @@ MAX_PER_CLIENT = 20_000
 PAGE = 500
 HASSIO_DNS_IP = "172.30.32.3"
 TOP_DOMAINS = 150
+_PATTERN = re.compile(r"^[a-z0-9*?._-]+$")
 
 AVISO = (
     "Atenção: o DNS de todos os add-ons e integrações passa pelo Home Assistant, então o servidor DNS "
@@ -380,6 +382,26 @@ def aggregate(queries: Iterable[DnsQuery], known: set[str]) -> dict[str, DomainS
     return stats
 
 
+def ignore_pattern(text: str) -> str:
+    """Valida e normaliza um padrão da lista de domínios ignorados (ex.: ``*.amazonaws.com``)."""
+    pattern = (text or "").strip().lower().rstrip(".")
+    if not pattern or len(pattern) > 253 or not _PATTERN.match(pattern):
+        raise ValueError(Bi("Domínio inválido: use letras, números, ponto, hífen e os curingas * e ?",
+                            "Invalid domain: use letters, digits, dots, hyphens and the * and ? wildcards"))
+    if not re.search(r"[a-z0-9]", pattern) or ".." in pattern:
+        raise ValueError(Bi("O padrão precisa de pelo menos um nome de domínio (só curingas ignoraria tudo)",
+                            "The pattern needs at least one domain name (wildcards alone would ignore everything)"))
+    return pattern
+
+
+def is_ignored(domain: str, patterns: Iterable[str]) -> bool:
+    """``*.exemplo.com`` vale para exemplo.com e para todos os subdomínios."""
+    for p in patterns:
+        if fnmatch.fnmatchcase(domain, p) or (p.startswith("*.") and domain == p[2:]):
+            return True
+    return False
+
+
 def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
     findings: list[Finding] = []
 
@@ -564,11 +586,24 @@ class DnsScanner:
         if not per_server:
             return findings
 
-        known = await _known(ctx)
+        seen = await asyncio.to_thread(ctx.storage.dns_first_seen)
+        known = set(seen)
         stats = aggregate(queries, known)
-        findings.extend(analyze(stats, first_run=not known))
+        patterns = await asyncio.to_thread(ctx.storage.dns_ignored_patterns)
+        active = {d: s for d, s in stats.items() if not is_ignored(d, patterns)}
+        if len(active) < len(stats):
+            _LOGGER.info("DNS: %d domínio(s) fora dos achados pela lista de domínios ignorados",
+                         len(stats) - len(active))
+        findings.extend(analyze(active, first_run=not known))
         await _remember(ctx, stats)
-        top = sorted(stats.values(), key=lambda s: (-s.count, s.domain))[:TOP_DOMAINS]
+
+        def discovered(s: DomainStats) -> str:
+            return seen.get(s.domain) or (s.first.isoformat(timespec="seconds") if s.first else "")
+
+        # Mais novos no topo (data da primeira consulta); empate: os mais consultados.
+        top = sorted(stats.values(), key=lambda s: (-s.count, s.domain))
+        top.sort(key=discovered, reverse=True)
+        top = top[:TOP_DOMAINS]
         names = list(per_server)
         trafego = f"{len(queries)} consultas, {len(stats)} domínios nas últimas 24 h"
         trafego_en = f"{len(queries)} queries, {len(stats)} domains in the last 24 h"
@@ -588,7 +623,7 @@ class DnsScanner:
             aviso=AVISO,
             dominios=[
                 {"dominio": s.domain, "consultas": s.count, "bloqueadas": s.blocked, "novo": s.new,
-                 "servidores": sorted(s.servers),
+                 "servidores": sorted(s.servers), "descoberto": discovered(s) or None,
                  "ultima": s.last.isoformat(timespec="seconds") if s.last else None}
                 for s in top
             ],
@@ -619,10 +654,6 @@ class DnsScanner:
             await provider.close()
             await http.close()
         return out
-
-
-async def _known(ctx: ScanContext) -> set[str]:
-    return await asyncio.to_thread(ctx.storage.known_dns_domains)
 
 
 async def _remember(ctx: ScanContext, stats: dict[str, DomainStats]) -> None:

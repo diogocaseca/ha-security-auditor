@@ -7,6 +7,13 @@
   mais antiga; a data aparece na linha do componente ("descoberto em") e em cada achado. Na
   primeira varredura depois da atualização, as datas são recuperadas dos relatórios guardados.
 - A lista de ignorados e a lista negra pessoal também mostram os itens mais novos primeiro.
+- **Domínios ignorados no DNS:** botão **Ignorar…** em cada linha da tabela de domínios e
+  **Ignorar domínio…** abaixo dela, com motivo editável e curingas (`*.exemplo.com` vale para o
+  domínio e todos os subdomínios). Os domínios ignorados saem dos achados de DNS (aleatórios,
+  bloqueados, novos e suspeitos) a partir da próxima varredura e ficam escondidos na tabela
+  ("Mostrar domínios ignorados" para vê-los).
+- **Tabela de domínios:** os descobertos por último ficam no topo (data da primeira consulta, na
+  nova coluna "Descoberto em"), com os mais consultados como desempate.
 - **Celular:** a barra do topo não fica mais presa ao rolar a tela.
 
 ## 0.15.0

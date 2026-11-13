@@ -75,6 +75,13 @@ CREATE TABLE IF NOT EXISTS ignored (
     reason      TEXT NOT NULL DEFAULT '',
     created_at  TEXT NOT NULL
 );
+-- Domínios que o usuário marcou como conhecidos: saem dos achados de DNS.
+CREATE TABLE IF NOT EXISTS dns_ignored (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    pattern    TEXT NOT NULL UNIQUE,
+    reason     TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
 -- Primeira vez que cada componente ("c") ou achado ("f") apareceu numa varredura.
 CREATE TABLE IF NOT EXISTS discovered (
     key        TEXT PRIMARY KEY,
@@ -371,6 +378,35 @@ class Storage:
     def known_dns_domains(self) -> set[str]:
         with self._conn() as conn:
             return {r["domain"] for r in conn.execute("SELECT domain FROM dns_domains").fetchall()}
+
+    def dns_first_seen(self) -> dict[str, str | None]:
+        """Domínios já vistos e a data da primeira consulta de cada um."""
+        with self._conn() as conn:
+            return {r["domain"]: r["first_seen"] for r in conn.execute("SELECT domain, first_seen FROM dns_domains")}
+
+    # --- Domínios ignorados (aba DNS) ---------------------------------------
+
+    def list_dns_ignored(self) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            return [dict(r) for r in conn.execute("SELECT * FROM dns_ignored ORDER BY id DESC")]
+
+    def dns_ignored_patterns(self) -> list[str]:
+        return [r["pattern"] for r in self.list_dns_ignored()]
+
+    def add_dns_ignored(self, pattern: str, reason: str, created_at: str) -> int | None:
+        """Inclui o padrão; None se ele já estiver na lista."""
+        with self._conn() as conn:
+            cur = conn.execute("INSERT OR IGNORE INTO dns_ignored (pattern, reason, created_at) VALUES (?, ?, ?)",
+                               (pattern, reason, created_at))
+            return int(cur.lastrowid) if cur.rowcount else None
+
+    def update_dns_ignored_reason(self, entry_id: int, reason: str) -> bool:
+        with self._conn() as conn:
+            return conn.execute("UPDATE dns_ignored SET reason = ? WHERE id = ?", (reason, entry_id)).rowcount > 0
+
+    def remove_dns_ignored(self, entry_id: int) -> bool:
+        with self._conn() as conn:
+            return conn.execute("DELETE FROM dns_ignored WHERE id = ?", (entry_id,)).rowcount > 0
 
     def upsert_dns_domains(self, rows: list[tuple[str, str | None, str | None, int]]) -> None:
         with self._conn() as conn:
