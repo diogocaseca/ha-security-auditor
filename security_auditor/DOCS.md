@@ -65,10 +65,14 @@ No relatório você encontra:
   novo para desmarcar;
 - a tabela de componentes com a nota de risco e detalhes (versão, origem, integridade,
   código analisado, tráfego, CVEs);
+- os achados de um componente: **clique no nome dele na tabela** para abrir uma tela só com
+  os achados dele, com filtros por nível. Use **Voltar para o resumo** (ou o voltar do
+  navegador); os níveis que estavam marcados no resumo continuam marcados;
 - cada achado com componente, tipo, arquivo e linha, trecho de código (com segredos
   mascarados), por que é suspeito e o que fazer;
 - filtros por texto, "só novos" e "mostrar suprimidos";
-- o botão **Ignorar…** em cada achado e a [lista de ignorados](#lista-de-ignorados-e-allowlist);
+- o botão **Ignorar…** em cada achado e o quadrado **Ignorados**, que mostra quantos achados
+  estão ignorados e abre a [lista de ignorados](#lista-de-ignorados-e-allowlist);
 - o histórico de varreduras e o botão **Exportar JSON**;
 - o seletor de tema **Sistema / Claro / Escuro**.
 
@@ -260,7 +264,8 @@ Limitações:
 
 ## Lista de ignorados e allowlist
 
-Use para silenciar falsos positivos que você já revisou. **Achados ignorados continuam no
+Use para silenciar falsos positivos que você já revisou. A lista abre ao clicar no quadrado
+**Ignorados**, ao lado dos cartões de nível. **Achados ignorados continuam no
 relatório** (marque "Mostrar suprimidos"); eles só deixam de contar nos totais, nos sensores
 e na nota de risco. Assim nada some em silêncio. Há dois jeitos de ignorar, e os dois valem
 juntos:

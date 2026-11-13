@@ -6,27 +6,74 @@
   const findings = Array.from(document.querySelectorAll(".finding"));
   const compRows = Array.from(document.querySelectorAll(".comp-row"));
   const sevLabels = {};
-  document.querySelectorAll("[data-filter-sev]").forEach((b) => {
+  document.querySelectorAll("button.card[data-filter-sev]").forEach((b) => {
     sevLabels[b.dataset.filterSev] = b.querySelector(".card-label")?.textContent.trim() || b.dataset.filterSev;
   });
+  const SEV_KEYS = Object.keys(sevLabels);
   const state = { sev: new Set(), component: null, text: "", onlyNew: false, suppressed: false };
 
+  // --- Estado na URL --------------------------------------------------------------
+  // ?componente=X abre a tela de achados do componente; ?niveis=critical,high guarda os
+  // níveis marcados. Assim "Voltar" (botão ou navegador) e recarregar mantêm a seleção.
+  function readUrl() {
+    const q = new URLSearchParams(window.location.search);
+    state.component = q.get("componente") || null;
+    state.sev = new Set((q.get("niveis") || "").split(",").filter((k) => SEV_KEYS.includes(k)));
+  }
+
+  function urlFor(component) {
+    const q = new URLSearchParams(window.location.search);
+    q.delete("componente");
+    q.delete("niveis");
+    if (component) q.set("componente", component);
+    if (state.sev.size) q.set("niveis", SEV_KEYS.filter((k) => state.sev.has(k)).join(","));
+    const qs = q.toString();
+    return window.location.pathname + (qs ? "?" + qs : "");
+  }
+
+  function saveLevels() {
+    // Atualiza a entrada atual do histórico (sem criar outra) quando os níveis mudam.
+    try { history.replaceState(history.state, "", urlFor(state.component)); } catch (e) { /* sem histórico */ }
+  }
+
   function apply() {
+    const inComponent = !!state.component;
+    document.body.classList.toggle("view-component", inComponent);
     let visible = 0;
+    let total = 0;
+    const perSev = {};
     for (const el of findings) {
+      const mine = inComponent && el.dataset.component === state.component;
+      if (mine) {
+        total++;
+        if (state.suppressed || el.dataset.suppressed !== "true") perSev[el.dataset.sev] = (perSev[el.dataset.sev] || 0) + 1;
+      }
       const show =
+        mine &&
         (state.sev.size === 0 || state.sev.has(el.dataset.sev)) &&
-        (!state.component || el.dataset.component === state.component) &&
         (!state.onlyNew || el.dataset.new === "true") &&
         (state.suppressed || el.dataset.suppressed !== "true") &&
         (!state.text || el.textContent.toLowerCase().includes(state.text));
       el.hidden = !show;
       if (show) visible++;
     }
-    const counter = document.getElementById("visible-count");
-    if (counter) counter.textContent = findings.length ? `(${visible} de ${findings.length})` : "";
-    const noMatch = document.getElementById("no-match");
-    if (noMatch) noMatch.hidden = visible > 0 || findings.length === 0;
+    if (inComponent) {
+      document.getElementById("findings-component").textContent = state.component;
+      document.getElementById("visible-count").textContent = `(${visible} de ${total})`;
+      const row = compRows.find((r) => r.querySelector("[data-filter-component]")?.dataset.filterComponent === state.component);
+      const meta = [row?.children[1]?.textContent.trim(), row?.querySelector(".comp-meta")?.textContent.trim()];
+      document.getElementById("findings-component-meta").textContent = meta.filter(Boolean).join(" · ");
+      document.querySelectorAll("[data-chip-count]").forEach((c) => {
+        const n = perSev[c.dataset.chipCount] || 0;
+        c.textContent = n ? String(n) : "";
+        c.parentElement.classList.toggle("chip-empty", !n);
+      });
+      document.title = `${state.component} · Security Auditor`;
+    } else {
+      document.title = "Security Auditor";
+    }
+    document.getElementById("component-empty")?.toggleAttribute("hidden", !inComponent || total > 0);
+    document.getElementById("no-match")?.toggleAttribute("hidden", !inComponent || total === 0 || visible > 0);
     // Tabela de componentes: com níveis selecionados, só os que têm achados em algum deles.
     let compVisible = 0;
     for (const row of compRows) {
@@ -48,24 +95,51 @@
     if (ignoreLevels) ignoreLevels.hidden = state.sev.size === 0;
     document.querySelectorAll("[data-filter-sev]").forEach((b) =>
       b.setAttribute("aria-pressed", state.sev.has(b.dataset.filterSev) ? "true" : "false"));
-    document.querySelectorAll("[data-filter-component]").forEach((b) =>
-      b.classList.toggle("active", b.dataset.filterComponent === state.component));
   }
 
   document.querySelectorAll("[data-filter-sev]").forEach((btn) =>
     btn.addEventListener("click", () => {
       const key = btn.dataset.filterSev;
       state.sev.has(key) ? state.sev.delete(key) : state.sev.add(key);
+      saveLevels();
       apply();
     }));
 
+  // --- Navegação entre o resumo e a tela de um componente --------------------------
+  if ("scrollRestoration" in history) history.scrollRestoration = "manual";
+
+  function openComponent(name) {
+    // Guarda a posição do resumo para voltar ao mesmo ponto.
+    try {
+      history.replaceState({ ...(history.state || {}), scroll: window.scrollY }, "", urlFor(null));
+      history.pushState({ component: name }, "", urlFor(name));
+    } catch (e) { /* sem histórico: só troca a tela */ }
+    state.component = name;
+    apply();
+    window.scrollTo(0, 0);
+  }
+
+  function backToSummary() {
+    if (history.state && history.state.component) {
+      history.back(); // volta pela entrada criada ao abrir o componente (popstate cuida do resto)
+      return;
+    }
+    // Aberto direto pela URL (ex.: recarregou a página): substitui pela do resumo.
+    try { history.replaceState({}, "", urlFor(null)); } catch (e) { /* sem histórico */ }
+    state.component = null;
+    apply();
+    window.scrollTo(0, 0);
+  }
+
+  window.addEventListener("popstate", (ev) => {
+    readUrl();
+    apply();
+    window.scrollTo(0, state.component ? 0 : (ev.state && ev.state.scroll) || 0);
+  });
+
   document.querySelectorAll("[data-filter-component]").forEach((btn) =>
-    btn.addEventListener("click", () => {
-      const name = btn.dataset.filterComponent;
-      state.component = state.component === name ? null : name;
-      apply();
-      document.getElementById("findings")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }));
+    btn.addEventListener("click", () => openComponent(btn.dataset.filterComponent)));
+  document.getElementById("back-to-summary")?.addEventListener("click", backToSummary);
 
   const text = document.getElementById("filter-text");
   text?.addEventListener("input", () => { state.text = text.value.trim().toLowerCase(); apply(); });
@@ -74,8 +148,9 @@
   const supp = document.getElementById("filter-suppressed");
   supp?.addEventListener("change", () => { state.suppressed = supp.checked; apply(); });
   document.getElementById("filter-clear")?.addEventListener("click", () => {
-    state.sev.clear(); state.component = null; state.text = ""; state.onlyNew = false; state.suppressed = false;
+    state.sev.clear(); state.text = ""; state.onlyNew = false; state.suppressed = false;
     if (text) text.value = ""; if (onlyNew) onlyNew.checked = false; if (supp) supp.checked = false;
+    saveLevels();
     apply();
   });
 
@@ -153,6 +228,23 @@
   });
 
   if (document.body.dataset.running === "true") setTimeout(poll, 2000);
+
+  // --- Quadrado "Ignorados": mostra/esconde a lista ------------------------------
+  const ignoredPanel = document.getElementById("ignored");
+  const ignoredCard = document.getElementById("toggle-ignored");
+  const OPEN_KEY = "auditor.ignorados.aberto";
+  function setIgnoredOpen(open, scroll) {
+    if (!ignoredCard || !ignoredPanel) return;
+    ignoredPanel.hidden = !open;
+    ignoredCard.setAttribute("aria-pressed", open ? "true" : "false");
+    try { sessionStorage.setItem(OPEN_KEY, open ? "1" : "0"); } catch (e) { /* sem armazenamento */ }
+    if (open && scroll) ignoredPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  ignoredCard?.addEventListener("click", () => setIgnoredOpen(ignoredPanel.hidden, true));
+  // Continua aberta depois de incluir/remover (a página recarrega).
+  let wasOpen = false;
+  try { wasOpen = sessionStorage.getItem(OPEN_KEY) === "1"; } catch (e) { /* sem armazenamento */ }
+  if (wasOpen) setIgnoredOpen(true, false);
 
   // --- Lista de ignorados -----------------------------------------------------
   const dialog = document.getElementById("ignore-dialog");
@@ -267,5 +359,6 @@
         window.alert("Não foi possível remover da lista.");
       }
     }));
+  readUrl();
   apply();
 })();

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.3
+
+- Clicar num componente abre uma **tela só com os achados dele** (com filtros por nível,
+  contagem por nível e botão "Voltar para o resumo"), em vez de rolar a página. O voltar do
+  navegador também funciona, e os níveis marcados no resumo continuam marcados ao voltar
+  (ficam na URL, então recarregar a página também os mantém).
+- Quadrado **Ignorados** junto dos cartões de nível: mostra quantos achados estão ignorados e
+  abre ou fecha a lista de ignorados (que agora fica escondida até ser aberta).
+
 ## 0.7.2
 
 - Removidas as opções antigas de DNS (`dns_provider`, `dns_url`, `dns_username`,

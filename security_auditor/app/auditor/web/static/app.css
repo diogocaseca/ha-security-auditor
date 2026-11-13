@@ -142,6 +142,7 @@ button.card[aria-pressed="true"] { outline: 2px solid var(--accent); outline-off
 .card.sev-medium { border-top-color: var(--sev-medium); }
 .card.sev-low { border-top-color: var(--sev-low); }
 .card-new { border-top-color: var(--new); }
+.card-ignored { border-top-color: var(--muted); }
 
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
 .panel-warn { border-left: 4px solid var(--sev-medium); }
@@ -229,3 +230,24 @@ dialog input[type="text"] {
 #ignore-manual { display: grid; gap: 10px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
 .level-checks { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+
+/* Tela de achados de um componente (?componente=...) */
+body:not(.view-component) #findings-view { display: none; }
+body.view-component main > :not(#findings-view) { display: none; }
+#back-to-summary { margin-bottom: 12px; }
+.view-head { margin-bottom: 4px; }
+.view-head p { margin: 4px 0 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 12px; }
+.chip {
+  border: 1px solid var(--border); border-radius: 999px; padding: 4px 12px; font: inherit; font-size: 13px;
+  background: var(--surface); color: var(--text); cursor: pointer; display: inline-flex; gap: 6px; align-items: center;
+}
+.chip-count { font-weight: 700; }
+.chip-count:empty { display: none; }
+.chip.chip-empty { color: var(--muted); }
+.chip[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 1px; }
+.chip.sev-critical[aria-pressed="true"] { background: var(--sev-critical-bg); color: var(--sev-critical); }
+.chip.sev-high[aria-pressed="true"] { background: var(--sev-high-bg); color: var(--sev-high); }
+.chip.sev-medium[aria-pressed="true"] { background: var(--sev-medium-bg); color: var(--sev-medium); }
+.chip.sev-low[aria-pressed="true"] { background: var(--sev-low-bg); color: var(--sev-low); }
+.chip.sev-info[aria-pressed="true"] { background: var(--sev-info-bg); color: var(--sev-info); }
