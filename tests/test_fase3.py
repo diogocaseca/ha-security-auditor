@@ -90,8 +90,14 @@ def adguard_app(queries=QUERIES) -> web.Application:
         page = entries[:3]  # páginas pequenas para testar a paginação
         return web.json_response({"data": page, "oldest": page[-1]["time"] if page else ""})
 
+    async def status(request: web.Request) -> web.Response:
+        if request.headers.get("Authorization") != expected:
+            return web.Response(status=401)
+        return web.json_response({"version": "v0.107.57", "running": True})
+
     app = web.Application()
     app.router.add_get("/control/querylog", querylog)
+    app.router.add_get("/control/status", status)
     return app
 
 
@@ -184,7 +190,13 @@ def pihole_app(state: dict) -> web.Application:
     app = web.Application()
     app.router.add_post("/api/auth", auth)
     app.router.add_delete("/api/auth", logout)
+    async def version(request: web.Request) -> web.Response:
+        if request.headers.get("X-FTL-SID") != "SID123":
+            return web.Response(status=401)
+        return web.json_response({"version": {"core": {"local": {"version": "v6.1"}}}})
+
     app.router.add_get("/api/queries", queries)
+    app.router.add_get("/api/info/version", version)
     return app
 
 
@@ -329,3 +341,76 @@ def test_report_shows_server_column_only_with_two_servers():
 
     assert "<th>Servidor</th>" in html(["AdGuard Home", "Pi-hole"]) and "<td>ambos</td>" in html(["AdGuard Home", "Pi-hole"])
     assert "<th>Servidor</th>" not in html(["Pi-hole"])
+
+
+
+# --- Teste de conexão -------------------------------------------------------------------------
+
+
+async def test_check_servers_ok_and_failures(aiohttp_server, unused_tcp_port, caplog):
+    import logging
+
+    from auditor.scanners.dns import check_servers
+
+    state: dict = {}
+    ag = await aiohttp_server(adguard_app())
+    pi = await aiohttp_server(pihole_app(state))
+    caplog.set_level(logging.INFO, logger="auditor")
+    servers = (
+        _adguard(ag), _pihole(pi), _pihole(pi, "senha-errada"),
+        DnsServer("adguard", f"http://127.0.0.1:{unused_tcp_port}", "admin", "x"),  # nada escutando
+        DnsServer("pihole", "ftp://pi.hole"), DnsServer("adguard", None),
+    )
+    r = await check_servers(servers)
+    assert [x["ok"] for x in r] == [True, True, False, False, False, False]
+    assert r[0]["versao"] == "v0.107.57" and r[1]["versao"] == "v6.1"
+    assert r[0]["endereco"].startswith("127.0.0.1:") and r[0]["mensagem"] == "conectado"
+    assert "recusou a senha" in r[2]["mensagem"]
+    assert "não foi possível conectar" in r[3]["mensagem"]
+    assert "URL inválida" in r[4]["mensagem"] and r[5]["mensagem"] == "URL não configurada"
+    assert state["logout_sid"] == "SID123"  # sessão do teste encerrada
+    log = caplog.text
+    assert "conexão OK, versão v0.107.57" in log and "falha na conexão" in log
+    assert "2 de 6 servidor(es) OK" in log
+    assert "segredo-dns" not in log and "senha-app" not in log and "senha-errada" not in log
+
+
+async def test_adguard_check_wrong_password(aiohttp_server):
+    from auditor.scanners.dns import check_server
+
+    ag = await aiohttp_server(adguard_app())
+    r = await check_server(_adguard(ag, "errada"))
+    assert not r["ok"] and "recusou o usuário/senha" in r["mensagem"]
+
+
+async def test_dns_check_endpoint(aiohttp_client, tmp_path):
+    import ipaddress
+
+    from auditor.scheduler import Scheduler
+    from auditor.storage import Storage
+    from auditor.web import CSRF_HEADER, create_app
+
+    storage = Storage(tmp_path / "db.sqlite", tmp_path / "reports")
+    state = {"configurado": True, "testando": False, "resultados": []}
+    calls = []
+
+    async def fake_check():
+        calls.append(1)
+        state["resultados"] = [{"servidor": "Pi-hole", "ok": False, "mensagem": "o Pi-hole recusou a senha",
+                                "endereco": "pi.hole", "versao": None, "verificado_em": "2026-11-12T03:00:00+00:00"}]
+        return state["resultados"]
+
+    app = create_app(storage, Scheduler(lambda: None, 0, False), {}, allowed_peers={ipaddress.ip_address("127.0.0.1")},
+                     dns_state=state, dns_check=fake_check)
+    client = await aiohttp_client(app)
+    html = await (await client.get("/")).text()
+    token = html.split('name="csrf-token" content="')[1].split('"')[0]
+    assert "Servidores DNS:" in html and 'id="dns-check"' in html
+    assert (await client.post("/api/dns/check")).status == 403  # sem CSRF
+    resp = await client.post("/api/dns/check", headers={CSRF_HEADER: token})
+    assert resp.status == 200 and calls == [1]
+    html = await (await client.get("/")).text()
+    assert "✗ Pi-hole: o Pi-hole recusou a senha" in " ".join(html.split())
+    assert (await (await client.get("/api/status")).json())["dns"]["resultados"][0]["servidor"] == "Pi-hole"
+    state["configurado"] = False
+    assert (await client.post("/api/dns/check", headers={CSRF_HEADER: token})).status == 409

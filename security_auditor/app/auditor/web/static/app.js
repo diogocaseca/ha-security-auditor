@@ -11,7 +11,9 @@
   });
   const SEV_KEYS = Object.keys(sevLabels);
   const state = { sev: new Set(), component: null, view: null, text: "", onlyNew: false, suppressed: false,
-                  hideEmpty: true };
+                  hideEmpty: true, type: "" };
+  const typeSelect = document.getElementById("filter-type");
+  const TYPES = typeSelect ? Array.from(typeSelect.options).map((o) => o.value).filter(Boolean) : [];
   // Preferência "Esconder componentes sem achados" (marcada por padrão), lembrada neste navegador.
   const HIDE_KEY = "auditor.esconderVazios";
   try { if (localStorage.getItem(HIDE_KEY) === "0") state.hideEmpty = false; } catch (e) { /* sem armazenamento */ }
@@ -25,6 +27,8 @@
     state.component = q.get("componente") || null;
     state.view = state.component ? null : (VIEWS.includes(q.get("ver")) ? q.get("ver") : null);
     state.sev = new Set((q.get("niveis") || "").split(",").filter((k) => SEV_KEYS.includes(k)));
+    state.type = TYPES.includes(q.get("tipo")) ? q.get("tipo") : "";
+    if (typeSelect) typeSelect.value = state.type;
   }
 
   function urlFor(component, view) {
@@ -32,10 +36,12 @@
     q.delete("componente");
     q.delete("ver");
     q.delete("niveis");
+    q.delete("tipo");
     if (component) q.set("componente", component);
     else if (view) q.set("ver", view);
     if (view !== "historico") q.delete("pagina"); // a página só vale na aba de histórico
     if (state.sev.size) q.set("niveis", SEV_KEYS.filter((k) => state.sev.has(k)).join(","));
+    if (state.type) q.set("tipo", state.type);
     const qs = q.toString();
     return window.location.pathname + (qs ? "?" + qs : "");
   }
@@ -93,7 +99,8 @@
     let compVisible = 0;
     for (const row of compRows) {
       const sevs = row.dataset.sevs.split(" ").filter(Boolean);
-      const show = (state.sev.size === 0 || sevs.some((s) => state.sev.has(s))) && (!state.hideEmpty || sevs.length > 0);
+      const show = (state.sev.size === 0 || sevs.some((s) => state.sev.has(s))) &&
+        (!state.hideEmpty || sevs.length > 0) && (!state.type || row.dataset.type === state.type);
       row.hidden = !show;
       if (show) compVisible++;
     }
@@ -175,6 +182,13 @@
   // Quadrado "Ignorados": abre a aba da lista; clicar de novo volta ao resumo.
   document.getElementById("toggle-ignored")?.addEventListener("click", () =>
     state.view === "ignorados" ? backToSummary() : openView(null, "ignorados"));
+
+  // Filtro de tipo (fica na URL, como os níveis, e volta selecionado ao retornar ao resumo).
+  typeSelect?.addEventListener("change", () => {
+    state.type = typeSelect.value;
+    saveLevels();
+    apply();
+  });
 
   const hideEmpty = document.getElementById("hide-empty");
   if (hideEmpty) hideEmpty.checked = state.hideEmpty;
@@ -462,6 +476,28 @@
         if (ev.key === "Escape") { ev.preventDefault(); close(); }
       });
     }));
+
+  // Teste de conexão com os servidores DNS (o resultado da inicialização já vem na página).
+  const dnsBtn = document.getElementById("dns-check");
+  dnsBtn?.addEventListener("click", async () => {
+    dnsBtn.disabled = true;
+    dnsBtn.textContent = "Testando…";
+    try {
+      await post("api/dns/check");
+    } catch (e) { /* o resultado (ou a falha) aparece ao recarregar */ }
+    window.location.reload();
+  });
+  // Se o teste da inicialização ainda estiver rodando, atualiza quando terminar.
+  if (dnsBtn && dnsBtn.disabled) {
+    const waitDns = async () => {
+      try {
+        const data = await (await fetch("api/status", { cache: "no-store" })).json();
+        if (data.dns && !data.dns.testando) { window.location.reload(); return; }
+      } catch (e) { /* tenta de novo */ }
+      setTimeout(waitDns, 2000);
+    };
+    setTimeout(waitDns, 2000);
+  }
 
   readUrl();
   apply();

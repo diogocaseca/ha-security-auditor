@@ -65,7 +65,8 @@ No relatório você encontra:
   novo para desmarcar;
 - a tabela de componentes com a nota de risco e detalhes (versão, origem, integridade,
   código analisado, tráfego, CVEs). A opção **Esconder componentes sem achados** vem marcada;
-  desmarque para ver também os componentes limpos;
+  desmarque para ver também os componentes limpos. O seletor **Tipo** mostra só integrações,
+frontend, add-ons etc.;
 - os achados de um componente: **clique no nome dele na tabela** para abrir uma tela só com
   os achados dele, com filtros por nível. Use **Voltar para o resumo** (ou o voltar do
   navegador); os níveis que estavam marcados no resumo continuam marcados;
@@ -207,6 +208,17 @@ segundo só vê o primeiro como cliente e essas consultas não entram de novo.
 | Domínios com aparência aleatória (exceto CDNs conhecidas e Nabu Casa) | Baixa |
 | Domínios bloqueados pelo seu filtro | Baixa |
 | Domínios novos desde a varredura anterior | Informativa |
+
+Ao iniciar, o add-on **testa a conexão** com cada servidor configurado (login e leitura da
+versão) e mostra o resultado no topo da tela inicial e no log:
+
+```
+INFO  DNS AdGuard Home (192.168.1.2:3000): conexão OK, versão v0.107.57 (35 ms)
+WARNING DNS Pi-hole (192.168.1.3): falha na conexão: o Pi-hole recusou a senha (...) (120 ms)
+```
+
+Use **Testar conexão** na tela inicial para repetir o teste depois de corrigir algo (a
+configuração nova só vale depois de reiniciar o add-on).
 
 O Pi-hole v5 não é suportado (API antiga).
 

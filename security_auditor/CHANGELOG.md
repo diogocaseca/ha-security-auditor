@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.1
+
+- **Teste de conexão com o AdGuard Home e o Pi-hole** ao iniciar o add-on: faz login e lê a
+  versão de cada servidor. O resultado aparece no topo da tela inicial (✓ conectado com a
+  versão, ou ✗ com o motivo: senha recusada, endereço/porta, certificado, tempo esgotado…) e no
+  log, com o tempo de resposta. O botão **Testar conexão** repete o teste a qualquer hora.
+- Filtro de **tipo** na tabela de componentes (integração, frontend, add-on…), guardado na URL
+  como os níveis.
+
 ## 0.8.0
 
 - **Componentes ignorados por inteiro não são mais varridos.** Um item da lista de ignorados

@@ -18,9 +18,11 @@ import base64
 import ipaddress
 import logging
 import re
+import time
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
+from typing import Any
 from urllib.parse import urlsplit
 
 import aiohttp
@@ -178,6 +180,18 @@ class AdGuardHome:
                 break
         return out
 
+    async def check(self) -> str | None:
+        """Teste de conexão: autentica e lê o status. Devolve a versão do AdGuard Home."""
+        try:
+            data = await self._http.get_json(f"{self._base}/control/status", headers=self._headers)
+        except HttpError as err:
+            if err.status in (401, 403):
+                raise DnsProviderError("o AdGuard Home recusou o usuário/senha") from err
+            if err.status == 404:
+                raise DnsProviderError("API /control não encontrada: confira se a URL é do AdGuard Home") from err
+            raise
+        return str((data or {}).get("version") or "") or None
+
     async def close(self) -> None:
         return None
 
@@ -247,6 +261,16 @@ class PiHole6:
             cursor = str(data["cursor"]) if data.get("cursor") is not None else cursor
         return out
 
+    async def check(self) -> str | None:
+        """Teste de conexão: abre a sessão (senha) e tenta ler a versão do Pi-hole."""
+        await self._login()
+        try:
+            data = await self._http.get_json(f"{self._base}/api/info/version", headers=self._headers())
+        except (HttpError, aiohttp.ClientError, ValueError):
+            return None  # a versão é só informativa; o login já provou a conexão
+        core = (((data or {}).get("version") or {}).get("core") or {}).get("local") or {}
+        return str(core.get("version") or "") or None
+
     async def close(self) -> None:
         if self._sid:
             try:
@@ -254,6 +278,70 @@ class PiHole6:
             except Exception:  # noqa: BLE001 - logout é cortesia; nunca falha a varredura
                 _LOGGER.debug("Logout do Pi-hole falhou")
             self._sid = None
+
+
+# --- Teste de conexão (na inicialização e pelo botão "Testar conexão") -------------------
+
+CHECK_TIMEOUT = 10
+
+
+async def check_server(srv: DnsServer, verify_tls: bool = True) -> dict[str, Any]:
+    """Testa a conexão e o login num servidor DNS. Nunca levanta exceção; nada de senha no resultado."""
+    started = time.monotonic()
+    out: dict[str, Any] = {
+        "servidor": srv.label, "tipo": srv.kind, "endereco": None, "ok": False, "mensagem": "", "versao": None,
+        "verificado_em": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    parts = urlsplit(srv.url or "")
+    if not srv.url:
+        out["mensagem"] = "URL não configurada"
+        return out
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        out["mensagem"] = "URL inválida (use http:// ou https://)"
+        return out
+    out["endereco"] = parts.hostname + (f":{parts.port}" if parts.port else "")
+    http = SafeHttpClient(allowed_hosts=frozenset({parts.hostname.lower()}), allow_http=True,
+                          verify_tls=verify_tls, timeout=CHECK_TIMEOUT)
+    provider = (AdGuardHome(http, srv.url, srv.username, srv.password) if srv.kind == "adguard"
+                else PiHole6(http, srv.url, srv.password))
+    try:
+        out["versao"] = await provider.check()
+        out["ok"] = True
+        out["mensagem"] = "conectado"
+    except DnsProviderError as err:
+        out["mensagem"] = str(err)
+    except HttpError as err:
+        out["mensagem"] = f"o servidor respondeu HTTP {err.status}"
+    except EgressDeniedError as err:
+        out["mensagem"] = f"bloqueado pelo filtro de saída ({err})"
+    except (aiohttp.ClientConnectorCertificateError, aiohttp.ClientSSLError):
+        out["mensagem"] = "certificado TLS inválido (para certificado próprio, desative dns_verify_tls)"
+    except aiohttp.ClientConnectorError:
+        out["mensagem"] = "não foi possível conectar (confira endereço e porta)"
+    except TimeoutError:
+        out["mensagem"] = f"sem resposta em {CHECK_TIMEOUT} s"
+    except (aiohttp.ClientError, ValueError) as err:
+        out["mensagem"] = f"erro de conexão ({type(err).__name__})"
+    finally:
+        await provider.close()
+        await http.close()
+        out["ms"] = int((time.monotonic() - started) * 1000)
+    return out
+
+
+async def check_servers(servers: tuple[DnsServer, ...], verify_tls: bool = True) -> list[dict[str, Any]]:
+    """Testa todos os servidores em paralelo e registra o resultado no log."""
+    results = list(await asyncio.gather(*(check_server(s, verify_tls) for s in servers)))
+    for r in results:
+        where = f"{r['servidor']} ({r['endereco'] or 'sem URL'})"
+        if r["ok"]:
+            _LOGGER.info("DNS %s: conexão OK%s (%d ms)", where,
+                         f", versão {r['versao']}" if r["versao"] else "", r.get("ms", 0))
+        else:
+            _LOGGER.warning("DNS %s: falha na conexão: %s (%d ms)", where, r["mensagem"], r.get("ms", 0))
+    ok = sum(1 for r in results if r["ok"])
+    _LOGGER.info("Teste de conexão DNS concluído: %d de %d servidor(es) OK", ok, len(results))
+    return results
 
 
 # --- Análise ------------------------------------------------------------------------

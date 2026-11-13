@@ -111,7 +111,10 @@ def create_app(
     allowed_peers: set | None = None,
     config_allowlist: tuple[AllowlistEntry, ...] = (),
     on_change: Callable[[], Awaitable[None]] | None = None,
+    dns_state: dict[str, Any] | None = None,
+    dns_check: Callable[[], Awaitable[list[dict[str, Any]]]] | None = None,
 ) -> web.Application:
+    dns = dns_state if dns_state is not None else {"configurado": False, "testando": False, "resultados": []}
     peers = allowed_peers if allowed_peers is not None else _allowed_peers()
     csrf_token = secrets.token_urlsafe(32)
 
@@ -155,7 +158,7 @@ def create_app(
             row["pula_varredura"] = skips_whole_component(entry)
         html = render_html(
             result,
-            status={**scheduler.status(), "progress": dict(progress)},
+            status={**scheduler.status(), "progress": dict(progress), "dns": dns},
             history=history,
             csrf_token=csrf_token,
             viewing_latest=result is None or result.scan_id == latest_id,
@@ -166,7 +169,15 @@ def create_app(
         return web.Response(text=html, content_type="text/html", charset="utf-8")
 
     async def status(request: web.Request) -> web.Response:
-        return web.json_response({**scheduler.status(), "progress": dict(progress)})
+        return web.json_response({**scheduler.status(), "progress": dict(progress), "dns": dns})
+
+    async def dns_check_now(request: web.Request) -> web.Response:
+        if dns_check is None or not dns.get("configurado"):
+            return web.json_response({"error": "Nenhum servidor DNS configurado"}, status=409)
+        if dns.get("testando"):
+            return web.json_response({"error": "Teste já em andamento"}, status=409)
+        _LOGGER.info("Teste de conexão DNS solicitado pela interface")
+        return web.json_response({"resultados": await dns_check()})
 
     async def scan_now(request: web.Request) -> web.Response:
         accepted = scheduler.request_scan()
@@ -267,6 +278,7 @@ def create_app(
             web.get("/api/status", status),
             web.post("/api/scan", scan_now),
             web.post("/api/scan/cancel", cancel_scan),
+            web.post("/api/dns/check", dns_check_now),
             web.get("/api/ignored", list_ignored),
             web.post("/api/ignored", add_ignored),
             web.patch("/api/ignored/{entry_id}", edit_ignored),

@@ -22,6 +22,7 @@ from .publisher import SensorPublisher
 from .resources import apply_low_priority, wants_low_priority
 from .scanners import default_scanners
 from .scanners.traffic import TrafficCollector
+from .scanners.dns import check_servers
 from .scheduler import SENSOR_REFRESH, Scheduler
 from .storage import Storage
 from .supervisor import CoreStatesPublisher, SupervisorClient
@@ -90,11 +91,24 @@ async def main() -> None:
             daily_at=daily_at, tz=tz, modes=sorted(options.execution_modes),
         )
 
+        # Teste de conexão com o AdGuard/Pi-hole: na inicialização e pelo botão da interface.
+        dns_state: dict = {"configurado": bool(options.dns_servers), "testando": False, "resultados": []}
+
+        async def check_dns() -> list[dict]:
+            if not options.dns_servers:
+                return []
+            dns_state["testando"] = True
+            try:
+                dns_state["resultados"] = await check_servers(options.dns_servers, options.dns_verify_tls)
+            finally:
+                dns_state["testando"] = False
+            return dns_state["resultados"]
+
         async def on_ignored_change() -> None:
             await on_status(status_holder["status"])
 
         app = create_app(storage, scheduler, engine.progress, config_allowlist=options.allowlist,
-                         on_change=on_ignored_change)
+                         on_change=on_ignored_change, dns_state=dns_state, dns_check=check_dns)
         runner = web.AppRunner(app, access_log=None)
         await runner.setup()
         port = int(os.environ.get("AUDITOR_PORT", "8099"))
@@ -118,6 +132,12 @@ async def main() -> None:
                     await on_status(status_holder["status"])
 
         background = [asyncio.create_task(refresh_sensors(), name="auditor-sensores")]
+        if not options.dns_servers:
+            _LOGGER.info("Nenhum servidor DNS configurado (AdGuard/Pi-hole): etapa de DNS desativada")
+        if options.dns_servers:
+            _LOGGER.info("Testando a conexão com %d servidor(es) DNS: %s", len(options.dns_servers),
+                         ", ".join(s.label for s in options.dns_servers))
+            background.append(asyncio.create_task(check_dns(), name="auditor-teste-dns"))
         if supervisor.available and options.addons_scan:
             collector = TrafficCollector(storage, supervisor, options.stats_interval_minutes)
             background.append(asyncio.create_task(collector.run(), name="auditor-estatisticas"))

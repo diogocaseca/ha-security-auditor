@@ -58,6 +58,19 @@
   {% set mode_labels = {'prioridade_baixa': 'prioridade baixa', 'modo_leve': 'modo leve', 'aguardar_folga': 'aguarda o sistema desocupar', 'horario_fixo': 'horário fixo'} %}
   <p class="muted small modes">Proteções contra sobrecarga:
     {% if status.modes %}{% for m in status.modes %}{{ mode_labels.get(m, m) }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}nenhuma{% endif %}</p>
+  {% if status.dns and status.dns.configurado %}
+    <p class="muted small dns-status" id="dns-status">Servidores DNS:
+      {% if status.dns.testando and not status.dns.resultados %}
+        <span>testando a conexão…</span>
+      {% endif %}
+      {% for r in status.dns.resultados %}
+        <span class="dns-pill {{ 'dns-ok' if r.ok else 'dns-fail' }}"
+              title="{{ r.endereco or '' }} · verificado em {{ r.verificado_em | dt }}{% if r.ms is defined %} · {{ r.ms }} ms{% endif %}">
+          {{ '✓' if r.ok else '✗' }} {{ r.servidor }}{% if r.ok %}{% if r.versao %} {{ r.versao }}{% endif %}{% else %}: {{ r.mensagem }}{% endif %}</span>
+      {% endfor %}
+      <button type="button" class="link" id="dns-check" {% if status.dns.testando %}disabled{% endif %}>Testar conexão</button>
+    </p>
+  {% endif %}
   <p class="notice">
     Este relatório aponta o que <strong>merece revisão humana</strong>. Um achado não significa que
     o componente seja malicioso; leia a explicação e decida.
@@ -101,6 +114,13 @@
         <div class="panel-head">
           <h2>Componentes <span class="muted" id="comp-count"></span></h2>
           <div class="actions">
+            {% set comp_types = result.components | map(attribute='component_type') | unique | sort | list %}
+            <label class="small type-filter">Tipo
+              <select id="filter-type" aria-label="Filtrar componentes por tipo">
+                <option value="">Todos</option>
+                {% for t in comp_types %}<option value="{{ t }}">{{ type_label(t) }}</option>{% endfor %}
+              </select>
+            </label>
             <label class="small"><input type="checkbox" id="hide-empty" checked> Esconder componentes sem achados</label>
             <span class="muted small" id="comp-filter-note" hidden></span>
             {% if viewing_latest %}
@@ -118,7 +138,7 @@
             </thead>
             <tbody>
               {% for c in result.components %}
-                <tr class="comp-row" data-sevs="{% for sev in severities if c.counts.get(sev.key, 0) %}{{ sev.key }} {% endfor %}">
+                <tr class="comp-row" data-type="{{ c.component_type }}" data-sevs="{% for sev in severities if c.counts.get(sev.key, 0) %}{{ sev.key }} {% endfor %}">
                   <td>
                     <button type="button" class="link" data-filter-component="{{ c.name }}">{{ c.name }}</button>
                     {% set details = component_details(c.metadata) %}

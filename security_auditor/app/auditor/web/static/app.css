@@ -284,3 +284,16 @@ body.view-history main > :not(#history):not(.tabs) { display: none; }
   background: var(--surface-2); color: var(--text); font: inherit;
 }
 .reason-edit .error { flex-basis: 100%; margin: 0; }
+
+/* Status da conexão com os servidores DNS */
+.dns-status { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.dns-pill { padding: 1px 8px; border-radius: 999px; font-weight: 600; }
+.dns-ok { background: var(--sev-low-bg); color: var(--sev-low); }
+.dns-fail { background: var(--sev-critical-bg); color: var(--sev-critical); }
+
+/* Filtro de tipo na tabela de componentes */
+.type-filter { display: inline-flex; gap: 6px; align-items: center; }
+.type-filter select {
+  padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font: inherit;
+}
