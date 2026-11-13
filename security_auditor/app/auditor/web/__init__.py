@@ -322,6 +322,11 @@ def create_app(
             return web.json_response({"error": f"idioma must be one of {', '.join(LANGS)}"}, status=400)
         await asyncio.to_thread(storage.set_setting, "idioma", lang)
         _LOGGER.info("Idioma da interface alterado para %s", lang)
+        if on_change:  # republica os sensores com os nomes no idioma novo
+            try:
+                await on_change()
+            except Exception:  # noqa: BLE001
+                _LOGGER.exception("Falha ao atualizar os sensores")
         return web.json_response({"idioma": lang})
 
     # --- Lista negra pessoal (aba "Lista negra") ----------------------------------

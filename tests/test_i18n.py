@@ -170,3 +170,17 @@ def test_categories_steps_and_suppression_have_english():
     assert tr.category("ofuscacao") == "obfuscation" and Translator("pt").category("ofuscacao") == "ofuscação"
     assert tr.suppression("revisado (lista de ignorados)") == "revisado (ignore list)"
     assert tr.meta({"x": "pt", "x_en": "en"}, "x") == "en" and Translator("pt").meta({"x": "pt", "x_en": "en"}, "x") == "pt"
+
+
+def test_sensor_names_follow_language_but_ids_and_units_do_not():
+    from auditor.publisher import build_states
+
+    pt = build_states(None, "ocioso", "pt")
+    en = build_states(None, "ocioso", "en")
+    assert pt.keys() == en.keys()  # entity_id iguais
+    assert en["sensor.security_auditor_alertas_altos"][1]["friendly_name"] == "Security Auditor High alerts"
+    assert pt["sensor.security_auditor_alertas_altos"][1]["friendly_name"] == "Security Auditor Alertas altos"
+    assert en["sensor.security_auditor_ultima_varredura"][1]["friendly_name"] == "Security Auditor Last scan"
+    # Unidade e valor de estado não mudam (estatísticas e automações continuam funcionando).
+    assert en["sensor.security_auditor_alertas_altos"][1]["unit_of_measurement"] == "achados"
+    assert en["sensor.security_auditor_status"][0] == pt["sensor.security_auditor_status"][0] == "ocioso"

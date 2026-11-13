@@ -18,6 +18,7 @@ from .config import MODE_FIXED_TIME, load_options, load_paths
 from .engine import ScanEngine
 from .masking import MaskingFilter, masker
 from .net import SafeHttpClient
+from .i18n import normalize
 from .publisher import SensorPublisher
 from .resources import apply_low_priority, wants_low_priority
 from .scanners import default_scanners
@@ -80,7 +81,8 @@ async def main() -> None:
         async def on_status(status: str) -> None:
             status_holder["status"] = status
             latest = await asyncio.to_thread(storage.load_latest)
-            await publisher.publish(latest, status)
+            lang = await asyncio.to_thread(storage.get_setting, "idioma")
+            await publisher.publish(latest, status, normalize(lang))
 
         tz = await _timezone(supervisor)
         daily_at = options.scan_time_parts if options.has_mode(MODE_FIXED_TIME) else None
