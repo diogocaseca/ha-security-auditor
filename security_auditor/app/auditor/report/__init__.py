@@ -103,6 +103,7 @@ def render_html(
     viewing_latest: bool = True,
     ignored: list[dict[str, Any]] | None = None,
     config_allowlist: tuple = (),
+    history_page: dict[str, Any] | None = None,
 ) -> str:
     template = _ENV.get_template("report.html")
     return template.render(
@@ -114,6 +115,7 @@ def render_html(
         viewing_latest=viewing_latest,
         ignored=ignored or [],
         config_allowlist=config_allowlist,
+        history_page=history_page or {"page": 1, "pages": 1, "total": len(history), "scan": None},
     )
 
 

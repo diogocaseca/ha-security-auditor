@@ -151,15 +151,19 @@ class Storage:
             )
         return path
 
-    def list_scans(self, limit: int = 50) -> list[dict[str, Any]]:
+    def list_scans(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT * FROM scans ORDER BY scan_id DESC LIMIT ?", (limit,)
+                "SELECT * FROM scans ORDER BY scan_id DESC LIMIT ? OFFSET ?", (limit, max(0, offset))
             ).fetchall()
         return [
             {**dict(r), "counts": json.loads(r["counts_json"] or "{}")}
             for r in rows
         ]
+
+    def count_scans(self) -> int:
+        with self._conn() as conn:
+            return int(conn.execute("SELECT COUNT(*) FROM scans").fetchone()[0])
 
     def latest_completed_id(self) -> str | None:
         with self._conn() as conn:

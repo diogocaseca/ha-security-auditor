@@ -44,6 +44,7 @@ CSRF_HEADER = "X-Auditor-CSRF"
 _FINGERPRINT = re.compile(r"^[0-9a-f]{24}$")
 _LIMITS = {"component": 200, "rule": 200, "path": 500, "reason": 500, "title": 300}
 MAX_IGNORED = 500
+HISTORY_PAGE_SIZE = 10
 _SEVERITY_KEYS = [s.key for s in sorted(Severity, reverse=True)]
 
 
@@ -129,7 +130,14 @@ def create_app(
                 raise web.HTTPNotFound(text="Varredura não encontrada")
         else:
             result = await asyncio.to_thread(storage.load_latest)
-        history = await asyncio.to_thread(storage.list_scans, 30)
+        # Paginação do histórico (?pagina=N, 10 por página).
+        total = await asyncio.to_thread(storage.count_scans)
+        pages = max(1, -(-total // HISTORY_PAGE_SIZE))
+        try:
+            page = min(max(1, int(request.query.get("pagina", "1"))), pages)
+        except ValueError:
+            page = 1
+        history = await asyncio.to_thread(storage.list_scans, HISTORY_PAGE_SIZE, (page - 1) * HISTORY_PAGE_SIZE)
         ignored = await asyncio.to_thread(storage.list_ignored)
         html = render_html(
             result,
@@ -139,6 +147,7 @@ def create_app(
             viewing_latest=result is None or result.scan_id == latest_id,
             ignored=ignored,
             config_allowlist=config_allowlist,
+            history_page={"page": page, "pages": pages, "total": total, "scan": scan_id},
         )
         return web.Response(text=html, content_type="text/html", charset="utf-8")
 

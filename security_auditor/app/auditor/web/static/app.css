@@ -266,3 +266,11 @@ body.view-ignored main > :not(#ignored):not(.cards):not(.notice):not(.modes):not
 .tabs button[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
 body:not(.view-history) #history { display: none; }
 body.view-history main > :not(#history):not(.tabs) { display: none; }
+
+/* Paginação do histórico */
+.pager { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; justify-content: center; margin-top: 12px; }
+.pager-link, .pager-current { min-width: 32px; text-align: center; padding: 4px 8px; border-radius: 6px; }
+.pager-link { color: var(--accent); text-decoration: none; }
+.pager-link:hover { background: var(--surface-2); }
+.pager-current { background: var(--accent); color: var(--accent-text); font-weight: 700; }
+.pager [aria-disabled="true"] { opacity: .45; cursor: default; }

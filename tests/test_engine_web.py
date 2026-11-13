@@ -221,3 +221,22 @@ async def test_failed_finalize_saves_masked_report(paths, storage, masker, monke
     assert result.status == "falhou"
     (report,) = _saved_reports(paths)
     assert SEGREDO not in report
+
+
+async def test_history_pagination(aiohttp_client, paths, storage):
+    from auditor.models import ScanResult
+
+    for i in range(23):
+        storage.save_scan(ScanResult(scan_id=f"20261101T0000{i:02d}000000Z", started_at="2026-11-01T00:00:00+00:00",
+                                     finished_at="2026-11-01T00:01:30+00:00", status="concluida"))
+    assert storage.count_scans() == 23
+    assert [s["scan_id"][:15] for s in storage.list_scans(10, 20)] == [f"20261101T0000{i:02d}" for i in (2, 1, 0)]
+
+    app = create_app(storage, Scheduler(lambda: None, 0, False), {}, allowed_peers={ipaddress.ip_address("127.0.0.1")})
+    client = await aiohttp_client(app)
+    html = await (await client.get("/?ver=historico&pagina=3")).text()
+    assert html.count("./?scan=") == 3 and '<span class="pager-current" aria-current="page">3</span>' in html
+    assert 'href="./?ver=historico&amp;pagina=2" rel="prev"' in html and "1 min 30 s" in html
+    # Página inválida ou além do fim cai numa página válida.
+    assert '<span class="pager-current" aria-current="page">3</span>' in await (await client.get("/?pagina=99")).text()
+    assert '<span class="pager-current" aria-current="page">1</span>' in await (await client.get("/?pagina=x")).text()

@@ -64,7 +64,8 @@ No relatório você encontra:
   tabela de componentes (ficam só os componentes com achados nos níveis escolhidos); clique de
   novo para desmarcar;
 - a tabela de componentes com a nota de risco e detalhes (versão, origem, integridade,
-  código analisado, tráfego, CVEs);
+  código analisado, tráfego, CVEs). A opção **Esconder componentes sem achados** vem marcada;
+  desmarque para ver também os componentes limpos;
 - os achados de um componente: **clique no nome dele na tabela** para abrir uma tela só com
   os achados dele, com filtros por nível. Use **Voltar para o resumo** (ou o voltar do
   navegador); os níveis que estavam marcados no resumo continuam marcados;
@@ -74,8 +75,10 @@ No relatório você encontra:
 - o botão **Ignorar…** em cada achado e o quadrado **Ignorados**, que mostra quantos achados
   estão ignorados e abre a [lista de ignorados](#lista-de-ignorados-e-allowlist) numa aba
   própria (clique de novo, ou em "Voltar para o resumo", para voltar);
-- a aba **Histórico de verificações**, com status, duração e totais de cada verificação
-  (clique na data para abrir aquele relatório), e o botão **Exportar JSON**;
+- a aba **Histórico de verificações**, com status, duração e totais de cada verificação, 10 por
+  página (clique na data para abrir aquele relatório). Ficam guardadas as últimas
+  `report_retention` verificações (padrão 10, até 100);
+- o botão **Exportar JSON**;
 - o seletor de tema **Sistema / Claro / Escuro**.
 
 ## O que é verificado

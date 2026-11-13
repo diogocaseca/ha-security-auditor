@@ -10,7 +10,11 @@
     sevLabels[b.dataset.filterSev] = b.querySelector(".card-label")?.textContent.trim() || b.dataset.filterSev;
   });
   const SEV_KEYS = Object.keys(sevLabels);
-  const state = { sev: new Set(), component: null, view: null, text: "", onlyNew: false, suppressed: false };
+  const state = { sev: new Set(), component: null, view: null, text: "", onlyNew: false, suppressed: false,
+                  hideEmpty: true };
+  // Preferência "Esconder componentes sem achados" (marcada por padrão), lembrada neste navegador.
+  const HIDE_KEY = "auditor.esconderVazios";
+  try { if (localStorage.getItem(HIDE_KEY) === "0") state.hideEmpty = false; } catch (e) { /* sem armazenamento */ }
   const VIEWS = ["ignorados", "historico"];
 
   // --- Estado na URL --------------------------------------------------------------
@@ -30,6 +34,7 @@
     q.delete("niveis");
     if (component) q.set("componente", component);
     else if (view) q.set("ver", view);
+    if (view !== "historico") q.delete("pagina"); // a página só vale na aba de histórico
     if (state.sev.size) q.set("niveis", SEV_KEYS.filter((k) => state.sev.has(k)).join(","));
     const qs = q.toString();
     return window.location.pathname + (qs ? "?" + qs : "");
@@ -83,16 +88,17 @@
     }
     document.getElementById("component-empty")?.toggleAttribute("hidden", !inComponent || total > 0);
     document.getElementById("no-match")?.toggleAttribute("hidden", !inComponent || total === 0 || visible > 0);
-    // Tabela de componentes: com níveis selecionados, só os que têm achados em algum deles.
+    // Tabela de componentes: com níveis selecionados, só os que têm achados em algum deles;
+    // com "Esconder componentes sem achados", some quem não tem nenhum achado (fora os ignorados).
     let compVisible = 0;
     for (const row of compRows) {
       const sevs = row.dataset.sevs.split(" ").filter(Boolean);
-      const show = state.sev.size === 0 || sevs.some((s) => state.sev.has(s));
+      const show = (state.sev.size === 0 || sevs.some((s) => state.sev.has(s))) && (!state.hideEmpty || sevs.length > 0);
       row.hidden = !show;
       if (show) compVisible++;
     }
     const compCount = document.getElementById("comp-count");
-    if (compCount) compCount.textContent = state.sev.size && compRows.length ? `(${compVisible} de ${compRows.length})` : "";
+    if (compCount) compCount.textContent = compRows.length && compVisible < compRows.length ? `(${compVisible} de ${compRows.length})` : "";
     const compNote = document.getElementById("comp-filter-note");
     if (compNote) {
       compNote.hidden = state.sev.size === 0;
@@ -169,6 +175,14 @@
   // Quadrado "Ignorados": abre a aba da lista; clicar de novo volta ao resumo.
   document.getElementById("toggle-ignored")?.addEventListener("click", () =>
     state.view === "ignorados" ? backToSummary() : openView(null, "ignorados"));
+
+  const hideEmpty = document.getElementById("hide-empty");
+  if (hideEmpty) hideEmpty.checked = state.hideEmpty;
+  hideEmpty?.addEventListener("change", () => {
+    state.hideEmpty = hideEmpty.checked;
+    try { localStorage.setItem(HIDE_KEY, hideEmpty.checked ? "1" : "0"); } catch (e) { /* sem armazenamento */ }
+    apply();
+  });
 
   const text = document.getElementById("filter-text");
   text?.addEventListener("input", () => { state.text = text.value.trim().toLowerCase(); apply(); });

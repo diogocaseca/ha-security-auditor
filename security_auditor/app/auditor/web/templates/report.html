@@ -101,6 +101,7 @@
         <div class="panel-head">
           <h2>Componentes <span class="muted" id="comp-count"></span></h2>
           <div class="actions">
+            <label class="small"><input type="checkbox" id="hide-empty" checked> Esconder componentes sem achados</label>
             <span class="muted small" id="comp-filter-note" hidden></span>
             {% if viewing_latest %}
               <button type="button" class="btn btn-ghost btn-sm" id="ignore-levels" hidden
@@ -134,7 +135,7 @@
             </tbody>
           </table>
         </div>
-        <p class="muted" id="comp-no-match" hidden>Nenhum componente tem achados nos níveis selecionados.</p>
+        <p class="muted" id="comp-no-match" hidden>Nenhum componente para mostrar com os filtros atuais.</p>
       </section>
     {% endif %}
 
@@ -289,7 +290,9 @@
   <section class="panel" id="history" role="tabpanel">
     <h2>Histórico de verificações</h2>
     {% if history %}
-      <p class="muted small">Clique na data para abrir o relatório daquela verificação.</p>
+      <p class="muted small">Clique na data para abrir o relatório daquela verificação.
+        {{ history_page.total }} verificaç{{ 'ão' if history_page.total == 1 else 'ões' }} guardada{{ '' if history_page.total == 1 else 's' }}
+        (o limite é a opção <code>report_retention</code>).</p>
       <div class="table-wrap">
         <table>
           <thead><tr><th>Varredura</th><th>Status</th><th class="num">Duração</th>
@@ -307,6 +310,20 @@
           </tbody>
         </table>
       </div>
+      {% if history_page.pages > 1 %}
+        {% set hp = history_page %}
+        {% macro page_url(n) %}./?ver=historico&amp;pagina={{ n }}{% if history_page.scan %}&amp;scan={{ history_page.scan | urlencode }}{% endif %}{% endmacro %}
+        <nav class="pager" aria-label="Páginas do histórico">
+          {% if hp.page > 1 %}<a class="btn btn-ghost btn-sm" href="{{ page_url(hp.page - 1) }}" rel="prev">← Anterior</a>
+          {% else %}<span class="btn btn-ghost btn-sm" aria-disabled="true">← Anterior</span>{% endif %}
+          {% for n in range(1, hp.pages + 1) %}
+            {% if n == hp.page %}<span class="pager-current" aria-current="page">{{ n }}</span>
+            {% else %}<a class="pager-link" href="{{ page_url(n) }}">{{ n }}</a>{% endif %}
+          {% endfor %}
+          {% if hp.page < hp.pages %}<a class="btn btn-ghost btn-sm" href="{{ page_url(hp.page + 1) }}" rel="next">Próxima →</a>
+          {% else %}<span class="btn btn-ghost btn-sm" aria-disabled="true">Próxima →</span>{% endif %}
+        </nav>
+      {% endif %}
     {% else %}
       <p class="muted">Nenhuma verificação ainda.</p>
     {% endif %}

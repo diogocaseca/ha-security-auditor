@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.7
+
+- Opção **Esconder componentes sem achados** na tabela de componentes, marcada por padrão e
+  lembrada no navegador. Componentes cujos achados foram todos ignorados também somem.
+
+## 0.7.6
+
+- Histórico de verificações com paginação (10 por página) e o total de verificações guardadas.
+
 ## 0.7.5
 
 - Duas abas no topo: **Início** (o resumo) e **Histórico de verificações**, que agora fica só
