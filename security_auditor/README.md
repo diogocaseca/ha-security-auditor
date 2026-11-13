@@ -1,16 +1,21 @@
 # HA Security Auditor
 
-Audita a segurança da sua instalação e mostra um relatório na barra lateral:
+*[Versão em português](README.pt-BR.md)*
 
-- **integrações customizadas e `www/`**: código suspeito (Semgrep + Bandit), dependências
-  vulneráveis (OSV) e comparação arquivo a arquivo com a release oficial no GitHub;
-- **outros add-ons**: permissões, CVEs e segredos nas imagens (Trivy), Dockerfile e scripts,
-  picos de tráfego de saída;
-- **DNS (opcional)**: domínios consultados pelo host, via AdGuard Home ou Pi-hole v6.
+Audits the security of your installation and shows a report in the sidebar:
 
-Os achados vêm classificados por severidade, com explicação em português e sugestão de ação.
-O auditor aponta o que merece revisão humana; **ele não decide sozinho que algo é malicioso**.
+- **custom integrations and `www/`**: suspicious code (Semgrep + Bandit), vulnerable dependencies
+  (OSV) and a file-by-file comparison with the official release on GitHub;
+- **other add-ons**: permissions, CVEs and secrets in the images (Trivy), Dockerfile and scripts,
+  outbound traffic spikes;
+- **blocklist**: badge and warning for reported components (personal list and the signed community
+  list, which includes the HACS and Home Assistant lists);
+- **DNS (optional)**: domains queried by the host, through AdGuard Home and/or Pi-hole v6.
 
-Roda com `/config` somente leitura, perfil AppArmor próprio sem capacidades, Supervisor só
-para leitura e sem enviar dados da instalação para fora. Veja a aba **Documentação** para as
-opções, o motivo de cada permissão e as limitações.
+Findings are ranked by severity, with an explanation (in English or Portuguese) and a suggested
+action. The auditor points out what deserves human review; **it does not decide on its own that
+something is malicious**.
+
+It runs with `/config` read-only, its own AppArmor profile with no capabilities, the Supervisor
+read-only and without sending installation data anywhere. See the **Documentation** tab for the
+options, the reason for each permission and the limitations.

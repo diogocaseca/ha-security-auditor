@@ -169,6 +169,16 @@ def test_categories_steps_and_suppression_have_english():
     tr = Translator("en")
     assert tr.category("ofuscacao") == "obfuscation" and Translator("pt").category("ofuscacao") == "ofuscação"
     assert tr.suppression("revisado (lista de ignorados)") == "revisado (ignore list)"
+    assert tr.source("integridade") == "integrity" and tr.source("semgrep") == "semgrep"
+    from auditor.i18n import SOURCE_EN
+
+    sources = set()
+    for path in root.rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.keyword) and node.arg == "source" and isinstance(node.value, ast.Constant):
+                sources.add(node.value.value)
+    pt_only = {s for s in sources if any(c in s for c in "_-") or s in ("integridade", "estatisticas")}
+    assert sorted(pt_only - set(SOURCE_EN) - {"pip-audit", "zip_release"}) == []  # zip_release: tipo de pacote do HACS
     assert tr.meta({"x": "pt", "x_en": "en"}, "x") == "en" and Translator("pt").meta({"x": "pt", "x_en": "en"}, "x") == "pt"
 
 

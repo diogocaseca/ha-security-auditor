@@ -31,7 +31,6 @@ from auditor.tools import ToolResult
 from .conftest import FIXTURES
 from .test_fase1 import RULES, FakeGitHub, _dir_files, _tar_of, needs_tools
 
-
 # --- Supervisor falso --------------------------------------------------------------
 
 

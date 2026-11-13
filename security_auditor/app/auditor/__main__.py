@@ -16,9 +16,9 @@ from aiohttp import web
 from . import __version__
 from .config import MODE_FIXED_TIME, load_options, load_paths
 from .engine import ScanEngine
+from .i18n import normalize
 from .masking import MaskingFilter, masker
 from .net import SafeHttpClient
-from .i18n import normalize
 from .publisher import SensorPublisher
 from .resources import apply_low_priority, wants_low_priority
 from .scanners import default_scanners

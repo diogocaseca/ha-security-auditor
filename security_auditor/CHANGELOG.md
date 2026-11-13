@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.15.0
+
+- **Tradução completa da interface para o inglês:** detalhes dos componentes (integridade,
+  tráfego, "não verificado"), categorias e fontes dos achados, trechos explicativos (linhas do
+  DNS, quadro da lista negra, picos de tráfego), título e aviso da tabela de domínios, motivos
+  do teste de conexão DNS, status da varredura (nome da etapa), mensagens de erro da API e o
+  sufixo do motivo de itens ignorados.
+- **Sensores:** os nomes exibidos no HA seguem o idioma escolhido; entity_id, valores de estado e
+  unidade não mudam (automações e estatísticas continuam funcionando).
+- **Documentação em inglês** (DOCS.md e README.md, exibidos no HA); as versões em português ficam
+  em DOCS.pt-BR.md e README.pt-BR.md.
+- Os logs continuam em português.
+
 ## 0.14.0
 
 - **Achados em inglês:** título, explicação e recomendação de todos os achados (33 regras do

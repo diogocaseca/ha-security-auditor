@@ -89,6 +89,15 @@ CATEGORY_LABELS: dict[str, tuple[str, str]] = {
 }
 
 
+# Ferramenta/fonte que gerou o achado -> nome em inglês (as que já são nomes próprios ficam iguais)
+SOURCE_EN: dict[str, str] = {
+    "integridade": "integrity",
+    "codigo-fonte": "source code",
+    "estatisticas": "statistics",
+    "lista_negra": "blocklist",
+}
+
+
 def normalize(lang: Any) -> str:
     value = str(lang or "").strip().lower()[:5]
     return value if value in LANGS else DEFAULT_LANG
@@ -117,6 +126,9 @@ class Translator:
     def category(self, key: str) -> str:
         labels = CATEGORY_LABELS.get(key)
         return (labels[1] if self.lang == "en" else labels[0]) if labels else key
+
+    def source(self, key: str) -> str:
+        return SOURCE_EN.get(key, key) if self.lang == "en" else key
 
     def meta(self, meta: dict, key: str) -> Any:
         """Valor de metadado no idioma: ``chave_en`` em inglês, quando existir."""

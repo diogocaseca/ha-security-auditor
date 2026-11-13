@@ -16,7 +16,6 @@ from auditor.supervisor import CoreStatesPublisher, ForbiddenPathError, Supervis
 
 from .conftest import make_finding
 
-
 # --- Modelos / diff -----------------------------------------------------------
 
 

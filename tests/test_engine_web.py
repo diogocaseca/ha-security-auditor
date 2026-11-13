@@ -1,6 +1,6 @@
-import json
 import asyncio
 import ipaddress
+import json
 
 import pytest
 
@@ -159,8 +159,9 @@ async def test_watchdog_health_endpoint(web_client):
 
 
 def test_config_declares_watchdog_on_status_endpoint():
-    import yaml
     from pathlib import Path
+
+    import yaml
 
     cfg = yaml.safe_load((Path(__file__).parents[1] / "security_auditor/config.yaml").read_text())
     assert cfg["watchdog"].endswith(f":[PORT:{cfg['ingress_port']}]/api/status")

@@ -1,93 +1,99 @@
 # HA Security Auditor
 
-Add-on para Home Assistant OS que audita a segurança da instalação: integrações customizadas
-(HACS), recursos de frontend em `www/`, os outros add-ons e, opcionalmente, os domínios
-consultados pelo host. Gera um relatório com achados classificados por severidade, explicados
-em português, para **revisão humana**.
+*[Versão em português](README.pt-BR.md)*
 
-> O auditor aponta o que merece atenção. Ele **não decide sozinho que algo é malicioso**.
+Home Assistant OS add-on that audits the security of your installation: custom integrations (HACS),
+frontend resources in `www/`, the other add-ons and, optionally, the domains queried by the host. It
+produces a report with findings ranked by severity, explained in English or Portuguese (EN | PT
+selector in the interface), for **human review**.
 
-![Arquiteturas](https://img.shields.io/badge/arch-amd64%20%7C%20aarch64-blue)
-![Licença](https://img.shields.io/badge/licen%C3%A7a-MIT-green)
+> The auditor points out what deserves attention. It **does not decide on its own that something
+> is malicious**.
 
-## O que ele verifica
+![Architectures](https://img.shields.io/badge/arch-amd64%20%7C%20aarch64-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
 
-| Área | Como |
+## What it checks
+
+| Area | How |
 |---|---|
-| **Código das integrações e do `www/`** | Semgrep com 24 regras próprias (ofuscação, `eval`/`exec`, comandos do sistema, download e execução, leitura de `secrets.yaml` e `.storage/auth`, roubo do token no navegador, destinos suspeitos) + Bandit |
-| **Dependências** | pip-audit contra a base OSV, sem instalar nada |
-| **Integridade** | Compara cada arquivo com a release oficial no GitHub (SHA-256); arquivo alterado ou extra = Alta |
-| **Permissões dos add-ons** | `docker_api`, `full_access`, `host_network`, capacidades, AppArmor, papel no Supervisor, modo de proteção, nota de segurança, atualizações |
-| **Imagens dos add-ons** | Trivy em modo remoto (sem Docker): CVEs e segredos embutidos |
-| **Código dos add-ons** | Dockerfile e scripts do GitHub: `curl \| sh`, shell reverso, `SUPERVISOR_TOKEN` enviado para fora, `map` com escrita em `/config` |
-| **Tráfego** | Histórico de CPU, memória e rede; alerta de picos de envio comparados à média do próprio add-on |
-| **Lista negra** | Selo e aviso para componentes reportados (lista pessoal e a [comunitária](https://github.com/diogocaseca/ha-security-blocklist), assinada), comparando GitHub, imagem e versão localmente |
-| **DNS (opcional)** | AdGuard Home e/ou Pi-hole v6 (os dois juntos, se você tiver): exfiltração, mineração, domínios aleatórios, bloqueados e novos |
+| **Integration and `www/` code** | Semgrep with 24 custom rules (obfuscation, `eval`/`exec`, system commands, download and execution, reading `secrets.yaml` and `.storage/auth`, token theft in the browser, suspicious destinations) + Bandit |
+| **Dependencies** | pip-audit against the OSV database, without installing anything |
+| **Integrity** | Compares each file with the official GitHub release (SHA-256); modified or extra file = High |
+| **Add-on permissions** | `docker_api`, `full_access`, `host_network`, capabilities, AppArmor, Supervisor role, protection mode, security rating, updates |
+| **Add-on images** | Trivy in remote mode (no Docker): CVEs and embedded secrets |
+| **Add-on code** | Dockerfile and scripts from GitHub: `curl \| sh`, reverse shell, `SUPERVISOR_TOKEN` sent elsewhere, `map` with write access to `/config` |
+| **Traffic** | CPU, memory and network history; alert on upload spikes compared with the add-on's own average |
+| **Blocklist** | Badge and warning for reported components (personal list and the signed [community list](https://github.com/diogocaseca/ha-security-blocklist)), matching GitHub, image and version locally |
+| **DNS (optional)** | AdGuard Home and/or Pi-hole v6 (both together, if you have them): exfiltration, mining, random, blocked and new domains |
 
-O resultado aparece na barra lateral (Ingress), pode ser exportado em JSON, destaca o que é
-novo desde a varredura anterior e é publicado como sensores
-(`sensor.security_auditor_alertas_altos`, `sensor.security_auditor_ultima_varredura`...).
-Falsos positivos revisados podem ser ignorados direto no relatório, sem sumir dele.
+The result shows in the sidebar (Ingress), can be exported as JSON, highlights what is new since the
+previous scan and is published as sensors (`sensor.security_auditor_alertas_altos`,
+`sensor.security_auditor_ultima_varredura`...). Reviewed false positives can be ignored right in the
+report, without disappearing from it.
 
-## Feito para não virar o maior risco da instalação
+## Built not to become the biggest risk in the installation
 
-- `/config` montado **somente leitura**; perfil **AppArmor próprio**, sem nenhuma capacidade do
-  kernel e sem permissão de executar nada de onde o add-on escreve.
-- **Sem** `docker_api`, `full_access`, `host_network` ou `privileged`.
-- API do Supervisor usada **só para leitura**, garantido no código (só `GET`, numa lista fixa de
-  caminhos).
-- **Nenhum dado da instalação sai para serviços externos.** Só há downloads do GitHub e dos
-  registros de imagens e consultas a bases de vulnerabilidades, conferidos contra uma
-  allowlist de hosts a cada requisição e redirecionamento.
-- Tokens, senhas e o conteúdo do `secrets.yaml` **nunca** aparecem no log ou no relatório.
-- **Não sobrecarrega o HA**: prioridade baixa de CPU e disco, modo leve, espera o sistema
-  desocupar antes das etapas pesadas e horário fixo de varredura, combináveis nas opções.
+- `/config` mounted **read-only**; **its own AppArmor profile**, with no kernel capabilities and no
+  permission to execute anything from where the add-on writes.
+- **No** `docker_api`, `full_access`, `host_network` or `privileged`.
+- Supervisor API used **read-only**, enforced in the code (only `GET`, on a fixed list of paths).
+- **No installation data goes to external services.** There are only downloads from GitHub and the
+  image registries and queries to vulnerability databases, checked against a host allowlist on
+  every request and redirect.
+- Tokens, passwords and the contents of `secrets.yaml` **never** show up in the log or the report.
+- **Does not overload HA**: low CPU and disk priority, light mode, waits for the system to be idle
+  before the heavy steps and a fixed scan time, combinable in the options.
 
-Detalhes, motivo de cada permissão e limitações em [`security_auditor/DOCS.md`](security_auditor/DOCS.md).
+Details, the reason for each permission and limitations in
+[`security_auditor/DOCS.md`](security_auditor/DOCS.md).
 
-## Instalação
+## Installation
 
-[![Adicionar repositório ao Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fdiogocaseca%2Fha-security-auditor)
+[![Add repository to Home Assistant](https://my.home-assistant.io/badges/supervisor_add_addon_repository.svg)](https://my.home-assistant.io/redirect/supervisor_add_addon_repository/?repository_url=https%3A%2F%2Fgithub.com%2Fdiogocaseca%2Fha-security-auditor)
 
-Ou manualmente:
+Or manually:
 
-1. Em **Configurações → Add-ons → Loja de add-ons → ⋮ → Repositórios**, adicione
+1. In **Settings → Add-ons → Add-on store → ⋮ → Repositories**, add
    `https://github.com/diogocaseca/ha-security-auditor`.
-2. Instale **HA Security Auditor**, inicie e ative **Mostrar na barra lateral**.
-3. A primeira varredura começa sozinha; depois use **Varrer agora** quando quiser.
+2. Install **HA Security Auditor**, start it and turn on **Show in sidebar**.
+3. The first scan starts on its own; afterwards use **Scan now** whenever you want.
 
-## Limitações importantes
+## Important limitations
 
-- A análise estática **não vê código baixado em tempo de execução**; ela detecta o padrão
-  (download + execução), não o conteúdo.
-- Integridade só prova igualdade com a release; uma release oficial comprometida passa.
-- Sem tag por versão, o código de add-ons analisado é o do `HEAD`.
-- O DNS de todos os add-ons passa pelo HA: **não dá para saber qual add-on fez cada consulta**.
+- Static analysis **does not see code downloaded at runtime**; it detects the pattern (download +
+  execution), not the content.
+- Integrity only proves equality with the release; a compromised official release passes.
+- Without per-version tags, the analysed add-on code is `HEAD`.
+- DNS for every add-on goes through HA: **it is not possible to tell which add-on made each
+  query**.
 
-Lista completa em [DOCS.md → Limitações](security_auditor/DOCS.md#limitações).
+Full list in [DOCS.md → Limitations](security_auditor/DOCS.md#limitations).
 
-## Estrutura do repositório
+## Repository layout
 
 ```
-repository.yaml                 repositório customizado de add-ons
-art/                            fontes SVG do ícone e do logo
+repository.yaml                 custom add-on repository
+art/                            SVG sources of the icon and logo
 security_auditor/
-  config.yaml build.yaml        manifesto e build do add-on (amd64, aarch64)
-  Dockerfile apparmor.txt       imagem e perfil AppArmor
-  icon.png logo.png             ícone e logo exibidos no HA
-  rootfs/run.sh                 ponto de entrada
-  DOCS.md CHANGELOG.md          documentação e histórico exibidos no HA
-  translations/                 rótulos das opções (pt-BR, en)
-  app/auditor/                  código Python
-    scanners/                   static, deps, integrity, addon_*, traffic, dns
-    web/ report/                interface do Ingress e relatório
-  app/rules/semgrep/            regras próprias (python, javascript, addon)
-tests/                          pytest + fixtures (integrações limpa, ofuscada, adulterada)
+  config.yaml build.yaml        add-on manifest and build (amd64, aarch64)
+  Dockerfile apparmor.txt       image and AppArmor profile
+  icon.png logo.png             icon and logo shown in HA
+  rootfs/run.sh                 entry point
+  DOCS.md DOCS.pt-BR.md         documentation (English, shown in HA, and Portuguese)
+  CHANGELOG.md                  version history (in Portuguese)
+  translations/                 option labels (pt-BR, en)
+  app/auditor/                  Python code (comments and logs in Portuguese)
+    i18n.py                     interface languages (English and Portuguese)
+    scanners/                   static, deps, integrity, addon_*, traffic, dns, blocklist
+    web/ report/                Ingress interface and report
+  app/rules/semgrep/            custom rules (python, javascript, addon), texts in both languages
+tests/                          pytest + fixtures (clean, obfuscated and tampered integrations)
 ```
 
-## Desenvolvimento
+## Development
 
-Requer Python 3.12 e, para os testes de análise estática, Semgrep e Bandit no ambiente.
+Requires Python 3.12 and, for the static analysis tests, Semgrep and Bandit in the environment.
 
 ```bash
 uv venv -p 3.12 .venv && uv pip install -p .venv/bin/python -r requirements-dev.txt
@@ -99,16 +105,17 @@ uv venv -p 3.12 .venv && uv pip install -p .venv/bin/python -r requirements-dev.
 docker build -t local/security_auditor:dev security_auditor
 ```
 
-Para rodar fora do HA (sem Supervisor, só a Fase 1), aponte `/config` para uma pasta e libere o
-acesso local:
+To run outside HA (no Supervisor, integrations only), point `/config` to a folder and allow local
+access:
 
 ```bash
 docker run --rm --init --network host -e AUDITOR_DEV_ALLOW_LOCAL=1 -v "$PWD/tests/fixtures/config:/config:ro" local/security_auditor:dev
 ```
 
-e abra `http://127.0.0.1:8099/`. Os testes incluem uma checagem do perfil AppArmor contra os
-caminhos reais dos executáveis da imagem.
+and open `http://127.0.0.1:8099/`. The tests include a check of the AppArmor profile against the
+real paths of the image's executables. New interface texts must be added to `i18n.py` (a test
+fails otherwise), and every finding must carry its English text (`en=`).
 
-## Licença
+## License
 
 [MIT](LICENSE).

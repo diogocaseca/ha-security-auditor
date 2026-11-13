@@ -217,7 +217,7 @@
               <div><dt>{{ _("Componente") }}</dt><dd>{{ f.component }} <span class="muted">({{ _(type_label(f.component_type)) }})</span></dd></div>
               <div><dt>{{ _("Tipo") }}</dt><dd>{{ cat_label(f.category) }}</dd></div>
               {% if f.file %}<div><dt>{{ _("Arquivo") }}</dt><dd><code>{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</code></dd></div>{% endif %}
-              <div><dt>{{ _("Regra") }}</dt><dd><code>{{ f.rule_id }}</code> <span class="muted">· {{ (f.extra.sources or [f.source]) | join(', ') }}</span></dd></div>
+              <div><dt>{{ _("Regra") }}</dt><dd><code>{{ f.rule_id }}</code> <span class="muted">· {% for src in (f.extra.sources or [f.source]) %}{{ src_label(src) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></dd></div>
             </dl>
             {% if f.snippet %}<pre class="snippet"><code>{{ ftext(f, 'snippet') }}</code></pre>{% endif %}
             <p class="why"><strong>{{ _("Por que é suspeito:") }}</strong> {{ ftext(f, 'explanation') }}</p>

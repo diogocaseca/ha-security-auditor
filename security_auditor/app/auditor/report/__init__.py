@@ -128,6 +128,7 @@ def render_html(
         steps=tr.steps(),
         component_details=lambda meta: component_details(meta, tr),
         cat_label=tr.category,
+        src_label=tr.source,
         suppression=tr.suppression,
         mtext=tr.meta,
         # Texto do achado no idioma escolhido (português quando não houver tradução).
