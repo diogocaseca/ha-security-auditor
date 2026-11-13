@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.1
+
+- **DNS:** "Mostrar domínios ignorados" agora troca a tabela de domínios consultados pela lista de
+  domínios ignorados (e volta ao desmarcar); a escolha continua depois de editar ou remover um
+  item. O botão **Ignorar domínio…** foi para o topo da tabela, ao lado de **Ignorar todos…**.
+
 ## 0.17.0
 
 - **Verificação de instalações e atualizações:** a cada 2 minutos o auditor confere o que está

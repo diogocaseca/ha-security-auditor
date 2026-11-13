@@ -586,7 +586,7 @@
         .map((x) => x.dataset.dnsIgnore);
       if (list.length) openDnsIgnore("", list);
     }));
-  document.getElementById("dns-ignore-add")?.addEventListener("click", () => openDnsIgnore(""));
+  document.querySelectorAll(".dns-ignore-add").forEach((b) => b.addEventListener("click", () => openDnsIgnore("")));
   document.querySelectorAll("[data-dns-ignore]").forEach((b) =>
     b.addEventListener("click", () => openDnsIgnore(b.dataset.dnsIgnore)));
   document.getElementById("dns-ignore-cancel")?.addEventListener("click", () => dnsDialog.close());
@@ -622,11 +622,20 @@
         window.alert(T("Não foi possível remover da lista."));
       }
     }));
-  // "Mostrar domínios ignorados": as linhas ignoradas ficam escondidas por padrão.
-  document.querySelectorAll(".dns-show-ignored").forEach((box) =>
-    box.addEventListener("change", () => {
-      box.closest(".dns-domains").querySelectorAll(".dns-ignored-row").forEach((r) => { r.hidden = !box.checked; });
-    }));
+  // "Mostrar domínios ignorados": troca a tabela de domínios consultados pela lista de ignorados.
+  // A escolha fica guardada na aba do navegador (sobrevive ao recarregar depois de editar/remover).
+  const showIgnored = document.getElementById("dns-show-ignored");
+  function syncDnsView() {
+    const on = showIgnored.checked;
+    document.querySelectorAll(".dns-main-table").forEach((t) => { t.hidden = on; });
+    document.getElementById("dns-ignored").hidden = !on;
+    try { sessionStorage.setItem("dnsIgnorados", on ? "1" : "0"); } catch (e) { /* sem armazenamento */ }
+  }
+  if (showIgnored) {
+    try { showIgnored.checked = sessionStorage.getItem("dnsIgnorados") === "1"; } catch (e) { /* padrão */ }
+    showIgnored.addEventListener("change", syncDnsView);
+    syncDnsView();
+  }
 
   // --- Lista negra pessoal (aba "Lista negra") --------------------------------------
   const blDialog = document.getElementById("blocklist-dialog");

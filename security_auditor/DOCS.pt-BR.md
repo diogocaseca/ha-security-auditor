@@ -226,12 +226,13 @@ A tabela de domínios mostra **primeiro os descobertos por último** (data da pr
 o auditor viu), com os mais consultados como desempate, até 150 domínios.
 
 **Domínios ignorados.** Domínios que você reconhece (uma CDN, o seu provedor de nuvem) podem ser
-ignorados: clique em **Ignorar…** na linha do domínio, ou em **Ignorar domínio…** abaixo da
+ignorados: clique em **Ignorar…** na linha do domínio, ou em **Ignorar domínio…** no topo da
 tabela, e escreva o motivo. Use `*.exemplo.com` para valer para `exemplo.com` e todos os
 subdomínios (`*` e `?` são curingas; só curingas não é aceito). Domínios ignorados saem dos
 achados de DNS (aleatórios, bloqueados, novos e suspeitos) **a partir da próxima varredura** e
-ficam escondidos na tabela (marque **Mostrar domínios ignorados** para vê-los). A lista fica no
-add-on, abaixo da tabela, onde dá para editar o motivo e remover itens. Ela é separada da
+não aparecem mais na tabela de domínios consultados. Marque **Mostrar domínios ignorados** para
+trocar essa tabela pela lista de domínios ignorados, onde dá para editar o motivo e remover
+itens; desmarque para voltar. A lista fica guardada no add-on. Ela é separada da
 [lista de ignorados](#lista-de-ignorados-e-allowlist), porque um achado de DNS junta vários
 domínios.
 

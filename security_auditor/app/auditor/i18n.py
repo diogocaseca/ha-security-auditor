@@ -322,9 +322,9 @@ EN: dict[str, str] = {
     "Mostrando os {n} mais recentes de {total}.": "Showing the {n} most recent out of {total}.",
     "*.exemplo.com vale para exemplo.com e todos os subdomínios.": "*.example.com covers example.com and all its subdomains.",
     "Domínios ignorados": "Ignored domains",
-    "Domínios que você reconhece saem dos achados de DNS (aleatórios, bloqueados, novos e suspeitos) a partir da <strong>próxima varredura</strong> e ficam escondidos na tabela acima.":
-        "Domains you recognise are left out of the DNS findings (random, blocked, new and suspicious) from the <strong>next scan</strong> on and are hidden in the table above.",
-    "Ignorado": "Ignored",
+    "Domínios que você reconhece saem dos achados de DNS (aleatórios, bloqueados, novos e suspeitos) a partir da <strong>próxima varredura</strong> e não aparecem na tabela de domínios consultados.":
+        "Domains you recognise are left out of the DNS findings (random, blocked, new and suspicious) from the <strong>next scan</strong> on and do not show in the queried domains table.",
+    "Nenhum domínio ignorado.": "No ignored domains.",
     "Ignorar domínio": "Ignore domain",
     "Ignorar domínio…": "Ignore domain…",
     "Incluído em": "Added",

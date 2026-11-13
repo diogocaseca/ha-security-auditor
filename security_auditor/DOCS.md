@@ -223,12 +223,13 @@ The domain table shows the **most recently discovered domains first** (date of t
 auditor saw), with the most queried as tie-breaker, up to 150 domains.
 
 **Ignored domains.** Domains you recognise (a CDN, your cloud provider) can be ignored: click
-**Ignore…** on the domain's row, or **Ignore domain…** under the table, and write the reason. Use
-`*.example.com` to cover `example.com` and all its subdomains (`*` and `?` are wildcards; wildcards
-alone are not accepted). Ignored domains are left out of the DNS findings (random, blocked, new and
-suspicious) **from the next scan on** and are hidden in the table (tick **Show ignored domains** to
-see them). The list stays in the add-on, under the table, where the reason can be edited and items
-removed. It is separate from the [ignore list](#ignore-list-and-allowlist), because one DNS finding
+**Ignore…** on the domain's row, or **Ignore domain…** at the top of the table, and write the
+reason. Use `*.example.com` to cover `example.com` and all its subdomains (`*` and `?` are
+wildcards; wildcards alone are not accepted). Ignored domains are left out of the DNS findings
+(random, blocked, new and suspicious) **from the next scan on** and no longer show in the queried
+domains table. Tick **Show ignored domains** to swap that table for the list of ignored domains,
+where the reason can be edited and items removed; untick it to go back. The list is stored in the
+add-on. It is separate from the [ignore list](#ignore-list-and-allowlist), because one DNS finding
 groups many domains.
 
 On start, the add-on **tests the connection** to each configured server (login and version read)

@@ -321,22 +321,25 @@
         {% else %}{{ _("Nenhum achado de DNS nesta varredura.") }}{% endif %}
       </p>
     {% endfor %}
+    {% set has_domains = dns_components | selectattr('metadata.dominios') | list | length > 0 %}
     {% for c in dns_components if c.metadata.dominios %}
       <div class="dns-domains">
         <div class="panel-head">
-          <h3>{{ mtext(c.metadata, 'nome') or _('Domínios consultados') }}</h3>
-          <span class="muted small">{{ mtext(c.metadata, 'trafego') }}
-            <button type="button" class="btn btn-ghost btn-sm dns-ignore-all">{{ _("Ignorar todos…") }}</button></span>
+          <div>
+            <h3>{{ mtext(c.metadata, 'nome') or _('Domínios consultados') }}</h3>
+            <span class="muted small">{{ mtext(c.metadata, 'trafego') }}</span>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn btn-ghost btn-sm dns-ignore-add">{{ _("Ignorar domínio…") }}</button>
+            <button type="button" class="btn btn-ghost btn-sm dns-ignore-all">{{ _("Ignorar todos…") }}</button>
+          </div>
         </div>
         <p class="notice notice-warn">{{ mtext(c.metadata, 'aviso') }}</p>
         <p class="muted small">{{ _("Clientes considerados: {clientes}.", clientes=(c.metadata.clientes | join(', '))) }}
           {% if c.metadata.dominios_total > c.metadata.dominios | length %}{{ _("Mostrando os {n} mais recentes de {total}.", n=(c.metadata.dominios | length), total=c.metadata.dominios_total) }}{% endif %}</p>
-        {% set ns = namespace(ign=0) %}
-        {% for d in c.metadata.dominios if dns_is_ignored(d.dominio) %}{% set ns.ign = ns.ign + 1 %}{% endfor %}
-        {% if ns.ign %}
-          <label class="small"><input type="checkbox" class="dns-show-ignored"> {{ _("Mostrar domínios ignorados ({n})", n=ns.ign) }}</label>
-        {% endif %}
-        <div class="table-wrap">
+        {# Marcada: mostra a lista de domínios ignorados no lugar da tabela de domínios consultados. #}
+        <label class="small"><input type="checkbox" id="dns-show-ignored"> {{ _("Mostrar domínios ignorados ({n})", n=(dns_ignored | length)) }}</label>
+        <div class="table-wrap dns-main-table">
           <table>
             {% set multi = (c.metadata.servidores or []) | length > 1 %}
             <thead><tr><th>{{ _("Domínio") }}</th>{% if multi %}<th>{{ _("Servidor") }}</th>{% endif %}<th class="num">{{ _("Consultas") }}</th><th class="num">{{ _("Bloqueadas") }}</th><th>{{ _("Descoberto em") }}</th><th>{{ _("Última") }}</th><th></th></tr></thead>
@@ -344,7 +347,7 @@
               {% for d in c.metadata.dominios %}
                 {% set ign = dns_is_ignored(d.dominio) %}
                 <tr{% if ign %} class="dns-ignored-row" hidden{% endif %}>
-                  <td><code>{{ d.dominio }}</code>{% if d.novo %} <span class="badge badge-new">{{ _("Novo") }}</span>{% endif %}{% if ign %} <span class="badge badge-muted">{{ _("Ignorado") }}</span>{% endif %}</td>
+                  <td><code>{{ d.dominio }}</code>{% if d.novo %} <span class="badge badge-new">{{ _("Novo") }}</span>{% endif %}</td>
                   {% if multi %}<td>{{ _('ambos') if (d.servidores or []) | length > 1 else (d.servidores or ['—']) | first }}</td>{% endif %}
                   <td class="num">{{ d.consultas }}</td>
                   <td class="num">{{ d.bloqueadas or '' }}</td>
@@ -358,12 +361,14 @@
         </div>
       </div>
     {% endfor %}
-    <div class="dns-ignored" id="dns-ignored">
+    {# Com a tabela de domínios, esta lista só aparece com "Mostrar domínios ignorados" marcado. #}
+    <div class="dns-ignored" id="dns-ignored"{% if has_domains %} hidden{% endif %}>
       <div class="panel-head">
         <h3>{{ _("Domínios ignorados") }} <span class="muted">({{ dns_ignored | length }})</span></h3>
-        <button type="button" class="btn btn-ghost btn-sm" id="dns-ignore-add">{{ _("Ignorar domínio…") }}</button>
+        {% if not has_domains %}<button type="button" class="btn btn-ghost btn-sm dns-ignore-add">{{ _("Ignorar domínio…") }}</button>{% endif %}
       </div>
-      <p class="muted small">{{ _h("Domínios que você reconhece saem dos achados de DNS (aleatórios, bloqueados, novos e suspeitos) a partir da <strong>próxima varredura</strong> e ficam escondidos na tabela acima.") }}</p>
+      <p class="muted small">{{ _h("Domínios que você reconhece saem dos achados de DNS (aleatórios, bloqueados, novos e suspeitos) a partir da <strong>próxima varredura</strong> e não aparecem na tabela de domínios consultados.") }}</p>
+      {% if not dns_ignored %}<p class="muted">{{ _("Nenhum domínio ignorado.") }}</p>{% endif %}
       {% if dns_ignored %}
         <div class="table-wrap">
           <table>

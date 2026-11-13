@@ -78,6 +78,9 @@ def test_page_hides_ignored_rows_and_lists_them():
     html = render_html(_result_with(["a.cdn.com", "outro.com"]), status={}, history=[], csrf_token="t",
                        dns_ignored=ignored, lang="en")
     assert 'class="dns-ignored-row" hidden' in html and "Show ignored domains (1)" in html
+    # A lista de ignorados começa escondida (a caixa troca as duas) e o botão de incluir fica no topo.
+    assert 'id="dns-ignored" hidden' in html and 'class="table-wrap dns-main-table"' in html
+    assert html.index("dns-ignore-add") < html.index("dns-main-table")
     assert 'data-dns-ignore="outro.com"' in html and 'data-dns-ignore="a.cdn.com"' not in html
     assert 'data-dns-unignore="7"' in html and "CDN &lt;b&gt;" in html and "Discovered" in html
 
@@ -131,3 +134,13 @@ async def test_api_ignore_all(client):
 def test_page_has_ignore_all_button():
     html = render_html(_result_with(["a.com", "b.com"]), status={}, history=[], csrf_token="t", lang="en")
     assert 'class="btn btn-ghost btn-sm dns-ignore-all">Ignore all…' in html
+
+
+def test_ignored_list_visible_without_domain_table():
+    from auditor.models import ScanResult
+
+    result = ScanResult(scan_id="20261113T100000000000Z", started_at="2026-11-13T10:00:00+00:00", status="concluida")
+    html = render_html(result, status={"dns": {"configurado": True, "resultados": []}}, history=[], csrf_token="t",
+                       dns_ignored=[], lang="en")
+    assert '<div class="dns-ignored" id="dns-ignored">' in html and "No ignored domains." in html
+    assert "dns-ignore-add" in html
