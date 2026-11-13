@@ -343,6 +343,7 @@
     </fieldset>
     <fieldset id="ignore-levels-field" hidden>
       <legend id="ignore-levels-legend">Níveis</legend>
+      <label class="level-all" id="level-all-wrap"><input type="checkbox" id="level-all"> <strong>Todos os níveis</strong></label>
       <div class="level-checks">
         {% for sev in severities %}<label><input type="checkbox" name="severity" value="{{ sev.key }}"> {{ sev.label }}</label>{% endfor %}
       </div>

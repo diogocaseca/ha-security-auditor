@@ -289,8 +289,8 @@ Também dá para ignorar a partir da **tabela de componentes**:
 
 - **Ignorar…** na linha de um componente ignora os achados dele em todas as regras. Se houver
   níveis marcados nos cartões (por exemplo Baixa e Informativa), eles já vêm selecionados e só
-  esses níveis são ignorados; os outros continuam contando. Sem nenhum nível marcado, vale para
-  todos.
+  esses níveis são ignorados; os outros continuam contando. **Todos os níveis** marca todos de
+  uma vez (o mesmo que não marcar nenhum).
 - Com um ou mais níveis marcados nos cartões, aparece **Ignorar estes níveis…**, que ignora os
   níveis escolhidos **em todos os componentes** (por exemplo, todo o nível Informativa). Pede
   confirmação. Ignorar todos os níveis de uma vez não é aceito.

@@ -79,6 +79,8 @@ def parse_ignore_entry(body: Any) -> dict[str, Any]:
     if not out["component"] or not out["rule"]:
         raise InvalidEntryError("Informe o componente e a regra (use * para qualquer um)")
     every_level = not severities or len(severities) == len(_SEVERITY_KEYS)
+    if len(severities) == len(_SEVERITY_KEYS):
+        severities = ()  # todos os níveis = sem restrição de nível
     if out["component"] == "*" and out["rule"] == "*" and not out["path"] and not fp and every_level:
         raise InvalidEntryError("Componente e regra \"*\" em todos os níveis ignorariam tudo; restrinja algum deles")
     return {**out, "severities": severities}

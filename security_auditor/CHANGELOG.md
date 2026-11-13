@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.8
+
+- Diálogo de ignorar: opção **Todos os níveis**, que marca ou desmarca todos de uma vez.
+  Não aparece em "Ignorar estes níveis…", em que todos os níveis em todos os componentes
+  ignorariam tudo.
+
 ## 0.7.7
 
 - Opção **Esconder componentes sem achados** na tabela de componentes, marcada por padrão e

@@ -280,6 +280,19 @@
   let mode = { kind: "manual" };
   const levelsField = document.getElementById("ignore-levels-field");
   const levelBoxes = Array.from(form ? form.querySelectorAll('input[name="severity"]') : []);
+  const levelAll = document.getElementById("level-all");
+  // "Todos os níveis" marca/desmarca todos; fica parcialmente marcado quando só alguns estão.
+  function syncLevelAll() {
+    if (!levelAll) return;
+    const n = levelBoxes.filter((b) => b.checked).length;
+    levelAll.checked = n === levelBoxes.length;
+    levelAll.indeterminate = n > 0 && n < levelBoxes.length;
+  }
+  levelAll?.addEventListener("change", () => {
+    levelBoxes.forEach((b) => { b.checked = levelAll.checked; });
+    syncLevelAll();
+  });
+  levelBoxes.forEach((b) => b.addEventListener("change", syncLevelAll));
   const labelsOf = (keys) => keys.map((k) => sevLabels[k] || k).join(", ");
 
   function openDialog(next) {
@@ -303,6 +316,9 @@
     form.elements.rule.required = k === "manual";
     // Os níveis marcados nos cartões já vêm selecionados.
     levelBoxes.forEach((b) => { b.checked = k !== "manual" && k !== "finding" && state.sev.has(b.value); });
+    // Ignorar todos os níveis em todos os componentes ignoraria tudo: a opção não aparece nesse modo.
+    document.getElementById("level-all-wrap")?.toggleAttribute("hidden", k === "levels");
+    syncLevelAll();
     const fileOpt = form.querySelector('input[value="file"]');
     if (fileOpt) fileOpt.parentElement.hidden = !(k === "finding" && mode.el.dataset.file);
     const subject = {
@@ -318,7 +334,8 @@
 
   function entryFromForm() {
     const reason = form.elements.reason.value.trim();
-    const severities = levelBoxes.filter((b) => b.checked).map((b) => b.value);
+    let severities = levelBoxes.filter((b) => b.checked).map((b) => b.value);
+    if (severities.length === levelBoxes.length) severities = []; // todos = sem restrição de nível
     switch (mode.kind) {
       case "manual":
         return { component: form.elements.component.value.trim(), rule: form.elements.rule.value.trim(),

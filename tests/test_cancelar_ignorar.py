@@ -268,3 +268,9 @@ def test_storage_migrates_ignored_table_from_060(tmp_path):
     storage = Storage(db, tmp_path / "reports")
     (entry,) = storage.ignore_entries()
     assert entry.component == "a" and entry.severities == ()
+
+
+def test_all_levels_means_no_level_restriction():
+    e = parse_ignore_entry({"component": "a", "rule": "*",
+                            "severities": ["critical", "high", "medium", "low", "info"]})
+    assert e["severities"] == ()

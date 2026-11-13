@@ -274,3 +274,4 @@ body.view-history main > :not(#history):not(.tabs) { display: none; }
 .pager-link:hover { background: var(--surface-2); }
 .pager-current { background: var(--accent); color: var(--accent-text); font-weight: 700; }
 .pager [aria-disabled="true"] { opacity: .45; cursor: default; }
+.level-all { padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
