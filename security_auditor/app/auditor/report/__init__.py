@@ -105,6 +105,7 @@ def render_html(
     ignored: list[dict[str, Any]] | None = None,
     config_allowlist: tuple = (),
     history_page: dict[str, Any] | None = None,
+    blocklist: dict[str, Any] | None = None,
 ) -> str:
     template = _ENV.get_template("report.html")
     return template.render(
@@ -117,6 +118,7 @@ def render_html(
         ignored=ignored or [],
         config_allowlist=config_allowlist,
         history_page=history_page or {"page": 1, "pages": 1, "total": len(history), "scan": None},
+        blocklist=blocklist or {"interface": [], "arquivo": [], "arquivo_erros": [], "comunitaria": {"ativa": False}},
     )
 
 

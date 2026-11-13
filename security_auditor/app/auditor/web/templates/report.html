@@ -54,6 +54,7 @@
   <nav class="tabs" role="tablist" aria-label="Seções">
     <button type="button" role="tab" data-tab="inicio" aria-selected="true">Início</button>
     <button type="button" role="tab" data-tab="historico" aria-selected="false">Histórico de verificações</button>
+    <button type="button" role="tab" data-tab="listanegra" aria-selected="false">Lista negra</button>
   </nav>
   {% set mode_labels = {'prioridade_baixa': 'prioridade baixa', 'modo_leve': 'modo leve', 'aguardar_folga': 'aguarda o sistema desocupar', 'horario_fixo': 'horário fixo'} %}
   <p class="muted small modes">Proteções contra sobrecarga:
@@ -138,7 +139,8 @@
             </thead>
             <tbody>
               {% for c in result.components %}
-                <tr class="comp-row" data-type="{{ c.component_type }}" data-sevs="{% for sev in severities if c.counts.get(sev.key, 0) %}{{ sev.key }} {% endfor %}">
+                <tr class="comp-row" data-type="{{ c.component_type }}" data-github="{{ c.metadata.repositorio or '' }}"
+                    data-image="{{ c.metadata.imagem or '' }}" data-sevs="{% for sev in severities if c.counts.get(sev.key, 0) %}{{ sev.key }} {% endfor %}">
                   <td>
                     <button type="button" class="link" data-filter-component="{{ c.name }}">{{ c.name }}</button>
                     {% set bl = c.metadata.lista_negra %}
@@ -167,7 +169,10 @@
 
     {# Tela de achados de um componente: aberta ao clicar no nome dele na tabela (?componente=...). #}
     <section class="panel" id="findings-view">
-      <button type="button" class="btn btn-ghost btn-sm" id="back-to-summary">← Voltar para o resumo</button>
+      <div class="view-actions">
+        <button type="button" class="btn btn-ghost btn-sm" id="back-to-summary">← Voltar para o resumo</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="bl-from-component" hidden>Adicionar à lista negra…</button>
+      </div>
       <div class="panel-head view-head">
         <div>
           <h2>Achados de <span id="findings-component"></span> <span class="muted" id="visible-count"></span></h2>
@@ -320,6 +325,79 @@
   {% endif %}
 
   {# Aba "Histórico de verificações" (?ver=historico). #}
+  {# Aba "Lista negra" (?ver=listanegra): lista comunitária e lista pessoal. #}
+  {% set bl_niveis = {'critica': ('critical', 'Crítica'), 'alta': ('high', 'Alta'), 'media': ('medium', 'Média'), 'aviso': ('low', 'Aviso')} %}
+  {% set bl_categorias = {'malicioso': 'Malicioso', 'comprometido': 'Comprometido', 'vulneravel': 'Vulnerável', 'abandonado': 'Abandonado', 'telemetria': 'Telemetria', 'removido': 'Removido de loja', 'incompativel': 'Incompatível'} %}
+  {% set bl_tipos = {'integracao': 'Integração', 'frontend': 'Frontend', 'addon': 'Add-on'} %}
+  <section class="panel" id="blocklist-view" role="tabpanel">
+    <h2>Lista negra</h2>
+    <p class="muted small">Componentes reportados ganham o selo <strong>Lista negra</strong> na tabela de
+      componentes. A comparação é local; as mudanças valem na <strong>próxima varredura</strong>.</p>
+
+    {% set com = blocklist.comunitaria %}
+    <div class="bl-community">
+      <h3>Lista comunitária</h3>
+      {% if not com.ativa %}
+        <p class="muted">Desligada nas opções (<code>lista_comunitaria</code>).</p>
+      {% elif com.baixado_em %}
+        <p><strong>{{ com.itens or 0 }}</strong> itens · lista de {{ com.atualizado_em or '?' }} · última busca
+          {{ com.verificado_em | dt }} · assinatura conferida (chave {{ com.chave }}).
+          <a href="https://github.com/diogocaseca/ha-security-blocklist" target="_blank" rel="noopener noreferrer">Ver no GitHub</a>
+          · inclui relatos da comunidade e as listas do HACS e do Home Assistant.</p>
+      {% else %}
+        <p class="muted">Ainda não baixada. Ela é buscada na próxima varredura (no máximo a cada 6 horas).</p>
+      {% endif %}
+    </div>
+
+    <div class="panel-head">
+      <h3>Lista pessoal <span class="muted">({{ blocklist.interface | length + blocklist.arquivo | length }})</span></h3>
+      <button type="button" class="btn btn-primary btn-sm" id="bl-add">Adicionar item…</button>
+    </div>
+    <p class="muted small">Vale só nesta instalação. Itens criados aqui ficam no add-on; os do arquivo
+      <code>{{ blocklist.arquivo_caminho }}</code> aparecem como somente leitura (edite o arquivo).</p>
+    {% for err in blocklist.arquivo_erros %}<p class="error small">Arquivo: {{ err }}</p>{% endfor %}
+    {% if blocklist.interface or blocklist.arquivo %}
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Nível</th><th>Componente</th><th>Versões</th><th>Categoria</th><th>Motivo</th><th>Origem</th><th></th></tr></thead>
+          <tbody>
+            {% for r in blocklist.interface %}
+              {% set it = r.item %}
+              <tr data-bl-item='{{ it | tojson }}'>
+                <td><span class="badge sev-{{ bl_niveis.get(it.nivel, ('info', it.nivel))[0] }}">{{ bl_niveis.get(it.nivel, ('', it.nivel))[1] }}</span></td>
+                <td class="wrap">{% if it.github %}<code>{{ it.github }}</code>{% endif %}{% if it.nome %} <code>{{ it.nome }}</code>{% endif %}{% if it.imagem %} <code>{{ it.imagem }}</code>{% endif %}
+                  <div class="comp-meta">{{ bl_tipos.get(it.tipo, 'qualquer tipo') }} · id {{ it.id }}</div></td>
+                <td>{{ it.versoes or 'todas' }}</td>
+                <td>{{ bl_categorias.get(it.categoria, it.categoria) }}</td>
+                <td class="wrap">{{ it.motivo }}{% for url in it.evidencias or [] if url.startswith('https://') %}<br><a href="{{ url }}" target="_blank" rel="noopener noreferrer" class="small">{{ url }}</a>{% endfor %}</td>
+                <td>Interface · {{ r.criado_em | dt }}</td>
+                <td class="row-actions">
+                  <button type="button" class="btn btn-ghost btn-sm" data-bl-edit="{{ it.id }}">Editar</button>
+                  <button type="button" class="btn btn-ghost btn-sm" data-bl-remove="{{ it.id }}">Remover</button>
+                </td>
+              </tr>
+            {% endfor %}
+            {% for e in blocklist.arquivo %}
+              <tr>
+                <td><span class="badge sev-{{ bl_niveis.get(e.nivel, ('info', e.nivel))[0] }}">{{ bl_niveis.get(e.nivel, ('', e.nivel))[1] }}</span></td>
+                <td class="wrap">{% if e.github %}<code>{{ e.github }}</code>{% endif %}{% if e.nome %} <code>{{ e.nome }}</code>{% endif %}{% if e.imagem %} <code>{{ e.imagem }}</code>{% endif %}
+                  <div class="comp-meta">{{ bl_tipos.get(e.tipo, 'qualquer tipo') }} · id {{ e.id }}</div></td>
+                <td>{{ e.versoes or 'todas' }}</td>
+                <td>{{ bl_categorias.get(e.categoria, e.categoria) }}</td>
+                <td class="wrap">{{ e.motivo }}</td>
+                <td>Arquivo</td>
+                <td class="muted small">edite o arquivo</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <p class="muted">Nenhum item. Use <strong>Adicionar item…</strong> ou, na tela de um componente,
+        <strong>Adicionar à lista negra…</strong>.</p>
+    {% endif %}
+  </section>
+
   <section class="panel" id="history" role="tabpanel">
     <h2>Histórico de verificações</h2>
     {% if history %}
@@ -362,6 +440,43 @@
     {% endif %}
   </section>
 </main>
+
+<dialog id="blocklist-dialog" aria-labelledby="bl-title">
+  <form method="dialog" id="bl-form">
+    <h2 id="bl-title">Adicionar à lista negra pessoal</h2>
+    <p class="muted small">Informe pelo menos o repositório do GitHub, o nome ou a imagem. O GitHub (ou a
+      imagem) dá correspondência forte; só o nome gera "possível correspondência".</p>
+    <div class="form-grid">
+      <label>Tipo
+        <select name="tipo">
+          <option value="">Qualquer</option>
+          {% for k, v in bl_tipos.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Versões afetadas <input type="text" name="versoes" maxlength="100" placeholder="ex.: <1.4.2 (vazio = todas)"></label>
+      <label>Repositório do GitHub <input type="text" name="github" maxlength="201" placeholder="dono/repositorio"></label>
+      <label>Nome <input type="text" name="nome" maxlength="200" placeholder="domínio, pasta do card ou slug"></label>
+      <label class="span-2">Imagem do add-on <input type="text" name="imagem" maxlength="300" placeholder="ghcr.io/dono/{arch}-addon-x"></label>
+      <label>Nível
+        <select name="nivel" required>
+          {% for k, v in bl_niveis.items() %}<option value="{{ k }}"{% if k == 'alta' %} selected{% endif %}>{{ v[1] }}</option>{% endfor %}
+        </select>
+      </label>
+      <label>Categoria
+        <select name="categoria" required>
+          {% for k, v in bl_categorias.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="span-2">Motivo <textarea name="motivo" rows="2" maxlength="500" required placeholder="O que acontece, em uma ou duas frases"></textarea></label>
+      <label class="span-2">Evidências (opcional, um link https:// por linha) <textarea name="evidencias" rows="2"></textarea></label>
+    </div>
+    <p class="error small" id="bl-error" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-ghost" id="bl-cancel">Cancelar</button>
+      <button type="submit" class="btn btn-primary" id="bl-submit">Salvar</button>
+    </div>
+  </form>
+</dialog>
 
 <dialog id="ignore-dialog" aria-labelledby="ignore-title">
   <form method="dialog" id="ignore-form">

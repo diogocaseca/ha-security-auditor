@@ -201,9 +201,9 @@ async def test_ignore_api_rejects_bad_json(ignore_client):
 async def test_component_rows_carry_severity_levels(ignore_client):
     client, *_ = ignore_client
     html = await (await client.get("/")).text()
-    assert 'class="comp-row" data-type="integracao" data-sevs="high medium "' in html
-    assert 'class="comp-row" data-type="integracao" data-sevs="low "' in html
-    assert 'class="comp-row" data-type="integracao" data-sevs=""' in html  # componente limpo some ao filtrar
+    assert 'data-sevs="high medium "' in html
+    assert 'data-sevs="low "' in html
+    assert 'data-sevs=""' in html
     assert 'id="scan-cancel"' in html and "hidden" in html.split('id="scan-cancel"')[1].split(">")[0]
     assert '<option value="integracao">Integração</option>' in html
 

@@ -193,3 +193,74 @@ async def test_new_categories_and_source(tmp_path):
     assert Blocklist(entries).matches(ComponentType.INTEGRATION, "spook", version="4.0.1") == []
     (m,) = Blocklist(entries).matches(ComponentType.INTEGRATION, "spook", version="3.2.0")
     assert m.strong  # o HA bloqueia pelo domínio: correspondência forte
+
+
+# --- Lista pessoal pela interface ----------------------------------------------------------
+
+
+@pytest.fixture
+async def bl_client(aiohttp_client, tmp_path, config_with_list):
+    import ipaddress
+
+    from auditor.scheduler import Scheduler
+    from auditor.storage import Storage
+    from auditor.web import create_app
+
+    storage = Storage(tmp_path / "db.sqlite", tmp_path / "reports")
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    app = create_app(storage, Scheduler(lambda: None, 0, False), {}, allowed_peers={ipaddress.ip_address("127.0.0.1")},
+                     blocklist_dirs=(config_with_list, cache))
+    client = await aiohttp_client(app)
+    html = await (await client.get("/")).text()
+    token = html.split('name="csrf-token" content="')[1].split('"')[0]
+    return client, token, storage
+
+
+async def test_ui_blocklist_crud(bl_client):
+    from auditor.web import CSRF_HEADER
+
+    client, token, storage = bl_client
+    h = {CSRF_HEADER: token}
+    item = {"tipo": "integracao", "github": " dono/repo ", "nome": "", "versoes": "<2.0", "nivel": "critica",
+            "categoria": "malicioso", "motivo": "Envia o token.", "evidencias": ["https://x.example/1", ""]}
+    assert (await client.post("/api/lista-negra", json=item)).status == 403  # sem CSRF
+    resp = await client.post("/api/lista-negra", headers=h, json=item)
+    assert resp.status == 201
+    new_id = (await resp.json())["id"]
+    (saved,) = storage.list_blocklist_items()
+    assert saved["item"] == {"id": new_id, "tipo": "integracao", "github": "dono/repo", "versoes": "<2.0",
+                             "nivel": "critica", "categoria": "malicioso", "motivo": "Envia o token.",
+                             "evidencias": ["https://x.example/1"]}
+
+    # Edição mantém o id; validação igual à do arquivo.
+    resp = await client.put(f"/api/lista-negra/{new_id}", headers=h, json={**item, "nivel": "aviso"})
+    assert resp.status == 200 and storage.list_blocklist_items()[0]["item"]["nivel"] == "aviso"
+    bad = await client.put(f"/api/lista-negra/{new_id}", headers=h, json={**item, "evidencias": ["javascript:x"]})
+    assert bad.status == 400 and "https://" in (await bad.json())["error"]
+    assert (await client.post("/api/lista-negra", headers=h,
+                              json={"nivel": "alta", "categoria": "malicioso", "motivo": "x"})).status == 400
+    assert (await client.put("/api/lista-negra/nao-existe", headers=h, json=item)).status == 404
+    # id que já existe no arquivo pessoal é recusado.
+    dup = await client.post("/api/lista-negra", headers=h, json={**item, "id": "P-1"})
+    assert dup.status == 409
+
+    html = await (await client.get("/?ver=listanegra")).text()
+    assert f'data-bl-edit="{new_id}"' in html and "dono/repo" in html
+    assert "Arquivo</td>" in html and "exemplo/ha-adulterada" in html  # itens do arquivo, só leitura
+    assert "item 5" in html  # erro do arquivo exibido na aba
+    listing = await (await client.get("/api/lista-negra")).json()
+    assert listing["interface"][0]["item"]["id"] == new_id and len(listing["arquivo"]) == 4
+
+    assert (await client.delete(f"/api/lista-negra/{new_id}", headers=h)).status == 204
+    assert storage.list_blocklist_items() == []
+
+
+async def test_scanner_uses_ui_items(tmp_path):
+    ctx = _ctx(tmp_path, config_dir=FIXTURES / "config")
+    ctx.storage.save_blocklist_item({"id": "ui-1", "github": "exemplo/ha-limpa", "nivel": "media",
+                                     "categoria": "telemetria", "motivo": "Teste pela tela."},
+                                    "2026-11-13T00:00:00+00:00", create=True)
+    findings = await BlocklistScanner().scan(ctx)
+    (f,) = [f for f in findings if f.component == "limpa"]
+    assert f.severity is Severity.MEDIUM and "ui-1" in f.snippet and "pessoal" in f.title

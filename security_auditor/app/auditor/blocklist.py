@@ -263,9 +263,27 @@ def community_cache_path(cache_dir: Path) -> Path:
     return cache_dir / "lista_comunitaria.json"
 
 
-def load(config_dir: Path, cache_dir: Path, community: bool = True) -> Blocklist:
-    """Junta a lista comunitária (cache) e a pessoal."""
+def validate_item(item: Any) -> BlocklistEntry:
+    """Valida um item vindo da interface (lista pessoal). Levanta BlocklistError com a explicação."""
+    entries, errors = parse({"versao": FORMAT_VERSION, "itens": [item]}, "pessoal")
+    if errors:
+        raise BlocklistError(errors[0].removeprefix("item 1: "))
+    if not entries:
+        raise BlocklistError("valor de 'tipo', 'categoria' ou 'fonte' desconhecido")
+    return entries[0]
+
+
+def load(config_dir: Path, cache_dir: Path, community: bool = True,
+         ui_items: list[dict[str, Any]] | None = None) -> Blocklist:
+    """Junta a lista comunitária (cache), o arquivo pessoal e os itens pessoais criados na interface."""
     bl = Blocklist()
+    if ui_items:
+        entries, errors = parse({"versao": FORMAT_VERSION, "itens": ui_items}, "pessoal")
+        bl.entries.extend(entries)
+        bl.errors.extend(f"lista pessoal da interface, {e}" for e in errors)
+        if entries:
+            bl.sources.append(f"lista pessoal da interface ({len(entries)} itens)")
+            _LOGGER.info("Lista negra pessoal (interface) carregada: %d item(ns)", len(entries))
     sources = [(personal_path(config_dir), "pessoal")]
     if community:
         sources.insert(0, (community_cache_path(cache_dir), "comunitária"))

@@ -17,7 +17,8 @@
   // Preferência "Esconder componentes sem achados" (marcada por padrão), lembrada neste navegador.
   const HIDE_KEY = "auditor.esconderVazios";
   try { if (localStorage.getItem(HIDE_KEY) === "0") state.hideEmpty = false; } catch (e) { /* sem armazenamento */ }
-  const VIEWS = ["ignorados", "historico"];
+  const VIEWS = ["ignorados", "historico", "listanegra"];
+  const TAB_VIEWS = ["historico", "listanegra"]; // abas próprias; o resto pertence a "Início"
 
   // --- Estado na URL --------------------------------------------------------------
   // ?componente=X abre a tela de achados do componente; ?niveis=critical,high guarda os
@@ -51,13 +52,25 @@
     try { history.replaceState(history.state, "", urlFor(state.component, state.view)); } catch (e) { /* sem histórico */ }
   }
 
+  function compRowOf(name) {
+    return compRows.find((r) => r.querySelector("[data-filter-component]")?.dataset.filterComponent === name) || null;
+  }
+
   function apply() {
     const inComponent = !!state.component;
     document.body.classList.toggle("view-component", inComponent);
     document.body.classList.toggle("view-ignored", state.view === "ignorados");
     document.body.classList.toggle("view-history", state.view === "historico");
-    document.querySelectorAll("[data-tab]").forEach((t) => t.setAttribute("aria-selected",
-      (t.dataset.tab === "historico") === (state.view === "historico") ? "true" : "false"));
+    document.body.classList.toggle("view-blocklist", state.view === "listanegra");
+    const activeTab = TAB_VIEWS.includes(state.view) ? state.view : "inicio";
+    document.querySelectorAll("[data-tab]").forEach((t) =>
+      t.setAttribute("aria-selected", t.dataset.tab === activeTab ? "true" : "false"));
+    // "Adicionar à lista negra…" só para integrações, frontend e add-ons.
+    const blBtn = document.getElementById("bl-from-component");
+    if (blBtn) {
+      const row = inComponent ? compRowOf(state.component) : null;
+      blBtn.hidden = !row || !["integracao", "frontend", "addon"].includes(row.dataset.type);
+    }
     document.getElementById("toggle-ignored")?.setAttribute("aria-pressed", state.view === "ignorados" ? "true" : "false");
     let visible = 0;
     let total = 0;
@@ -173,8 +186,8 @@
   document.getElementById("back-from-ignored")?.addEventListener("click", backToSummary);
   // Abas: "Início" volta ao resumo; "Histórico de verificações" abre a tabela de histórico.
   document.querySelectorAll("[data-tab]").forEach((t) => t.addEventListener("click", () => {
-    if (t.dataset.tab === "historico") {
-      if (state.view !== "historico") openView(null, "historico");
+    if (TAB_VIEWS.includes(t.dataset.tab)) {
+      if (state.view !== t.dataset.tab) openView(null, t.dataset.tab);
     } else if (state.component || state.view) {
       backToSummary();
     }
@@ -498,6 +511,84 @@
     };
     setTimeout(waitDns, 2000);
   }
+
+  // --- Lista negra pessoal (aba "Lista negra") --------------------------------------
+  const blDialog = document.getElementById("blocklist-dialog");
+  const blForm = document.getElementById("bl-form");
+  const blError = document.getElementById("bl-error");
+  let blEditing = null; // id em edição; null = novo item
+
+  function openBlocklist(values, editingId) {
+    blEditing = editingId || null;
+    blForm.reset();
+    blError.hidden = true;
+    document.getElementById("bl-title").textContent =
+      editingId ? `Editar item ${editingId}` : "Adicionar à lista negra pessoal";
+    for (const [key, value] of Object.entries(values || {})) {
+      const field = blForm.elements[key];
+      if (!field) continue;
+      field.value = Array.isArray(value) ? value.join("\n") : value;
+    }
+    blDialog.showModal();
+    blForm.elements.motivo.focus();
+  }
+
+  document.getElementById("bl-add")?.addEventListener("click", () => openBlocklist({}, null));
+  document.getElementById("bl-cancel")?.addEventListener("click", () => blDialog.close());
+  document.getElementById("bl-from-component")?.addEventListener("click", () => {
+    const row = compRowOf(state.component);
+    if (!row) return;
+    const github = row.dataset.github || "";
+    const values = { tipo: row.dataset.type, nome: state.component };
+    if (/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(github)) values.github = github; // add-ons trazem URL da loja
+    if (row.dataset.type === "addon" && row.dataset.image) values.imagem = row.dataset.image;
+    openBlocklist(values, null);
+  });
+  document.querySelectorAll("[data-bl-edit]").forEach((b) => b.addEventListener("click", () => {
+    const item = JSON.parse(b.closest("tr").dataset.blItem || "{}");
+    openBlocklist(item, b.dataset.blEdit);
+  }));
+  document.querySelectorAll("[data-bl-remove]").forEach((b) => b.addEventListener("click", async () => {
+    if (!window.confirm(`Remover o item ${b.dataset.blRemove} da lista negra pessoal?`)) return;
+    b.disabled = true;
+    try {
+      const resp = await post("api/lista-negra/" + encodeURIComponent(b.dataset.blRemove), undefined, "DELETE");
+      if (resp.status === 204 || resp.status === 404) { window.location.reload(); return; }
+      throw new Error("HTTP " + resp.status);
+    } catch (e) {
+      b.disabled = false;
+      window.alert("Não foi possível remover o item.");
+    }
+  }));
+  blForm?.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const f = blForm.elements;
+    const body = {
+      tipo: f.tipo.value, github: f.github.value, nome: f.nome.value, imagem: f.imagem.value,
+      versoes: f.versoes.value, nivel: f.nivel.value, categoria: f.categoria.value, motivo: f.motivo.value,
+      evidencias: f.evidencias.value.split("\n"),
+    };
+    const submit = document.getElementById("bl-submit");
+    submit.disabled = true;
+    try {
+      const url = blEditing ? "api/lista-negra/" + encodeURIComponent(blEditing) : "api/lista-negra";
+      const resp = await post(url, body, blEditing ? "PUT" : "POST");
+      if (resp.ok) {
+        // Depois de salvar, mostra a aba da lista (mesmo se veio da tela de um componente).
+        try { history.replaceState({}, "", urlFor(null, "listanegra")); } catch (e) { /* sem histórico */ }
+        window.location.reload();
+        return;
+      }
+      const data = await resp.json().catch(() => ({}));
+      blError.textContent = data.error || "Não foi possível salvar (HTTP " + resp.status + ").";
+      blError.hidden = false;
+    } catch (e) {
+      blError.textContent = "Não foi possível salvar.";
+      blError.hidden = false;
+    } finally {
+      submit.disabled = false;
+    }
+  });
 
   readUrl();
   apply();

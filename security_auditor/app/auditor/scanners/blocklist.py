@@ -43,7 +43,8 @@ class BlocklistScanner:
             findings.extend(_community_status(result))
         elif not community:
             _LOGGER.info("Lista negra comunitária desativada nas opções")
-        bl: Blocklist = await asyncio.to_thread(load, ctx.paths.config_dir, ctx.paths.cache_dir, community)
+        ui_items = [r["item"] for r in await asyncio.to_thread(ctx.storage.list_blocklist_items)]
+        bl: Blocklist = await asyncio.to_thread(load, ctx.paths.config_dir, ctx.paths.cache_dir, community, ui_items)
         findings.extend(_invalid(err) for err in bl.errors[:5])
         if not bl.entries:
             return findings

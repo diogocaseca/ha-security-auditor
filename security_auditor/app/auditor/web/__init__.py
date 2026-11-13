@@ -15,7 +15,9 @@ from typing import Any
 
 from aiohttp import web
 
+from .. import blocklist_update
 from ..allowlist import reapply, skips_whole_component
+from ..blocklist import BlocklistError, load_file, personal_path, validate_item
 from ..config import AllowlistEntry
 from ..models import Severity
 from ..report import render_html, to_json
@@ -44,12 +46,46 @@ CSRF_HEADER = "X-Auditor-CSRF"
 _FINGERPRINT = re.compile(r"^[0-9a-f]{24}$")
 _LIMITS = {"component": 200, "rule": 200, "path": 500, "reason": 500, "title": 300}
 MAX_IGNORED = 500
+MAX_BLOCKLIST_ITEMS = 1000
+_BLOCKLIST_FIELDS = ("id", "tipo", "github", "nome", "imagem", "versoes", "nivel", "categoria", "motivo")
 HISTORY_PAGE_SIZE = 10
 _SEVERITY_KEYS = [s.key for s in sorted(Severity, reverse=True)]
 
 
 class InvalidEntryError(ValueError):
     """Entrada da lista de ignorados recusada (mensagem mostrada ao usuário)."""
+
+
+def blocklist_item_from_body(body: Any, item_id: str | None = None) -> dict[str, Any]:
+    """Monta e valida um item da lista negra pessoal a partir do formulário da interface."""
+    if not isinstance(body, dict):
+        raise InvalidEntryError("Corpo inválido")
+    item: dict[str, Any] = {}
+    for key in _BLOCKLIST_FIELDS:
+        value = body.get(key)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise InvalidEntryError(f"Campo {key} inválido")
+        if value.strip():
+            item[key] = value.strip()
+    if item_id is not None:
+        item["id"] = item_id
+    elif "id" not in item:
+        item["id"] = "p-" + datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    evid = body.get("evidencias") or []
+    if isinstance(evid, str):
+        evid = evid.splitlines()
+    if not isinstance(evid, list) or not all(isinstance(e, str) for e in evid):
+        raise InvalidEntryError("Evidências inválidas")
+    evid = [e.strip() for e in evid if e.strip()]
+    if evid:
+        item["evidencias"] = evid
+    try:
+        validate_item(item)
+    except BlocklistError as err:
+        raise InvalidEntryError(f"Item inválido: {err}") from err
+    return item
 
 
 def parse_reason(body: Any) -> str:
@@ -113,6 +149,8 @@ def create_app(
     on_change: Callable[[], Awaitable[None]] | None = None,
     dns_state: dict[str, Any] | None = None,
     dns_check: Callable[[], Awaitable[list[dict[str, Any]]]] | None = None,
+    blocklist_dirs: tuple[Path, Path] | None = None,  # (config_dir, cache_dir)
+    community_enabled: bool = True,
 ) -> web.Application:
     dns = dns_state if dns_state is not None else {"configurado": False, "testando": False, "resultados": []}
     peers = allowed_peers if allowed_peers is not None else _allowed_peers()
@@ -154,6 +192,7 @@ def create_app(
             page = 1
         history = await asyncio.to_thread(storage.list_scans, HISTORY_PAGE_SIZE, (page - 1) * HISTORY_PAGE_SIZE)
         ignored = await asyncio.to_thread(storage.list_ignored)
+        blocklist = await asyncio.to_thread(_blocklist_view)
         for row, entry in zip(ignored, await asyncio.to_thread(storage.ignore_entries), strict=True):
             row["pula_varredura"] = skips_whole_component(entry)
         html = render_html(
@@ -165,6 +204,7 @@ def create_app(
             ignored=ignored,
             config_allowlist=config_allowlist,
             history_page={"page": page, "pages": pages, "total": total, "scan": scan_id},
+            blocklist=blocklist,
         )
         return web.Response(text=html, content_type="text/html", charset="utf-8")
 
@@ -256,6 +296,66 @@ def create_app(
         await _changed()
         return web.Response(status=204)
 
+    # --- Lista negra pessoal (aba "Lista negra") ----------------------------------
+
+    def _blocklist_view() -> dict[str, Any]:
+        view: dict[str, Any] = {"interface": storage.list_blocklist_items(), "arquivo": [], "arquivo_erros": [],
+                                "arquivo_caminho": "/config/security_auditor/lista_negra.json",
+                                "comunitaria": {"ativa": community_enabled}}
+        if blocklist_dirs is not None:
+            config_dir, cache_dir = blocklist_dirs
+            entries, errors = load_file(personal_path(config_dir), "pessoal")
+            view["arquivo"] = entries
+            view["arquivo_erros"] = errors[:5]
+            view["comunitaria"].update(blocklist_update.read_state(cache_dir))
+        return view
+
+    def _file_ids() -> set[str]:
+        if blocklist_dirs is None:
+            return set()
+        return {e.id for e in load_file(personal_path(blocklist_dirs[0]), "pessoal")[0]}
+
+    async def blocklist_list(request: web.Request) -> web.Response:
+        view = await asyncio.to_thread(_blocklist_view)
+        view["arquivo"] = [{"id": e.id, "github": e.github, "nome": e.nome, "imagem": e.imagem} for e in view["arquivo"]]
+        return web.json_response(view)
+
+    async def blocklist_add(request: web.Request) -> web.Response:
+        try:
+            item = blocklist_item_from_body(await request.json())
+        except (InvalidEntryError, ValueError) as err:
+            msg = str(err) if isinstance(err, InvalidEntryError) else "JSON inválido"
+            return web.json_response({"error": msg}, status=400)
+        if len(await asyncio.to_thread(storage.list_blocklist_items)) >= MAX_BLOCKLIST_ITEMS:
+            return web.json_response({"error": f"Limite de {MAX_BLOCKLIST_ITEMS} itens"}, status=400)
+        if item["id"] in await asyncio.to_thread(_file_ids):
+            return web.json_response({"error": f"O id {item['id']} já existe no arquivo da lista"}, status=409)
+        now = datetime.now(UTC).isoformat(timespec="seconds")
+        if not await asyncio.to_thread(lambda: storage.save_blocklist_item(item, now, create=True)):
+            return web.json_response({"error": f"O id {item['id']} já existe"}, status=409)
+        _LOGGER.info("Lista negra pessoal: item %s incluído pela interface", item["id"])
+        return web.json_response({"id": item["id"]}, status=201)
+
+    async def blocklist_edit(request: web.Request) -> web.Response:
+        item_id = request.match_info["item_id"]
+        try:
+            item = blocklist_item_from_body(await request.json(), item_id=item_id)
+        except (InvalidEntryError, ValueError) as err:
+            msg = str(err) if isinstance(err, InvalidEntryError) else "JSON inválido"
+            return web.json_response({"error": msg}, status=400)
+        now = datetime.now(UTC).isoformat(timespec="seconds")
+        if not await asyncio.to_thread(lambda: storage.save_blocklist_item(item, now, create=False)):
+            raise web.HTTPNotFound(text="Item não encontrado")
+        _LOGGER.info("Lista negra pessoal: item %s editado pela interface", item_id)
+        return web.json_response({"id": item_id})
+
+    async def blocklist_remove(request: web.Request) -> web.Response:
+        item_id = request.match_info["item_id"]
+        if not await asyncio.to_thread(storage.remove_blocklist_item, item_id):
+            raise web.HTTPNotFound(text="Item não encontrado")
+        _LOGGER.info("Lista negra pessoal: item %s removido pela interface", item_id)
+        return web.Response(status=204)
+
     async def report_json(request: web.Request) -> web.StreamResponse:
         scan_id = request.query.get("scan") or await asyncio.to_thread(storage.latest_completed_id)
         if not scan_id:
@@ -283,6 +383,10 @@ def create_app(
             web.post("/api/ignored", add_ignored),
             web.patch("/api/ignored/{entry_id}", edit_ignored),
             web.delete("/api/ignored/{entry_id}", remove_ignored),
+            web.get("/api/lista-negra", blocklist_list),
+            web.post("/api/lista-negra", blocklist_add),
+            web.put("/api/lista-negra/{item_id}", blocklist_edit),
+            web.delete("/api/lista-negra/{item_id}", blocklist_remove),
             web.get("/api/report.json", report_json),
             web.get("/api/scans", scans),
             web.static("/static", _STATIC, follow_symlinks=False),

@@ -364,9 +364,19 @@ telemetria não declarada ganham o selo **Lista negra** na tabela de componentes
 o motivo, as versões afetadas e os links de evidência. É um relato, não um veredito: confira as
 evidências antes de decidir.
 
-- **Lista pessoal:** crie `/config/security_auditor/lista_negra.json` (pelo File editor, Studio
-  Code Server ou Samba; crie a pasta `security_auditor` se não existir) para marcar o que você
-  mesmo quiser e clique em **Varrer agora**. Não precisa de assinatura nem de evidência.
+- **Lista pessoal:** marque o que você mesmo quiser, sem assinatura nem evidência, de dois
+  jeitos:
+  - **pela tela (mais prático):** aba **Lista negra → Adicionar item…**, ou, na tela de um
+    componente, **Adicionar à lista negra…**, que já preenche o tipo, o GitHub e o nome. Dá para
+    editar e remover pela mesma aba. Esses itens ficam no banco do add-on (`/data`), porque o
+    `/config` é montado somente leitura;
+  - **por arquivo:** crie `/config/security_auditor/lista_negra.json` (pelo File editor, Studio
+    Code Server ou Samba; crie a pasta `security_auditor` se não existir). Os itens do arquivo
+    aparecem na aba como somente leitura.
+
+  Depois de mudar a lista, clique em **Varrer agora**: os selos são calculados na varredura.
+  A aba **Lista negra** também mostra a situação da lista comunitária (itens, data da lista,
+  última busca e a chave da assinatura).
 - **Lista comunitária:** mantida em
   [diogocaseca/ha-security-blocklist](https://github.com/diogocaseca/ha-security-blocklist).
   Além dos relatos da comunidade, ela inclui a **lista de removidos do HACS** (repositórios
@@ -600,7 +610,7 @@ Leia antes de concluir que "está tudo limpo":
 
 Tudo fica em `/data` do add-on (incluído nos backups do add-on):
 
-- `auditor.db` (SQLite): histórico de varreduras, lista de ignorados, estatísticas dos add-ons (30 dias), picos de
+- `auditor.db` (SQLite): histórico de varreduras, lista de ignorados, lista negra pessoal da tela, estatísticas dos add-ons (30 dias), picos de
   tráfego e domínios DNS já vistos;
 - `reports/*.json`: os últimos `report_retention` relatórios, os mesmos do botão Exportar JSON;
 - `cache/`: código de referência do GitHub (integridade e add-ons), base do Trivy, cache do

@@ -108,7 +108,9 @@ async def main() -> None:
             await on_status(status_holder["status"])
 
         app = create_app(storage, scheduler, engine.progress, config_allowlist=options.allowlist,
-                         on_change=on_ignored_change, dns_state=dns_state, dns_check=check_dns)
+                         on_change=on_ignored_change, dns_state=dns_state, dns_check=check_dns,
+                         blocklist_dirs=(paths.config_dir, paths.cache_dir),
+                         community_enabled=options.community_blocklist)
         runner = web.AppRunner(app, access_log=None)
         await runner.setup()
         port = int(os.environ.get("AUDITOR_PORT", "8099"))

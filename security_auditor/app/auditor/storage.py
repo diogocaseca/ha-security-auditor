@@ -46,6 +46,12 @@ CREATE TABLE IF NOT EXISTS dns_domains (
     last_seen  TEXT,
     queries    INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS blocklist_items (
+    id          TEXT PRIMARY KEY,
+    item_json   TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    updated_at  TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS ignored (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     component   TEXT NOT NULL,
@@ -92,6 +98,38 @@ class Storage:
                 conn.commit()
             finally:
                 conn.close()
+
+    # --- Lista negra pessoal (gerenciada pela interface) --------------------
+
+    def list_blocklist_items(self) -> list[dict[str, Any]]:
+        """Itens da lista negra pessoal criados pela interface, com as datas."""
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM blocklist_items ORDER BY created_at, id").fetchall()
+        out = []
+        for r in rows:
+            try:
+                item = json.loads(r["item_json"])
+            except ValueError:
+                continue
+            out.append({"item": item, "criado_em": r["created_at"], "alterado_em": r["updated_at"]})
+        return out
+
+    def save_blocklist_item(self, item: dict[str, Any], now: str, *, create: bool) -> bool:
+        """Cria (create=True) ou substitui um item. False se o id já existe (criar) ou não existe (editar)."""
+        data = json.dumps(item, ensure_ascii=False, sort_keys=True)
+        with self._conn() as conn:
+            if create:
+                cur = conn.execute(
+                    "INSERT OR IGNORE INTO blocklist_items (id, item_json, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                    (item["id"], data, now, now))
+            else:
+                cur = conn.execute("UPDATE blocklist_items SET item_json = ?, updated_at = ? WHERE id = ?",
+                                   (data, now, item["id"]))
+            return cur.rowcount > 0
+
+    def remove_blocklist_item(self, item_id: str) -> bool:
+        with self._conn() as conn:
+            return conn.execute("DELETE FROM blocklist_items WHERE id = ?", (item_id,)).rowcount > 0
 
     # --- Lista de ignorados (gerenciada pela interface) -------------------
 

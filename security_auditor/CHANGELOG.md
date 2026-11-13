@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.12.0
+
+- Nova aba **Lista negra**: mostra a situação da lista comunitária e permite adicionar, editar e
+  remover itens da lista pessoal pela tela (formulário com a mesma validação do arquivo).
+- Na tela de um componente, **Adicionar à lista negra…** abre o formulário já preenchido com o
+  tipo, o GitHub, o nome e (add-ons) a imagem.
+- Os itens da tela ficam no banco do add-on (o `/config` continua somente leitura); os do arquivo
+  `/config/security_auditor/lista_negra.json` seguem valendo e aparecem como somente leitura.
+
 ## 0.11.0
 
 - **Lista negra (fase 4):** a lista comunitária passa a incluir a lista de removidos do HACS e a
