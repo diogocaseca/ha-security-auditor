@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1
+
+- Ícone e logo do add-on (casa com escudo), exibidos na loja e na lista de add-ons do HA.
+
 ## 0.7.0
 
 - O auditor não audita mais a si mesmo: o próprio add-on sai das análises de permissões,

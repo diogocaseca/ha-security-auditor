@@ -69,9 +69,11 @@ Lista completa em [DOCS.md → Limitações](security_auditor/DOCS.md#limitaçõ
 
 ```
 repository.yaml                 repositório customizado de add-ons
+art/                            fontes SVG do ícone e do logo
 security_auditor/
   config.yaml build.yaml        manifesto e build do add-on (amd64, aarch64)
   Dockerfile apparmor.txt       imagem e perfil AppArmor
+  icon.png logo.png             ícone e logo exibidos no HA
   rootfs/run.sh                 ponto de entrada
   DOCS.md CHANGELOG.md          documentação e histórico exibidos no HA
   translations/                 rótulos das opções (pt-BR, en)

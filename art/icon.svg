@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Ícone original do HA Security Auditor: casa (instalação) com um escudo na frente. -->
+  <path d="M120 22 L226 114 L204 114 L204 222 Q204 234 192 234 L46 234 Q34 234 34 222 L34 114 L12 114 Z"
+        fill="#41BDF5" stroke="#41BDF5" stroke-width="12" stroke-linejoin="round"/>
+  <g fill="#ffffff">
+    <circle cx="84" cy="138" r="11"/>
+    <circle cx="120" cy="104" r="11"/>
+    <circle cx="84" cy="186" r="11"/>
+  </g>
+  <path d="M84 138 L120 104 M84 138 L84 186 M84 186 L84 234" stroke="#ffffff" stroke-width="8" stroke-linecap="round" fill="none"/>
+  <path d="M184 110 L242 132 V176 C242 214 216 238 184 248 C152 238 126 214 126 176 V132 Z"
+        fill="#0E2F56" stroke="#ffffff" stroke-width="9" stroke-linejoin="round"/>
+  <path d="M157 179 L176 198 L211 160" fill="none" stroke="#ffffff" stroke-width="15"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
