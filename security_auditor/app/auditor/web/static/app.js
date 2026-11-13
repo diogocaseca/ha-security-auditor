@@ -28,8 +28,8 @@
   // Preferência "Esconder componentes sem achados" (marcada por padrão), lembrada neste navegador.
   const HIDE_KEY = "auditor.esconderVazios";
   try { if (localStorage.getItem(HIDE_KEY) === "0") state.hideEmpty = false; } catch (e) { /* sem armazenamento */ }
-  const VIEWS = ["ignorados", "historico", "listanegra"];
-  const TAB_VIEWS = ["historico", "listanegra"]; // abas próprias; o resto pertence a "Início"
+  const VIEWS = ["ignorados", "historico", "listanegra", "dns"];
+  const TAB_VIEWS = ["historico", "listanegra", "dns"]; // abas próprias; o resto pertence a "Início"
 
   // --- Estado na URL --------------------------------------------------------------
   // ?componente=X abre a tela de achados do componente; ?niveis=critical,high guarda os
@@ -77,6 +77,7 @@
     document.body.classList.toggle("view-ignored", state.view === "ignorados");
     document.body.classList.toggle("view-history", state.view === "historico");
     document.body.classList.toggle("view-blocklist", state.view === "listanegra");
+    document.body.classList.toggle("view-dns", state.view === "dns");
     const activeTab = TAB_VIEWS.includes(state.view) ? state.view : "inicio";
     document.querySelectorAll("[data-tab]").forEach((t) =>
       t.setAttribute("aria-selected", t.dataset.tab === activeTab ? "true" : "false"));
@@ -163,7 +164,12 @@
   function openView(component, view) {
     // Guarda a posição do resumo para voltar ao mesmo ponto.
     try {
-      if (state.component || state.view) {
+      if (component && TAB_VIEWS.includes(state.view)) {
+        // Componente aberto a partir de uma aba (ex.: "Ver achados" na aba DNS): empilha,
+        // para "Voltar" retornar à aba de origem.
+        history.replaceState({ ...(history.state || {}), scroll: window.scrollY }, "", urlFor(null, state.view));
+        history.pushState({ opened: true }, "", urlFor(component, null));
+      } else if (state.component || state.view) {
         // Já fora do resumo: troca de tela sem empilhar, para "Voltar" sempre ir ao resumo.
         history.replaceState(history.state, "", urlFor(component, view));
       } else {

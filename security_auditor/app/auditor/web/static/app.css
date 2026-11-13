@@ -320,3 +320,10 @@ dialog select, dialog textarea {
 #blocklist-view td { white-space: normal; }
 #blocklist-view td.row-actions { white-space: nowrap; }
 #blocklist-view td code { overflow-wrap: anywhere; }
+
+/* Aba "DNS" (?ver=dns) */
+body:not(.view-dns) #dns-view { display: none; }
+body.view-dns main > :not(#dns-view):not(.tabs) { display: none; }
+#dns-view h3 { margin: 0; font-size: 16px; }
+.dns-findings { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 16px; }
+.dns-domains { border-top: 1px solid var(--border); padding-top: 12px; }

@@ -92,7 +92,6 @@ EN: dict[str, str] = {
     "Cancelando…": "Cancelling…",
     "Cancelar varredura": "Cancel scan",
     "Seções": "Sections",
-    "Início": "Home",
     "Histórico de verificações": "Scan history",
     "Lista negra": "Blocklist",
     "Lista negra?": "Blocklist?",
@@ -165,6 +164,7 @@ EN: dict[str, str] = {
     "CVEs: {c} críticas, {a} altas": "CVEs: {c} critical, {a} high",
     # --- Tela do componente ---
     "← Voltar para o resumo": "← Back to summary",
+    "← Voltar": "← Back",
     "Adicionar à lista negra…": "Add to blocklist…",
     "Achados de": "Findings for",
     "Filtrar por nível": "Filter by level",
@@ -218,6 +218,11 @@ EN: dict[str, str] = {
     "Última": "Last",
     "ambos": "both",
     "Resolvidos desde a varredura anterior": "Resolved since the previous scan",
+    "Achados de DNS: {n}": "DNS findings: {n}",
+    "Ver achados": "View findings",
+    "Nenhum achado de DNS nesta varredura.": "No DNS findings in this scan.",
+    "Os domínios consultados aparecem aqui depois da próxima varredura.":
+        "Queried domains appear here after the next scan.",
     # --- Lista negra ---
     "Malicioso": "Malicious",
     "Comprometido": "Compromised",

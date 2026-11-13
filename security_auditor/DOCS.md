@@ -190,8 +190,9 @@ picos aparecem uma vez, na varredura seguinte (Média; Alta se ≥ 20× a média
 ### DNS (opcional, AdGuard Home e/ou Pi-hole v6)
 
 Com `adguard_url` e/ou `pihole_url` preenchidos, o auditor lê dos seus servidores DNS as
-consultas feitas pelo host do HA nas últimas 24 horas e mostra a seção **Domínios
-consultados** no relatório.
+consultas feitas pelo host do HA nas últimas 24 horas e mostra tudo na aba **DNS**: a situação
+dos servidores, os achados de DNS (botão **Ver achados**) e a tabela de domínios consultados.
+O DNS não aparece na tabela de componentes.
 
 **Com os dois configurados** (por exemplo, um como DNS primário e o outro como secundário),
 as consultas dos dois são somadas e analisadas juntas, e a tabela ganha a coluna **Servidor**
@@ -213,14 +214,14 @@ segundo só vê o primeiro como cliente e essas consultas não entram de novo.
 | Domínios novos desde a varredura anterior | Informativa |
 
 Ao iniciar, o add-on **testa a conexão** com cada servidor configurado (login e leitura da
-versão) e mostra o resultado no topo da tela inicial e no log:
+versão) e mostra o resultado na aba **DNS** e no log:
 
 ```
 INFO  DNS AdGuard Home (192.168.1.2:3000): conexão OK, versão v0.107.57 (35 ms)
 WARNING DNS Pi-hole (192.168.1.3): falha na conexão: o Pi-hole recusou a senha (...) (120 ms)
 ```
 
-Use **Testar conexão** na tela inicial para repetir o teste depois de corrigir algo (a
+Use **Testar conexão** na aba **DNS** para repetir o teste depois de corrigir algo (a
 configuração nova só vale depois de reiniciar o add-on).
 
 O Pi-hole v5 não é suportado (API antiga).

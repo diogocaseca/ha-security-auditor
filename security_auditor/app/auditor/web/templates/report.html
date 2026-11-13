@@ -58,26 +58,16 @@
 
 <main>
   <nav class="tabs" role="tablist" aria-label="{{ _('Seções') }}">
-    <button type="button" role="tab" data-tab="inicio" aria-selected="true">{{ _("Início") }}</button>
+    <button type="button" role="tab" data-tab="inicio" aria-selected="true">{{ _("Componentes") }}</button>
     <button type="button" role="tab" data-tab="historico" aria-selected="false">{{ _("Histórico de verificações") }}</button>
     <button type="button" role="tab" data-tab="listanegra" aria-selected="false">{{ _("Lista negra") }}</button>
+    {% set dns_components = (result.components | selectattr('component_type', 'equalto', 'rede') | list) if result else [] %}
+    {% set dns_tab = (status.dns and status.dns.configurado) or dns_components %}
+    {% if dns_tab %}<button type="button" role="tab" data-tab="dns" aria-selected="false">DNS</button>{% endif %}
   </nav>
   {% set mode_labels = {'prioridade_baixa': _('prioridade baixa'), 'modo_leve': _('modo leve'), 'aguardar_folga': _('aguarda o sistema desocupar'), 'horario_fixo': _('horário fixo')} %}
   <p class="muted small modes">{{ _("Proteções contra sobrecarga:") }}
     {% if status.modes %}{% for m in status.modes %}{{ mode_labels.get(m, m) }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}{{ _("nenhuma") }}{% endif %}</p>
-  {% if status.dns and status.dns.configurado %}
-    <p class="muted small dns-status" id="dns-status">{{ _("Servidores DNS:") }}
-      {% if status.dns.testando and not status.dns.resultados %}
-        <span>{{ _("testando a conexão…") }}</span>
-      {% endif %}
-      {% for r in status.dns.resultados %}
-        <span class="dns-pill {{ 'dns-ok' if r.ok else 'dns-fail' }}"
-              title="{{ r.endereco or '' }} · {{ _('verificado em {data}', data=(r.verificado_em | dt)) }}{% if r.ms is defined %} · {{ r.ms }} ms{% endif %}">
-          {{ '✓' if r.ok else '✗' }} {{ r.servidor }}{% if r.ok %}{% if r.versao %} {{ r.versao }}{% endif %}{% else %}: {{ r.mensagem }}{% endif %}</span>
-      {% endfor %}
-      <button type="button" class="link" id="dns-check" {% if status.dns.testando %}disabled{% endif %}>{{ _("Testar conexão") }}</button>
-    </p>
-  {% endif %}
   <p class="notice">
     {{ _h("Este relatório aponta o que <strong>merece revisão humana</strong>. Um achado não significa que o componente seja malicioso; leia a explicação e decida.") }}
   </p>
@@ -119,7 +109,7 @@
         <div class="panel-head">
           <h2>{{ _("Componentes") }} <span class="muted" id="comp-count"></span></h2>
           <div class="actions">
-            {% set comp_types = result.components | map(attribute='component_type') | unique | sort | list %}
+            {% set comp_types = result.components | rejectattr('component_type', 'equalto', 'rede') | map(attribute='component_type') | unique | sort | list %}
             <label class="small type-filter">{{ _("Tipo") }}
               <select id="filter-type" aria-label="{{ _('Filtrar componentes por tipo') }}">
                 <option value="">{{ _("Todos") }}</option>
@@ -145,7 +135,7 @@
                   {% if viewing_latest %}<th></th>{% endif %}</tr>
             </thead>
             <tbody>
-              {% for c in result.components %}
+              {% for c in result.components if c.component_type != 'rede' %}
                 <tr class="comp-row" data-type="{{ c.component_type }}"
                     data-blocklist="{{ ('forte' if c.metadata.lista_negra.forte else 'possivel') if c.metadata.lista_negra else '' }}" data-github="{{ c.metadata.repositorio or '' }}"
                     data-image="{{ c.metadata.imagem or '' }}" data-sevs="{% for sev in severities if c.counts.get(sev.key, 0) %}{{ sev.key }} {% endfor %}">
@@ -178,7 +168,7 @@
     {# Tela de achados de um componente: aberta ao clicar no nome dele na tabela (?componente=...). #}
     <section class="panel" id="findings-view">
       <div class="view-actions">
-        <button type="button" class="btn btn-ghost btn-sm" id="back-to-summary">{{ _("← Voltar para o resumo") }}</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="back-to-summary">{{ _("← Voltar") }}</button>
         <button type="button" class="btn btn-ghost btn-sm" id="bl-from-component" hidden>{{ _("Adicionar à lista negra…") }}</button>
       </div>
       <div class="panel-head view-head">
@@ -289,10 +279,49 @@
     </section>
   {% if result %}
 
-    {% for c in result.components if c.component_type == 'rede' and c.metadata.dominios %}
+
+    {% if result.resolved %}
       <section class="panel">
+        <h2>{{ _("Resolvidos desde a varredura anterior") }}</h2>
+        <ul class="resolved">
+          {% for r in result.resolved %}
+            <li><span class="badge sev-{{ r.severity }}">{{ _(r.severity_label) }}</span>
+              <strong>{{ r.component }}</strong> · {{ r.title }}{% if r.file %} · <code>{{ r.file }}</code>{% endif %}</li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+  {% endif %}
+
+  {# Aba "DNS" (?ver=dns): servidores, achados de DNS e domínios consultados. #}
+  {% if dns_tab %}
+  <section class="panel" id="dns-view" role="tabpanel">
+    <h2>DNS</h2>
+  {% if status.dns and status.dns.configurado %}
+    <p class="muted small dns-status" id="dns-status">{{ _("Servidores DNS:") }}
+      {% if status.dns.testando and not status.dns.resultados %}
+        <span>{{ _("testando a conexão…") }}</span>
+      {% endif %}
+      {% for r in status.dns.resultados %}
+        <span class="dns-pill {{ 'dns-ok' if r.ok else 'dns-fail' }}"
+              title="{{ r.endereco or '' }} · {{ _('verificado em {data}', data=(r.verificado_em | dt)) }}{% if r.ms is defined %} · {{ r.ms }} ms{% endif %}">
+          {{ '✓' if r.ok else '✗' }} {{ r.servidor }}{% if r.ok %}{% if r.versao %} {{ r.versao }}{% endif %}{% else %}: {{ r.mensagem }}{% endif %}</span>
+      {% endfor %}
+      <button type="button" class="link" id="dns-check" {% if status.dns.testando %}disabled{% endif %}>{{ _("Testar conexão") }}</button>
+    </p>
+  {% endif %}
+    {% for c in dns_components %}
+      {% set n = c.counts.values() | sum %}
+      <p class="dns-findings">
+        {% if n %}{{ _("Achados de DNS: {n}", n=n) }}
+          <button type="button" class="btn btn-ghost btn-sm" data-filter-component="{{ c.name }}">{{ _("Ver achados") }}</button>
+        {% else %}{{ _("Nenhum achado de DNS nesta varredura.") }}{% endif %}
+      </p>
+    {% endfor %}
+    {% for c in dns_components if c.metadata.dominios %}
+      <div class="dns-domains">
         <div class="panel-head">
-          <h2>{{ c.metadata.nome or _('Domínios consultados') }}</h2>
+          <h3>{{ c.metadata.nome or _('Domínios consultados') }}</h3>
           <span class="muted small">{{ c.metadata.trafego }}</span>
         </div>
         <p class="notice notice-warn">{{ c.metadata.aviso }}</p>
@@ -315,20 +344,12 @@
             </tbody>
           </table>
         </div>
-      </section>
+      </div>
     {% endfor %}
-
-    {% if result.resolved %}
-      <section class="panel">
-        <h2>{{ _("Resolvidos desde a varredura anterior") }}</h2>
-        <ul class="resolved">
-          {% for r in result.resolved %}
-            <li><span class="badge sev-{{ r.severity }}">{{ _(r.severity_label) }}</span>
-              <strong>{{ r.component }}</strong> · {{ r.title }}{% if r.file %} · <code>{{ r.file }}</code>{% endif %}</li>
-          {% endfor %}
-        </ul>
-      </section>
+    {% if not dns_components %}
+      <p class="muted">{{ _("Os domínios consultados aparecem aqui depois da próxima varredura.") }}</p>
     {% endif %}
+  </section>
   {% endif %}
 
   {# Aba "Lista negra" (?ver=listanegra): lista comunitária e lista pessoal. #}

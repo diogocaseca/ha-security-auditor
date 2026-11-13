@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.1
+
+- Nova aba **DNS** (aparece com AdGuard/Pi-hole configurado): situação dos servidores com
+  "Testar conexão", resumo dos achados de DNS com "Ver achados" e a tabela de domínios. O
+  item Rede/DNS saiu da tabela de componentes. "Voltar" na lista de achados retorna à aba de
+  origem.
+- A aba "Início" passou a se chamar **Componentes**.
+
 ## 0.13.0
 
 - **Interface em inglês e português**, com o seletor **EN | PT** no topo. O padrão é inglês; a

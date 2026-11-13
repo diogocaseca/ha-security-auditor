@@ -414,3 +414,30 @@ async def test_dns_check_endpoint(aiohttp_client, tmp_path):
     assert (await (await client.get("/api/status")).json())["dns"]["resultados"][0]["servidor"] == "Pi-hole"
     state["configurado"] = False
     assert (await client.post("/api/dns/check", headers={CSRF_HEADER: token})).status == 409
+
+
+def test_dns_tab_holds_network_component():
+    from auditor.models import ComponentSummary, ScanResult
+    from auditor.report import render_html
+
+    meta = {"nome": "Domínios consultados (AdGuard Home)", "servidores": ["AdGuard Home"], "clientes": [HA_IP],
+            "aviso": AVISO, "trafego": "10 consultas", "dominios_total": 1,
+            "dominios": [{"dominio": "a.com", "consultas": 2, "bloqueadas": 0, "novo": False,
+                          "servidores": ["AdGuard Home"], "ultima": None}]}
+    result = ScanResult(scan_id="x", started_at="2026-11-12T00:00:00+00:00", status="concluida", components=[
+        ComponentSummary("dns", "rede", counts={"high": 1}, metadata=meta),
+        ComponentSummary("minha", "integracao"),
+    ])
+    status = {"dns": {"configurado": True, "testando": False, "resultados": []}}
+    html = render_html(result, status=status, history=[], csrf_token="t", lang="pt")
+    assert 'data-tab="dns"' in html and 'id="dns-view"' in html
+    assert 'data-tab="inicio" aria-selected="true">Componentes</button>' in html
+    assert 'class="comp-row" data-type="rede"' not in html  # sai da tabela de componentes
+    assert '<option value="rede">' not in html
+    dns_view = html.split('id="dns-view"')[1].split("</section>")[0]
+    assert "Servidores DNS:" in dns_view and "a.com" in dns_view and "Achados de DNS: 1" in dns_view
+    assert 'data-filter-component="dns"' in dns_view
+    # Sem DNS configurado e sem dados de rede, não há aba.
+    plain = ScanResult(scan_id="y", started_at="2026-11-12T00:00:00+00:00", status="concluida",
+                       components=[ComponentSummary("minha", "integracao")])
+    assert 'data-tab="dns"' not in render_html(plain, status={}, history=[], csrf_token="t")
