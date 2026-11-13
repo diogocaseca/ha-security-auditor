@@ -32,6 +32,23 @@ def _fmt_dt(value: str | None) -> str:
     return dt.astimezone().strftime("%d/%m/%Y %H:%M")
 
 
+def duration(started: str | None, finished: str | None) -> str:
+    """Tempo da varredura em texto curto: "45 s", "3 min 07 s", "1 h 05 min"."""
+    try:
+        seconds = int((datetime.fromisoformat(finished or "") - datetime.fromisoformat(started or "")).total_seconds())
+    except ValueError:
+        return "—"
+    if seconds < 0:
+        return "—"
+    if seconds < 60:
+        return f"{seconds} s"
+    minutes, sec = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes} min {sec:02d} s"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours} h {minutes:02d} min"
+
+
 # Metadados exibidos na tabela de componentes, na ordem: (chave, rótulo).
 _DETAIL_KEYS = (
     ("nome", ""),
@@ -65,6 +82,7 @@ def _environment() -> Environment:
         lstrip_blocks=True,
     )
     env.filters["dt"] = _fmt_dt
+    env.globals["duration"] = duration
     env.globals["type_label"] = lambda t: COMPONENT_TYPE_LABELS.get(t, t)
     env.globals["severities"] = sorted(Severity, reverse=True)
     env.globals["component_details"] = component_details

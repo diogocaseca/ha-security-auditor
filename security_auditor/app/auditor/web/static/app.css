@@ -232,7 +232,7 @@ dialog input[type="text"] {
 
 /* Tela de achados de um componente (?componente=...) */
 body:not(.view-component) #findings-view { display: none; }
-body.view-component main > :not(#findings-view) { display: none; }
+body.view-component main > :not(#findings-view):not(.tabs) { display: none; }
 #back-to-summary { margin-bottom: 12px; }
 .view-head { margin-bottom: 4px; }
 .view-head p { margin: 4px 0 0; }
@@ -253,5 +253,16 @@ body.view-component main > :not(#findings-view) { display: none; }
 
 /* Aba de ignorados (?ver=ignorados): só os avisos do topo, os cartões e a lista. */
 body:not(.view-ignored) #ignored.ignored-tab { display: none; }
-body.view-ignored main > :not(#ignored):not(.cards):not(.notice):not(.modes) { display: none; }
+body.view-ignored main > :not(#ignored):not(.cards):not(.notice):not(.modes):not(.tabs) { display: none; }
 #back-from-ignored { margin-bottom: 12px; }
+
+/* Abas: Início e Histórico de verificações (?ver=historico) */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); margin: 0 0 16px; overflow-x: auto; }
+.tabs button {
+  background: none; border: 0; border-bottom: 2px solid transparent; margin-bottom: -1px; padding: 8px 14px;
+  font: inherit; color: var(--muted); cursor: pointer; white-space: nowrap;
+}
+.tabs button:hover { color: var(--text); }
+.tabs button[aria-selected="true"] { color: var(--text); font-weight: 600; border-bottom-color: var(--accent); }
+body:not(.view-history) #history { display: none; }
+body.view-history main > :not(#history):not(.tabs) { display: none; }

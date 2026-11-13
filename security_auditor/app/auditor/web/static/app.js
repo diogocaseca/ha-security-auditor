@@ -11,7 +11,7 @@
   });
   const SEV_KEYS = Object.keys(sevLabels);
   const state = { sev: new Set(), component: null, view: null, text: "", onlyNew: false, suppressed: false };
-  const VIEWS = ["ignorados"];
+  const VIEWS = ["ignorados", "historico"];
 
   // --- Estado na URL --------------------------------------------------------------
   // ?componente=X abre a tela de achados do componente; ?niveis=critical,high guarda os
@@ -44,6 +44,9 @@
     const inComponent = !!state.component;
     document.body.classList.toggle("view-component", inComponent);
     document.body.classList.toggle("view-ignored", state.view === "ignorados");
+    document.body.classList.toggle("view-history", state.view === "historico");
+    document.querySelectorAll("[data-tab]").forEach((t) => t.setAttribute("aria-selected",
+      (t.dataset.tab === "historico") === (state.view === "historico") ? "true" : "false"));
     document.getElementById("toggle-ignored")?.setAttribute("aria-pressed", state.view === "ignorados" ? "true" : "false");
     let visible = 0;
     let total = 0;
@@ -117,8 +120,13 @@
   function openView(component, view) {
     // Guarda a posição do resumo para voltar ao mesmo ponto.
     try {
-      history.replaceState({ ...(history.state || {}), scroll: window.scrollY }, "", urlFor(null, null));
-      history.pushState({ opened: true }, "", urlFor(component, view));
+      if (state.component || state.view) {
+        // Já fora do resumo: troca de tela sem empilhar, para "Voltar" sempre ir ao resumo.
+        history.replaceState(history.state, "", urlFor(component, view));
+      } else {
+        history.replaceState({ ...(history.state || {}), scroll: window.scrollY }, "", urlFor(null, null));
+        history.pushState({ opened: true }, "", urlFor(component, view));
+      }
     } catch (e) { /* sem histórico: só troca a tela */ }
     state.component = component;
     state.view = view;
@@ -150,6 +158,14 @@
     btn.addEventListener("click", () => openComponent(btn.dataset.filterComponent)));
   document.getElementById("back-to-summary")?.addEventListener("click", backToSummary);
   document.getElementById("back-from-ignored")?.addEventListener("click", backToSummary);
+  // Abas: "Início" volta ao resumo; "Histórico de verificações" abre a tabela de histórico.
+  document.querySelectorAll("[data-tab]").forEach((t) => t.addEventListener("click", () => {
+    if (t.dataset.tab === "historico") {
+      if (state.view !== "historico") openView(null, "historico");
+    } else if (state.component || state.view) {
+      backToSummary();
+    }
+  }));
   // Quadrado "Ignorados": abre a aba da lista; clicar de novo volta ao resumo.
   document.getElementById("toggle-ignored")?.addEventListener("click", () =>
     state.view === "ignorados" ? backToSummary() : openView(null, "ignorados"));

@@ -184,3 +184,16 @@ def test_extract_limits(tmp_path):
     with pytest.raises(UnsafeArchiveError):
         extract(arc, tmp_path / "out", max_total=1_000)
     assert extract(arc, tmp_path / "out2") == ["grande.bin"]
+
+
+@pytest.mark.parametrize(("start", "end", "text"), [
+    ("2026-11-12T03:30:00+00:00", "2026-11-12T03:30:45+00:00", "45 s"),
+    ("2026-11-12T03:30:00+00:00", "2026-11-12T03:33:07+00:00", "3 min 07 s"),
+    ("2026-11-12T03:30:00+00:00", "2026-11-12T04:35:59+00:00", "1 h 05 min"),
+    ("2026-11-12T03:30:00+00:00", None, "—"),
+    ("lixo", "2026-11-12T03:30:00+00:00", "—"),
+])
+def test_scan_duration(start, end, text):
+    from auditor.report import duration
+
+    assert duration(start, end) == text

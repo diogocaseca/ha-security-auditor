@@ -74,7 +74,8 @@ No relatório você encontra:
 - o botão **Ignorar…** em cada achado e o quadrado **Ignorados**, que mostra quantos achados
   estão ignorados e abre a [lista de ignorados](#lista-de-ignorados-e-allowlist) numa aba
   própria (clique de novo, ou em "Voltar para o resumo", para voltar);
-- o histórico de varreduras e o botão **Exportar JSON**;
+- a aba **Histórico de verificações**, com status, duração e totais de cada verificação
+  (clique na data para abrir aquele relatório), e o botão **Exportar JSON**;
 - o seletor de tema **Sistema / Claro / Escuro**.
 
 ## O que é verificado

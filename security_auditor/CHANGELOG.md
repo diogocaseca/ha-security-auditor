@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.5
+
+- Duas abas no topo: **Início** (o resumo) e **Histórico de verificações**, que agora fica só
+  na sua aba, fora da tela inicial.
+- O histórico ganhou a coluna **Duração** de cada verificação.
+
 ## 0.7.4
 
 - O quadrado **Ignorados** abre uma aba própria com a lista de ignorados: a tabela de

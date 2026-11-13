@@ -51,6 +51,10 @@
 </header>
 
 <main>
+  <nav class="tabs" role="tablist" aria-label="Seções">
+    <button type="button" role="tab" data-tab="inicio" aria-selected="true">Início</button>
+    <button type="button" role="tab" data-tab="historico" aria-selected="false">Histórico de verificações</button>
+  </nav>
   {% set mode_labels = {'prioridade_baixa': 'prioridade baixa', 'modo_leve': 'modo leve', 'aguardar_folga': 'aguarda o sistema desocupar', 'horario_fixo': 'horário fixo'} %}
   <p class="muted small modes">Proteções contra sobrecarga:
     {% if status.modes %}{% for m in status.modes %}{{ mode_labels.get(m, m) }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}nenhuma{% endif %}</p>
@@ -281,18 +285,21 @@
     {% endif %}
   {% endif %}
 
-  {% if history %}
-    <section class="panel">
-      <h2>Histórico</h2>
+  {# Aba "Histórico de verificações" (?ver=historico). #}
+  <section class="panel" id="history" role="tabpanel">
+    <h2>Histórico de verificações</h2>
+    {% if history %}
+      <p class="muted small">Clique na data para abrir o relatório daquela verificação.</p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Varredura</th><th>Status</th>
+          <thead><tr><th>Varredura</th><th>Status</th><th class="num">Duração</th>
             {% for sev in severities %}<th class="num">{{ sev.label }}</th>{% endfor %}<th class="num">Novos</th></tr></thead>
           <tbody>
             {% for h in history %}
               <tr{% if result and h.scan_id == result.scan_id %} class="current"{% endif %}>
                 <td><a href="./?scan={{ h.scan_id }}">{{ h.finished_at | dt }}</a></td>
                 <td>{{ {'concluida': 'Concluída', 'falhou': 'Falhou', 'cancelada': 'Cancelada', 'em_andamento': 'Em andamento'}.get(h.status, h.status) }}</td>
+                <td class="num">{{ duration(h.started_at, h.finished_at) }}</td>
                 {% for sev in severities %}<td class="num">{{ h.counts.get(sev.key, 0) or '' }}</td>{% endfor %}
                 <td class="num">{{ h.new_count or '' }}</td>
               </tr>
@@ -300,8 +307,10 @@
           </tbody>
         </table>
       </div>
-    </section>
-  {% endif %}
+    {% else %}
+      <p class="muted">Nenhuma verificação ainda.</p>
+    {% endif %}
+  </section>
 </main>
 
 <dialog id="ignore-dialog" aria-labelledby="ignore-title">
