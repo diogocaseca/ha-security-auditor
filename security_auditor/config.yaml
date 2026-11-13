@@ -1,5 +1,5 @@
 name: HA Security Auditor
-version: "0.9.0"
+version: "0.10.0"
 slug: security_auditor
 description: >-
   Audita integrações customizadas (HACS) e add-ons instalados e gera um
@@ -62,6 +62,7 @@ options:
   pihole_password: ""
   dns_client_ips: []
   dns_verify_tls: true
+  lista_comunitaria: true
   allowlist: []
 
 schema:
@@ -88,6 +89,7 @@ schema:
   dns_client_ips:
     - str
   dns_verify_tls: bool
+  lista_comunitaria: bool
   allowlist:
     - component: str
       rule: str

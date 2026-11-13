@@ -70,6 +70,11 @@ configuration:
   dns_verify_tls:
     name: Verificar certificado TLS
     description: Desative só se o AdGuard ou o Pi-hole usar certificado próprio em HTTPS (vale para os dois).
+  lista_comunitaria:
+    name: Lista negra comunitária
+    description: >-
+      Baixa do GitHub a lista de componentes reportados (assinada; só é usada se a
+      assinatura for válida) e compara localmente. Nada sobre a instalação é enviado.
   allowlist:
     name: Exceções (allowlist)
     description: >-

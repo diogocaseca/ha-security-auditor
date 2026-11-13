@@ -47,6 +47,9 @@ configuration:
     name: Home Assistant IPs on the DNS server (optional)
   dns_verify_tls:
     name: Verify TLS certificate
+  lista_comunitaria:
+    name: Community blocklist
+    description: Downloads the signed list of reported components from GitHub and compares it locally. Nothing about your installation is sent.
   allowlist:
     name: Allowlist
     description: Exceptions per component and rule. Suppressed findings stay in the report, flagged.

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.10.0
+
+- **Lista negra comunitária (fase 2):** baixada do repositório `diogocaseca/ha-security-blocklist`
+  a cada varredura (no máximo a cada 6 horas) e somada à lista pessoal.
+  - Só é usada com **assinatura Ed25519 válida** (chave pública embutida no add-on); listas com
+    assinatura inválida, chave desconhecida, formato errado ou mais antigas que a cópia local
+    são recusadas, mantendo a cópia anterior.
+  - Avisos no relatório quando a lista nunca pôde ser baixada ou quando a cópia passa de 7 dias.
+  - Nova opção `lista_comunitaria` (ligada por padrão). Logs de cada verificação.
+
 ## 0.9.0
 
 - **Lista negra (fase 1):** componentes reportados ganham o selo **Lista negra** na tabela e um

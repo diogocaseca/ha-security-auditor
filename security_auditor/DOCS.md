@@ -245,6 +245,7 @@ O Pi-hole v5 não é suportado (API antiga).
 | `pihole_url` | vazio | Endereço do Pi-hole v6. Ex.: `http://pi.hole` ou `http://192.168.1.3`. |
 | `pihole_password` | vazio | **Senha de app** do Pi-hole v6. Nunca é registrada em log. |
 | `dns_client_ips` | `[]` | IPs com que o HA aparece no servidor DNS. Vazio = IPs do host (via Supervisor) + `172.30.32.3` (DNS do Supervisor). |
+| `lista_comunitaria` | `true` | Baixa e usa a [lista negra comunitária](#lista-negra) assinada. |
 | `dns_verify_tls` | `true` | Desative só se o AdGuard ou o Pi-hole usar HTTPS com certificado próprio (vale para os dois). |
 | `allowlist` | `[]` | Exceções; veja abaixo. |
 
@@ -366,8 +367,23 @@ evidências antes de decidir.
 - **Lista pessoal:** crie `/config/security_auditor/lista_negra.json` (pelo File editor, Studio
   Code Server ou Samba) para marcar o que você mesmo quiser. Ela vale na próxima varredura.
 - **Lista comunitária:** mantida em
-  [diogocaseca/ha-security-blocklist](https://github.com/diogocaseca/ha-security-blocklist). O
-  download automático chega numa próxima versão; quando chegar, ela é somada à pessoal.
+  [diogocaseca/ha-security-blocklist](https://github.com/diogocaseca/ha-security-blocklist) e
+  baixada a cada varredura (no máximo a cada 6 horas), somada à pessoal. Opção
+  `lista_comunitaria` (ligada por padrão) para desligar.
+
+A lista comunitária só é usada se estiver **assinada** pelo mantenedor (Ed25519; a chave
+pública vem embutida no add-on). Uma lista com assinatura inválida, de chave desconhecida, com
+formato errado ou mais antiga que a cópia local é recusada, e o auditor continua com a cópia
+anterior. O download é do arquivo inteiro, sem enviar nada sobre a instalação. No log:
+
+```
+INFO  Lista negra comunitária atualizada: 12 item(ns), lista de 2026-11-13, assinatura OK (chave 539f9e99d82adfd9)
+WARNING Lista negra comunitária: lista recusada: assinatura inválida (...); mantendo a cópia anterior
+```
+
+Se a lista nunca pôde ser baixada, o relatório mostra "Lista negra comunitária indisponível"
+(informativo); se a cópia local passar de 7 dias porque as atualizações estão falhando,
+"Lista negra comunitária desatualizada".
 
 Exemplo de lista pessoal:
 
@@ -504,6 +520,7 @@ downloads e consultas a bases de vulnerabilidades:
 | Destino | Para quê | Quem acessa |
 |---|---|---|
 | `api.github.com`, `github.com`, `codeload.github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `raw.githubusercontent.com` | Baixar o código das integrações e add-ons para comparação e análise | Auditor (Python) |
+| `raw.githubusercontent.com` (`diogocaseca/ha-security-blocklist`) | Baixar a lista negra comunitária e a assinatura (arquivo inteiro; nada é enviado) | Auditor (Python) |
 | `api.osv.dev` | Consultar vulnerabilidades dos requirements (envia só nome e versão do pacote) | pip-audit |
 | Registros das imagens (`ghcr.io`, Docker Hub e o registro que cada add-on usar) | Baixar manifesto e camadas das imagens | Trivy |
 | `mirror.gcr.io`, `ghcr.io` | Baixar a base de vulnerabilidades do Trivy | Trivy |
@@ -572,8 +589,8 @@ Tudo fica em `/data` do add-on (incluído nos backups do add-on):
 - `auditor.db` (SQLite): histórico de varreduras, lista de ignorados, estatísticas dos add-ons (30 dias), picos de
   tráfego e domínios DNS já vistos;
 - `reports/*.json`: os últimos `report_retention` relatórios, os mesmos do botão Exportar JSON;
-- `cache/`: código de referência do GitHub (integridade e add-ons), base do Trivy e cache do
-  pip-audit.
+- `cache/`: código de referência do GitHub (integridade e add-ons), base do Trivy, cache do
+  pip-audit e a lista negra comunitária (`lista_comunitaria.json`).
 
 Nada disso é enviado para fora. Apagar `cache/` só faz o próximo download demorar mais.
 

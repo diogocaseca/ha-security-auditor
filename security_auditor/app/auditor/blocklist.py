@@ -241,10 +241,13 @@ def community_cache_path(cache_dir: Path) -> Path:
     return cache_dir / "lista_comunitaria.json"
 
 
-def load(config_dir: Path, cache_dir: Path) -> Blocklist:
+def load(config_dir: Path, cache_dir: Path, community: bool = True) -> Blocklist:
     """Junta a lista comunitária (cache) e a pessoal."""
     bl = Blocklist()
-    for path, origem in ((community_cache_path(cache_dir), "comunitária"), (personal_path(config_dir), "pessoal")):
+    sources = [(personal_path(config_dir), "pessoal")]
+    if community:
+        sources.insert(0, (community_cache_path(cache_dir), "comunitária"))
+    for path, origem in sources:
         entries, errors = load_file(path, origem)
         bl.errors.extend(errors)
         if entries:

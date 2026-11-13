@@ -10,6 +10,7 @@ import asyncio
 import logging
 from pathlib import Path
 
+from .. import blocklist_update
 from ..blocklist import CATEGORIES, Blocklist, Match, load, personal_path
 from ..models import ComponentType, Finding, Severity
 from .base import ScanContext
@@ -32,8 +33,16 @@ class BlocklistScanner:
     name = "lista_negra"
 
     async def scan(self, ctx: ScanContext) -> list[Finding]:
-        bl: Blocklist = await asyncio.to_thread(load, ctx.paths.config_dir, ctx.paths.cache_dir)
-        findings: list[Finding] = [_invalid(err) for err in bl.errors[:5]]
+        findings: list[Finding] = []
+        community = ctx.options.community_blocklist
+        if community and ctx.http is not None:
+            ctx.set_progress(self.name, "atualizando a lista comunitária")
+            result = await blocklist_update.update(ctx.http, ctx.paths.cache_dir)
+            findings.extend(_community_status(result))
+        elif not community:
+            _LOGGER.info("Lista negra comunitária desativada nas opções")
+        bl: Blocklist = await asyncio.to_thread(load, ctx.paths.config_dir, ctx.paths.cache_dir, community)
+        findings.extend(_invalid(err) for err in bl.errors[:5])
         if not bl.entries:
             return findings
         ctx.set_progress(self.name, f"{len(bl.entries)} itens")
@@ -100,6 +109,32 @@ def _finding(ctype: str, name: str, version: str | None, m: Match) -> Finding:
         source="lista_negra",
         extra={"fingerprint_key": e.id, "evidencias": list(e.evidencias), "origem": e.origem},
     )
+
+
+def _community_status(result: blocklist_update.UpdateResult) -> list[Finding]:
+    """Avisa quando a lista comunitária nunca chegou ou ficou velha (atualizações falhando)."""
+    if result.downloaded_at is None:
+        return [Finding(
+            component="auditor", component_type=ComponentType.SYSTEM, category="configuracao",
+            rule_id="auditor.lista-negra.indisponivel", severity=Severity.INFO,
+            title="Lista negra comunitária indisponível",
+            explanation=f"A lista comunitária ainda não pôde ser obtida: {result.message}. "
+                        "Só a lista pessoal (se houver) foi usada nesta varredura.",
+            recommendation="Confira a conexão com o GitHub. Se não quiser usar a lista, desligue "
+                           "a opção lista_comunitaria.",
+            source="lista_negra", extra={"fingerprint_key": "indisponivel"},
+        )]
+    if blocklist_update.is_stale(result):
+        return [Finding(
+            component="auditor", component_type=ComponentType.SYSTEM, category="configuracao",
+            rule_id="auditor.lista-negra.desatualizada", severity=Severity.LOW,
+            title="Lista negra comunitária desatualizada",
+            explanation=f"A cópia local é de {result.downloaded_at[:10]} e as atualizações estão falhando "
+                        f"({result.message}). Componentes reportados depois disso não serão avisados.",
+            recommendation="Confira a conexão com o GitHub e o log do add-on.",
+            source="lista_negra", extra={"fingerprint_key": "desatualizada"},
+        )]
+    return []
 
 
 def _invalid(error: str) -> Finding:

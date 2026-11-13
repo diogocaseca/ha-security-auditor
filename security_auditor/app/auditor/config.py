@@ -99,6 +99,7 @@ class Options:
     dns_servers: tuple[DnsServer, ...] = field(default_factory=tuple)
     dns_client_ips: tuple[str, ...] = field(default_factory=tuple)
     dns_verify_tls: bool = True
+    community_blocklist: bool = True  # baixar a lista negra comunitária (assinada)
     execution_modes: frozenset[str] = frozenset(DEFAULT_EXECUTION_MODES)
     scan_time: str = DEFAULT_SCAN_TIME  # HH:MM, usado com horario_fixo
     min_free_memory_mb: int = 500
@@ -143,6 +144,7 @@ class Options:
             dns_servers=_dns_servers(raw),
             dns_client_ips=tuple(str(x).strip() for x in (raw.get("dns_client_ips") or []) if str(x).strip()),
             dns_verify_tls=bool(raw.get("dns_verify_tls", True)),
+            community_blocklist=bool(raw.get("lista_comunitaria", True)),
             execution_modes=_parse_modes(raw.get("modo_execucao")),
             scan_time=_parse_time(raw.get("horario_varredura")),
             min_free_memory_mb=max(64, int(raw.get("memoria_minima_mb", 500))),
