@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS ignored (
     rule        TEXT NOT NULL,
     path        TEXT,
     fingerprint TEXT,
+    severities  TEXT,
     title       TEXT,
     reason      TEXT NOT NULL DEFAULT '',
     created_at  TEXT NOT NULL
@@ -76,6 +77,10 @@ class Storage:
         reports_dir.mkdir(parents=True, exist_ok=True)
         with self._conn() as conn:
             conn.executescript(_SCHEMA)
+            # Migração: a tabela "ignored" da 0.6.0 não tinha a coluna de níveis.
+            cols = {r["name"] for r in conn.execute("PRAGMA table_info(ignored)")}
+            if "severities" not in cols:
+                conn.execute("ALTER TABLE ignored ADD COLUMN severities TEXT")
 
     @contextmanager
     def _conn(self) -> Iterator[sqlite3.Connection]:
@@ -93,15 +98,16 @@ class Storage:
     def list_ignored(self) -> list[dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute("SELECT * FROM ignored ORDER BY id").fetchall()
-        return [dict(r) for r in rows]
+        return [{**dict(r), "severities": [s for s in (r["severities"] or "").split(",") if s]} for r in rows]
 
     def add_ignored(self, *, component: str, rule: str, reason: str, created_at: str,
-                    path: str | None = None, fingerprint: str | None = None, title: str | None = None) -> int:
+                    path: str | None = None, fingerprint: str | None = None, title: str | None = None,
+                    severities: tuple[str, ...] = ()) -> int:
         with self._conn() as conn:
             cur = conn.execute(
-                "INSERT INTO ignored (component, rule, path, fingerprint, title, reason, created_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?)",
-                (component, rule, path, fingerprint, title, reason, created_at),
+                "INSERT INTO ignored (component, rule, path, fingerprint, severities, title, reason, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                (component, rule, path, fingerprint, ",".join(severities) or None, title, reason, created_at),
             )
             return int(cur.lastrowid or 0)
 
@@ -112,7 +118,7 @@ class Storage:
     def ignore_entries(self) -> list[AllowlistEntry]:
         return [
             AllowlistEntry(component=r["component"], rule=r["rule"], reason=r["reason"], path=r["path"],
-                           fingerprint=r["fingerprint"], entry_id=r["id"])
+                           fingerprint=r["fingerprint"], entry_id=r["id"], severities=tuple(r["severities"]))
             for r in self.list_ignored()
         ]
 

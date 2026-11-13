@@ -36,10 +36,14 @@ from .test_fase1 import RULES, FakeGitHub, _dir_files, _tar_of, needs_tools
 
 
 class FakeSupervisor:
-    def __init__(self, addons: list[dict], repos: list[dict] | None = None) -> None:
+    def __init__(self, addons: list[dict], repos: list[dict] | None = None, own: str | None = None) -> None:
         self._addons = addons
         self._repos = repos or []
+        self._own = own
         self.stats: dict[str, dict] = {}
+
+    async def self_slug(self):
+        return self._own
 
     async def addons(self):
         return [{"slug": a["slug"], "state": a.get("state", "started"), "repository": a.get("repository")}
@@ -323,3 +327,19 @@ async def test_collector_disabled(tmp_path, interval):
     sup = FakeSupervisor([_addon()])
     ctx = _ctx(tmp_path, sup)
     await TrafficCollector(ctx.storage, sup, interval).run()  # retorna imediatamente
+
+
+async def test_auditor_does_not_audit_itself(tmp_path):
+    own = _addon(slug="9f8e7d6c_security_auditor", name="HA Security Auditor")
+    sup = FakeSupervisor([_addon(), own], own="9f8e7d6c_security_auditor")
+    assert [a.slug for a in await collect(sup)] == ["abc123_exemplo"]
+
+
+async def test_collector_skips_itself(tmp_path):
+    sup = FakeSupervisor([_addon(), _addon(slug="eu_security_auditor")], own="eu_security_auditor")
+    ctx = _ctx(tmp_path, sup)
+    for slug in ("abc123_exemplo", "eu_security_auditor"):
+        sup.stats[slug] = {"cpu_percent": 1.0, "memory_usage": 1, "network_rx": 1, "network_tx": 1}
+    await TrafficCollector(ctx.storage, sup, interval_minutes=5).tick()
+    assert ctx.storage.addon_stats_since("eu_security_auditor", "2000-01-01T00:00:00+00:00") == []
+    assert ctx.storage.addon_stats_since("abc123_exemplo", "2000-01-01T00:00:00+00:00")

@@ -47,26 +47,38 @@ configuration:
   stats_interval_minutes:
     name: Intervalo de coleta de estatísticas (minutos)
     description: CPU, memória e rede dos add-ons, para detectar picos de envio. 0 desativa.
-  dns_provider:
-    name: Servidor DNS (Fase 3, opcional)
+  adguard_url:
+    name: URL do AdGuard Home (Fase 3, opcional)
     description: >-
-      AdGuard Home ou Pi-hole v6, para listar os domínios consultados pelo host
-      do HA. O DNS de todos os add-ons passa pelo HA: não dá para saber qual
-      add-on fez cada consulta.
+      Ex.: http://192.168.1.2:3000. Preencha o AdGuard, o Pi-hole ou os dois
+      (as consultas são somadas). O DNS de todos os add-ons passa pelo HA: não
+      dá para saber qual add-on fez cada consulta.
+  adguard_username:
+    name: Usuário do AdGuard Home
+  adguard_password:
+    name: Senha do AdGuard Home
+    description: Nunca é registrada em log.
+  pihole_url:
+    name: URL do Pi-hole v6 (Fase 3, opcional)
+    description: "Ex.: http://pi.hole ou http://192.168.1.3."
+  pihole_password:
+    name: Senha de app do Pi-hole
+    description: Nunca é registrada em log.
+  dns_provider:
+    name: (Antigo) Servidor DNS
+    description: Opção da versão 0.6.0 e anteriores; prefira os campos do AdGuard e do Pi-hole.
   dns_url:
-    name: URL do servidor DNS
-    description: "Ex.: http://192.168.1.2:3000 (AdGuard) ou http://pi.hole (Pi-hole)."
+    name: (Antigo) URL do servidor DNS
   dns_username:
-    name: Usuário (AdGuard Home)
+    name: (Antigo) Usuário
   dns_password:
-    name: Senha
-    description: Senha do AdGuard Home ou senha de app do Pi-hole v6. Nunca é registrada em log.
+    name: (Antigo) Senha
   dns_client_ips:
     name: IPs do Home Assistant no servidor DNS (opcional)
     description: Vazio = descobrir automaticamente (IPs do host + 172.30.32.3).
   dns_verify_tls:
     name: Verificar certificado TLS
-    description: Desative só se o servidor DNS usar certificado próprio em HTTPS.
+    description: Desative só se o AdGuard ou o Pi-hole usar certificado próprio em HTTPS (vale para os dois).
   allowlist:
     name: Exceções (allowlist)
     description: >-

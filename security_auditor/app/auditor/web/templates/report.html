@@ -94,13 +94,20 @@
       <section class="panel" id="components">
         <div class="panel-head">
           <h2>Componentes <span class="muted" id="comp-count"></span></h2>
-          <span class="muted small" id="comp-filter-note" hidden></span>
+          <div class="actions">
+            <span class="muted small" id="comp-filter-note" hidden></span>
+            {% if viewing_latest %}
+              <button type="button" class="btn btn-ghost btn-sm" id="ignore-levels" hidden
+                      title="Ignora os achados dos níveis selecionados em todos os componentes">Ignorar estes níveis…</button>
+            {% endif %}
+          </div>
         </div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr><th>Componente</th><th>Tipo</th><th class="num">Nota de risco</th>
-                  {% for sev in severities %}<th class="num">{{ sev.label }}</th>{% endfor %}</tr>
+                  {% for sev in severities %}<th class="num">{{ sev.label }}</th>{% endfor %}
+                  {% if viewing_latest %}<th></th>{% endif %}</tr>
             </thead>
             <tbody>
               {% for c in result.components %}
@@ -113,6 +120,9 @@
                   <td>{{ type_label(c.component_type) }}</td>
                   <td class="num"><span class="score score-{{ 'high' if c.score >= 40 else ('mid' if c.score >= 10 else 'low') }}">{{ c.score }}</span></td>
                   {% for sev in severities %}<td class="num">{{ c.counts.get(sev.key, 0) or '' }}</td>{% endfor %}
+                  {% if viewing_latest %}
+                    <td>{% if c.counts.values() | sum %}<button type="button" class="btn btn-ghost btn-sm" data-ignore-component="{{ c.name }}">Ignorar…</button>{% endif %}</td>
+                  {% endif %}
                 </tr>
               {% endfor %}
             </tbody>
@@ -188,7 +198,7 @@
                 <tr>
                   <td><code>{{ e.component }}</code></td>
                   <td><code>{{ e.rule }}</code></td>
-                  <td class="wrap">{% if e.fingerprint %}só o achado “{{ e.title or 'específico' }}”{% elif e.path %}arquivos <code>{{ e.path }}</code>{% else %}todos os achados da regra{% endif %}</td>
+                  <td class="wrap">{% if e.fingerprint %}só o achado “{{ e.title or 'específico' }}”{% elif e.path %}arquivos <code>{{ e.path }}</code>{% elif e.rule == '*' %}todos os achados{% else %}todos os achados da regra{% endif %}{% if e.severities %} · níveis: {{ severity_labels(e.severities) }}{% endif %}</td>
                   <td class="wrap">{{ e.reason or '—' }}</td>
                   <td>Interface · {{ e.created_at | dt }}</td>
                   <td><button type="button" class="btn btn-ghost btn-sm" data-unignore="{{ e.id }}">Remover</button></td>
@@ -224,11 +234,13 @@
           {% if c.metadata.dominios_total > c.metadata.dominios | length %}Mostrando os {{ c.metadata.dominios | length }} mais consultados de {{ c.metadata.dominios_total }}.{% endif %}</p>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Domínio</th><th class="num">Consultas</th><th class="num">Bloqueadas</th><th>Última</th></tr></thead>
+            {% set multi = (c.metadata.servidores or []) | length > 1 %}
+            <thead><tr><th>Domínio</th>{% if multi %}<th>Servidor</th>{% endif %}<th class="num">Consultas</th><th class="num">Bloqueadas</th><th>Última</th></tr></thead>
             <tbody>
               {% for d in c.metadata.dominios %}
                 <tr>
                   <td><code>{{ d.dominio }}</code>{% if d.novo %} <span class="badge badge-new">Novo</span>{% endif %}</td>
+                  {% if multi %}<td>{{ 'ambos' if (d.servidores or []) | length > 1 else (d.servidores or ['—']) | first }}</td>{% endif %}
                   <td class="num">{{ d.consultas }}</td>
                   <td class="num">{{ d.bloqueadas or '' }}</td>
                   <td>{{ d.ultima | dt }}</td>
@@ -286,6 +298,12 @@
       <label><input type="radio" name="scope" value="file"> Esta regra neste arquivo</label>
       <label><input type="radio" name="scope" value="component"> Esta regra em todo o componente</label>
       <label><input type="radio" name="scope" value="all"> Esta regra em todos os componentes</label>
+    </fieldset>
+    <fieldset id="ignore-levels-field" hidden>
+      <legend id="ignore-levels-legend">Níveis</legend>
+      <div class="level-checks">
+        {% for sev in severities %}<label><input type="checkbox" name="severity" value="{{ sev.key }}"> {{ sev.label }}</label>{% endfor %}
+      </div>
     </fieldset>
     <div id="ignore-manual" hidden>
       <label>Componente <input type="text" name="component" maxlength="200" placeholder="ex.: minha_integracao ou *"></label>

@@ -31,6 +31,47 @@ class AllowlistEntry:
     path: str | None = None  # glob opcional de arquivo
     fingerprint: str | None = None  # só um achado específico (lista de ignorados da interface)
     entry_id: int | None = None  # id na lista de ignorados; None = allowlist das configurações
+    severities: tuple[str, ...] = ()  # só achados destes níveis (critical, high...); vazio = todos
+
+
+DNS_LABELS = {"adguard": "AdGuard Home", "pihole": "Pi-hole"}
+
+
+@dataclass(frozen=True)
+class DnsServer:
+    kind: str  # adguard | pihole
+    url: str | None
+    username: str | None = None
+    password: str | None = None
+
+    @property
+    def label(self) -> str:
+        return DNS_LABELS.get(self.kind, self.kind)
+
+
+def _text(value: Any) -> str | None:
+    return (str(value).strip() or None) if value else None
+
+
+def _dns_servers(raw: dict[str, Any]) -> tuple[DnsServer, ...]:
+    """AdGuard Home e/ou Pi-hole, usados juntos quando os dois estão configurados.
+
+    As opções antigas (dns_provider, dns_url, dns_username, dns_password) continuam
+    valendo para quem já as tinha preenchido, se o mesmo tipo não estiver configurado
+    nas opções novas.
+    """
+    servers: list[DnsServer] = []
+    if url := _text(raw.get("adguard_url")):
+        servers.append(DnsServer("adguard", url, _text(raw.get("adguard_username")),
+                                 str(raw["adguard_password"]) if raw.get("adguard_password") else None))
+    if url := _text(raw.get("pihole_url")):
+        servers.append(DnsServer("pihole", url, None,
+                                 str(raw["pihole_password"]) if raw.get("pihole_password") else None))
+    legacy = str(raw.get("dns_provider") or "nenhum").strip().lower()
+    if legacy in DNS_LABELS and all(s.kind != legacy for s in servers):
+        servers.append(DnsServer(legacy, _text(raw.get("dns_url")), _text(raw.get("dns_username")),
+                                 str(raw["dns_password"]) if raw.get("dns_password") else None))
+    return tuple(servers)
 
 
 @dataclass(frozen=True)
@@ -64,10 +105,7 @@ class Options:
     image_scan: bool = True
     image_scan_skip: tuple[str, ...] = field(default_factory=tuple)
     stats_interval_minutes: int = 5
-    dns_provider: str = "nenhum"  # nenhum | adguard | pihole
-    dns_url: str | None = None
-    dns_username: str | None = None
-    dns_password: str | None = None
+    dns_servers: tuple[DnsServer, ...] = field(default_factory=tuple)
     dns_client_ips: tuple[str, ...] = field(default_factory=tuple)
     dns_verify_tls: bool = True
     execution_modes: frozenset[str] = frozenset(DEFAULT_EXECUTION_MODES)
@@ -111,10 +149,7 @@ class Options:
             image_scan=bool(raw.get("image_scan", True)),
             image_scan_skip=tuple(str(x).strip() for x in (raw.get("image_scan_skip") or []) if str(x).strip()),
             stats_interval_minutes=max(0, min(60, int(raw.get("stats_interval_minutes", 5)))),
-            dns_provider=str(raw.get("dns_provider") or "nenhum").lower(),
-            dns_url=(str(raw["dns_url"]).strip() or None) if raw.get("dns_url") else None,
-            dns_username=(str(raw["dns_username"]).strip() or None) if raw.get("dns_username") else None,
-            dns_password=str(raw["dns_password"]) if raw.get("dns_password") else None,
+            dns_servers=_dns_servers(raw),
             dns_client_ips=tuple(str(x).strip() for x in (raw.get("dns_client_ips") or []) if str(x).strip()),
             dns_verify_tls=bool(raw.get("dns_verify_tls", True)),
             execution_modes=_parse_modes(raw.get("modo_execucao")),

@@ -129,6 +129,10 @@ versão instalada e compara arquivo a arquivo por SHA-256:
 
 ### Outros add-ons (via API do Supervisor)
 
+O próprio Security Auditor fica de fora (permissões, código, imagem e tráfego): ele se
+identifica por `/addons/self/info`. As permissões dele estão explicadas em
+[Permissões pedidas e por quê](#permissões-pedidas-e-por-quê).
+
 **Permissões e estado**, lidos de `/addons/<slug>/info`:
 
 | Situação | Severidade |
@@ -170,10 +174,18 @@ viram achados Alta separados. Add-ons construídos localmente não têm imagem n
 de: média + 4 desvios-padrão do próprio add-on nos últimos 7 dias, 3× a média e 50 KiB/s. Os
 picos aparecem uma vez, na varredura seguinte (Média; Alta se ≥ 20× a média e ≥ 1 MiB/s).
 
-### DNS (opcional, AdGuard Home ou Pi-hole v6)
+### DNS (opcional, AdGuard Home e/ou Pi-hole v6)
 
-Com `dns_provider` configurado, o auditor lê do seu servidor DNS as consultas feitas pelo
-host do HA nas últimas 24 horas e mostra a seção **Domínios consultados** no relatório.
+Com `adguard_url` e/ou `pihole_url` preenchidos, o auditor lê dos seus servidores DNS as
+consultas feitas pelo host do HA nas últimas 24 horas e mostra a seção **Domínios
+consultados** no relatório.
+
+**Com os dois configurados** (por exemplo, um como DNS primário e o outro como secundário),
+as consultas dos dois são somadas e analisadas juntas, e a tabela ganha a coluna **Servidor**
+(AdGuard Home, Pi-hole ou ambos). Se um deles estiver fora do ar ou recusar a senha, o outro
+continua sendo usado e o relatório avisa qual ficou de fora. Se o HA mandar a mesma consulta
+para os dois, ela é contada duas vezes; se um encaminhar para o outro (AdGuard → Pi-hole), o
+segundo só vê o primeiro como cliente e essas consultas não entram de novo.
 
 > **Não é possível saber qual add-on ou integração fez cada consulta.** O DNS de todos os
 > add-ons e integrações passa pelo DNS do Supervisor, que encaminha para o seu servidor; para o
@@ -206,12 +218,17 @@ O Pi-hole v5 não é suportado (API antiga).
 | `image_scan` | `true` | Varre as imagens com o Trivy. É a etapa mais demorada; consome banda e espaço em `/data`. |
 | `image_scan_skip` | `[]` | Slugs de add-ons cujas imagens não devem ser varridas (ex.: `core_mosquitto`). |
 | `stats_interval_minutes` | `5` | Intervalo de coleta de CPU/memória/rede. `0` desativa. |
-| `dns_provider` | `nenhum` | `nenhum`, `adguard` ou `pihole`. |
-| `dns_url` | vazio | Endereço do servidor DNS. Ex.: `http://192.168.1.2:3000`, `http://a0d7b954-adguard:3000` (AdGuard como add-on) ou `http://pi.hole`. |
-| `dns_username` | vazio | Usuário do AdGuard Home. Não usado no Pi-hole. |
-| `dns_password` | vazio | Senha do AdGuard Home ou **senha de app** do Pi-hole v6. Nunca é registrada em log. |
+| `adguard_url` | vazio | Endereço do AdGuard Home. Ex.: `http://192.168.1.2:3000` ou `http://a0d7b954-adguard:3000` (AdGuard como add-on). |
+| `adguard_username` / `adguard_password` | vazio | Login do AdGuard Home. A senha nunca é registrada em log. |
+| `pihole_url` | vazio | Endereço do Pi-hole v6. Ex.: `http://pi.hole` ou `http://192.168.1.3`. |
+| `pihole_password` | vazio | **Senha de app** do Pi-hole v6. Nunca é registrada em log. |
 | `dns_client_ips` | `[]` | IPs com que o HA aparece no servidor DNS. Vazio = IPs do host (via Supervisor) + `172.30.32.3` (DNS do Supervisor). |
-| `dns_verify_tls` | `true` | Desative só se o servidor DNS usar HTTPS com certificado próprio. |
+| `dns_verify_tls` | `true` | Desative só se o AdGuard ou o Pi-hole usar HTTPS com certificado próprio (vale para os dois). |
+
+As opções `dns_provider`, `dns_url`, `dns_username` e `dns_password` (até a 0.6.0) continuam
+funcionando: se estiverem preenchidas e o mesmo servidor não estiver nas opções novas, ele é
+usado normalmente. Para trocar, copie os valores para `adguard_*` ou `pihole_*` e mude
+`dns_provider` para `nenhum`.
 | `allowlist` | `[]` | Exceções; veja abaixo. |
 
 ## Proteções contra sobrecarga
@@ -263,8 +280,20 @@ juntos:
 | Esta regra em todo o componente | Todos os achados da regra no componente. |
 | Esta regra em todos os componentes | A regra inteira, em qualquer componente. |
 
+Também dá para ignorar a partir da **tabela de componentes**:
+
+- **Ignorar…** na linha de um componente ignora os achados dele em todas as regras. Se houver
+  níveis marcados nos cartões (por exemplo Baixa e Informativa), eles já vêm selecionados e só
+  esses níveis são ignorados; os outros continuam contando. Sem nenhum nível marcado, vale para
+  todos.
+- Com um ou mais níveis marcados nos cartões, aparece **Ignorar estes níveis…**, que ignora os
+  níveis escolhidos **em todos os componentes** (por exemplo, todo o nível Informativa). Pede
+  confirmação. Ignorar todos os níveis de uma vez não é aceito.
+
+Itens restritos a níveis mostram os níveis na coluna **Alcance** da lista.
+
 Também dá para incluir manualmente em **Lista de ignorados → Incluir na lista…** (componente,
-regra e arquivo, com curingas) e tirar com **Remover** ou com **Deixar de ignorar** no próprio
+regra, arquivo e níveis, com curingas) e tirar com **Remover** ou com **Deixar de ignorar** no próprio
 achado. A mudança vale **na hora** para o relatório mais recente e para os sensores, sem precisar
 varrer de novo, e também para as próximas varreduras. Relatórios antigos do histórico não são
 alterados. A lista fica em `/data/auditor.db` e entra no backup do add-on. Por segurança, não é
@@ -386,13 +415,14 @@ downloads e consultas a bases de vulnerabilidades:
 | `api.osv.dev` | Consultar vulnerabilidades dos requirements (envia só nome e versão do pacote) | pip-audit |
 | Registros das imagens (`ghcr.io`, Docker Hub e o registro que cada add-on usar) | Baixar manifesto e camadas das imagens | Trivy |
 | `mirror.gcr.io`, `ghcr.io` | Baixar a base de vulnerabilidades do Trivy | Trivy |
-| O host de `dns_url` | Ler o log de consultas do seu servidor DNS (Fase 3, opcional) | Auditor (Python) |
+| Os hosts de `adguard_url` e `pihole_url` | Ler o log de consultas dos seus servidores DNS (Fase 3, opcional) | Auditor (Python) |
 
 No código Python, toda conexão passa por um cliente único que exige HTTPS e confere o host de
 cada requisição **e de cada redirecionamento** contra a lista acima. O token do GitHub só é
-enviado para hosts do próprio GitHub, nunca para as CDNs para onde a API redireciona. O cliente
-da Fase 3 é separado e só fala com o host de `dns_url` (é o único lugar onde HTTP sem TLS é
-aceito, por ser comum na rede local).
+enviado para hosts do próprio GitHub, nunca para as CDNs para onde a API redireciona. Na Fase 3
+cada servidor DNS tem um cliente separado, que só fala com o host da própria URL (a senha do
+AdGuard nunca vai para o Pi-hole e vice-versa). É o único lugar onde HTTP sem TLS é aceito, por
+ser comum na rede local.
 
 O AppArmor não consegue filtrar rede por domínio; por isso o filtro fica no código. As conexões
 do Trivy e do pip-audit são limitadas ao que essas ferramentas fazem (registros, bases de
@@ -402,7 +432,7 @@ vulnerabilidades) e às flags com que o auditor as chama.
 
 Tokens, senhas e o conteúdo do `secrets.yaml` **nunca** vão para o log nem para o relatório:
 
-- os valores do `secrets.yaml`, o `SUPERVISOR_TOKEN`, o `github_token` e a `dns_password` são
+- os valores do `secrets.yaml`, o `SUPERVISOR_TOKEN`, o `github_token` e as senhas do AdGuard e do Pi-hole são
   carregados **só em memória** e trocados por `****` onde aparecerem (trechos de código, diffs,
   mensagens de erro, tracebacks);
 - formatos conhecidos são mascarados mesmo sem estar no `secrets.yaml`: JWT (inclusive os

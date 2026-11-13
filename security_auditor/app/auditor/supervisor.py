@@ -61,6 +61,7 @@ class SupervisorClient:
         self._session = session
         self._token = token if token is not None else _token()
         self._base = (base_url or _base_url()).rstrip("/")
+        self._self_slug: str | None = None
 
     @property
     def available(self) -> bool:
@@ -85,6 +86,17 @@ class SupervisorClient:
     async def addons(self) -> list[dict[str, Any]]:
         data = await self.get("/addons")
         return list((data or {}).get("addons", []))
+
+    async def self_slug(self) -> str | None:
+        """Slug do próprio auditor, para não se auditar (o painel dele seria só ruído)."""
+        if self._self_slug is None:
+            try:
+                info = await self.get("/addons/self/info") or {}
+            except SupervisorError as err:
+                _LOGGER.warning("Não foi possível identificar o próprio add-on: %s", err)
+                return None
+            self._self_slug = str(info.get("slug") or "")
+        return self._self_slug or None
 
     async def addon_info(self, slug: str) -> dict[str, Any]:
         return await self.get(f"/addons/{slug}/info") or {}

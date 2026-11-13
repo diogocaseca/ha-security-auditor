@@ -54,7 +54,8 @@ async def main() -> None:
         _LOGGER.info("Prioridade baixa aplicada: %s", ", ".join(applied) or "nada")
 
     # Segredos conhecidos, só em memória, para nunca aparecerem em logs/relatórios.
-    masker.add_known(os.environ.get("SUPERVISOR_TOKEN"), options.github_token, options.dns_password)
+    masker.add_known(os.environ.get("SUPERVISOR_TOKEN"), options.github_token,
+                     *(s.password for s in options.dns_servers))
     loaded = masker.load_secrets_yaml(paths.config_dir / "secrets.yaml")
     _LOGGER.info("Mascaramento ativo (%d valores do secrets.yaml carregados em memória)", loaded)
 

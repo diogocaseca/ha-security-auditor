@@ -32,15 +32,26 @@ configuration:
   stats_interval_minutes:
     name: Stats collection interval (minutes)
     description: 0 disables.
+  adguard_url:
+    name: AdGuard Home URL (phase 3, optional)
+    description: Fill AdGuard, Pi-hole or both (queries are combined). Add-on DNS goes through HA, so queries cannot be attributed to a specific add-on.
+  adguard_username:
+    name: AdGuard Home username
+  adguard_password:
+    name: AdGuard Home password
+  pihole_url:
+    name: Pi-hole v6 URL (phase 3, optional)
+  pihole_password:
+    name: Pi-hole app password
   dns_provider:
-    name: DNS server (phase 3, optional)
-    description: AdGuard Home or Pi-hole v6. Add-on DNS goes through HA, so queries cannot be attributed to a specific add-on.
+    name: (Legacy) DNS server
+    description: Option from 0.6.0 and earlier; prefer the AdGuard and Pi-hole fields.
   dns_url:
-    name: DNS server URL
+    name: (Legacy) DNS server URL
   dns_username:
-    name: Username (AdGuard Home)
+    name: (Legacy) Username
   dns_password:
-    name: Password
+    name: (Legacy) Password
   dns_client_ips:
     name: Home Assistant IPs on the DNS server (optional)
   dns_verify_tls:

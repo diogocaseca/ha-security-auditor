@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.0
+
+- O auditor não audita mais a si mesmo: o próprio add-on sai das análises de permissões,
+  código, imagem e tráfego.
+- DNS: **AdGuard Home e Pi-hole juntos**. Novas opções `adguard_url`, `adguard_username`,
+  `adguard_password`, `pihole_url` e `pihole_password`; com os dois preenchidos, as consultas
+  são somadas e a tabela mostra em qual servidor cada domínio apareceu. Se um falhar, o outro
+  continua sendo usado.
+- As opções antigas `dns_provider`, `dns_url`, `dns_username` e `dns_password` continuam
+  aceitas.
+- Lista de ignorados: botão **Ignorar…** em cada linha da tabela de componentes (respeita os
+  níveis marcados nos cartões) e **Ignorar estes níveis…** para ignorar um nível inteiro em todos
+  os componentes. Itens da lista podem ser restritos por nível.
+
 ## 0.6.0
 
 - Botão **Cancelar varredura**: encerra as ferramentas em execução e salva o parcial como

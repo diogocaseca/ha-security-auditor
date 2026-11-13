@@ -114,7 +114,7 @@ class TrafficCollector:
         spikes = 0
         for item in addons:
             slug = str(item.get("slug", ""))
-            if not slug or item.get("state") != "started":
+            if not slug or item.get("state") != "started" or slug == await self._supervisor.self_slug():
                 continue
             try:
                 stats = await self._supervisor.addon_stats(slug)

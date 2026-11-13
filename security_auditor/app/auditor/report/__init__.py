@@ -68,6 +68,8 @@ def _environment() -> Environment:
     env.globals["type_label"] = lambda t: COMPONENT_TYPE_LABELS.get(t, t)
     env.globals["severities"] = sorted(Severity, reverse=True)
     env.globals["component_details"] = component_details
+    labels = {sev.key: sev.label for sev in Severity}
+    env.globals["severity_labels"] = lambda keys: ", ".join(labels.get(k, k) for k in keys)
     return env
 
 

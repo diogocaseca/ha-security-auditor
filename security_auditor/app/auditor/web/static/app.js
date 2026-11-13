@@ -44,6 +44,8 @@
     }
     const compNone = document.getElementById("comp-no-match");
     if (compNone) compNone.hidden = compVisible > 0 || compRows.length === 0;
+    const ignoreLevels = document.getElementById("ignore-levels");
+    if (ignoreLevels) ignoreLevels.hidden = state.sev.size === 0;
     document.querySelectorAll("[data-filter-sev]").forEach((b) =>
       b.setAttribute("aria-pressed", state.sev.has(b.dataset.filterSev) ? "true" : "false"));
     document.querySelectorAll("[data-filter-component]").forEach((b) =>
@@ -156,47 +158,84 @@
   const dialog = document.getElementById("ignore-dialog");
   const form = document.getElementById("ignore-form");
   const errorEl = document.getElementById("ignore-error");
-  let target = null; // achado escolhido; null = inclusão manual
+  // Modo do diálogo: achado, componente (linha da tabela), níveis (todos os componentes) ou manual.
+  let mode = { kind: "manual" };
+  const levelsField = document.getElementById("ignore-levels-field");
+  const levelBoxes = Array.from(form ? form.querySelectorAll('input[name="severity"]') : []);
+  const labelsOf = (keys) => keys.map((k) => sevLabels[k] || k).join(", ");
 
-  function openDialog(finding) {
-    target = finding;
+  function openDialog(next) {
+    mode = next;
     form.reset();
     errorEl.hidden = true;
-    document.getElementById("ignore-title").textContent = finding ? "Ignorar achado" : "Incluir na lista de ignorados";
-    document.getElementById("ignore-scope").hidden = !finding;
-    document.getElementById("ignore-manual").hidden = !!finding;
-    form.elements.component.required = !finding;
-    form.elements.rule.required = !finding;
+    const k = mode.kind;
+    const titles = {
+      finding: "Ignorar achado",
+      component: "Ignorar achados do componente",
+      levels: "Ignorar níveis inteiros",
+      manual: "Incluir na lista de ignorados",
+    };
+    document.getElementById("ignore-title").textContent = titles[k];
+    document.getElementById("ignore-scope").hidden = k !== "finding";
+    document.getElementById("ignore-manual").hidden = k !== "manual";
+    levelsField.hidden = k === "finding";
+    document.getElementById("ignore-levels-legend").textContent =
+      k === "levels" ? "Níveis a ignorar em todos os componentes" : "Só estes níveis (nenhum marcado = todos)";
+    form.elements.component.required = k === "manual";
+    form.elements.rule.required = k === "manual";
+    // Os níveis marcados nos cartões já vêm selecionados.
+    levelBoxes.forEach((b) => { b.checked = k !== "manual" && k !== "finding" && state.sev.has(b.value); });
     const fileOpt = form.querySelector('input[value="file"]');
-    if (fileOpt) fileOpt.parentElement.hidden = !(finding && finding.dataset.file);
-    document.getElementById("ignore-subject").textContent = finding
-      ? `${finding.dataset.title} — ${finding.dataset.component} · ${finding.dataset.rule}`
-      : "Use * como curinga (ex.: semgrep.* ou */vendor/*).";
+    if (fileOpt) fileOpt.parentElement.hidden = !(k === "finding" && mode.el.dataset.file);
+    const subject = {
+      finding: () => `${mode.el.dataset.title} — ${mode.el.dataset.component} · ${mode.el.dataset.rule}`,
+      component: () => `Componente ${mode.name}: todas as regras, nos níveis marcados abaixo.`,
+      levels: () => "Todos os componentes e regras. Os achados continuam visíveis com \"Mostrar suprimidos\".",
+      manual: () => "Use * como curinga (ex.: semgrep.* ou */vendor/*).",
+    };
+    document.getElementById("ignore-subject").textContent = subject[k]();
     dialog.showModal();
-    (finding ? form.elements.reason : form.elements.component).focus();
+    (k === "manual" ? form.elements.component : form.elements.reason).focus();
   }
 
   function entryFromForm() {
     const reason = form.elements.reason.value.trim();
-    if (!target) {
-      return { component: form.elements.component.value.trim(), rule: form.elements.rule.value.trim(),
-               path: form.elements.path.value.trim() || null, reason };
+    const severities = levelBoxes.filter((b) => b.checked).map((b) => b.value);
+    switch (mode.kind) {
+      case "manual":
+        return { component: form.elements.component.value.trim(), rule: form.elements.rule.value.trim(),
+                 path: form.elements.path.value.trim() || null, reason, severities };
+      case "component":
+        return { component: mode.name, rule: "*", reason, severities };
+      case "levels":
+        return { component: "*", rule: "*", reason, severities };
+      default: {
+        const d = mode.el.dataset;
+        const scope = form.elements.scope.value;
+        const entry = { component: d.component, rule: d.rule, reason, title: d.title };
+        if (scope === "finding") entry.fingerprint = d.fingerprint;
+        if (scope === "file") entry.path = d.file;
+        if (scope === "all") entry.component = "*";
+        return entry;
+      }
     }
-    const d = target.dataset;
-    const scope = form.elements.scope.value;
-    const entry = { component: d.component, rule: d.rule, reason, title: d.title };
-    if (scope === "finding") entry.fingerprint = d.fingerprint;
-    if (scope === "file") entry.path = d.file;
-    if (scope === "all") entry.component = "*";
-    return entry;
   }
 
   form?.addEventListener("submit", async (ev) => {
     ev.preventDefault();
+    const entry = entryFromForm();
+    if (mode.kind === "levels") {
+      if (!entry.severities.length) {
+        errorEl.textContent = "Marque pelo menos um nível.";
+        errorEl.hidden = false;
+        return;
+      }
+      if (!window.confirm(`Ignorar todos os achados de nível ${labelsOf(entry.severities)} em todos os componentes?`)) return;
+    }
     const submit = document.getElementById("ignore-submit");
     submit.disabled = true;
     try {
-      const resp = await post("api/ignored", entryFromForm());
+      const resp = await post("api/ignored", entry);
       if (resp.status === 201) { window.location.reload(); return; }
       const data = await resp.json().catch(() => ({}));
       errorEl.textContent = data.error || "Não foi possível incluir (HTTP " + resp.status + ").";
@@ -209,9 +248,12 @@
     }
   });
   document.getElementById("ignore-cancel")?.addEventListener("click", () => dialog.close());
-  document.getElementById("ignore-add")?.addEventListener("click", () => openDialog(null));
+  document.getElementById("ignore-add")?.addEventListener("click", () => openDialog({ kind: "manual" }));
+  document.getElementById("ignore-levels")?.addEventListener("click", () => openDialog({ kind: "levels" }));
   document.querySelectorAll("[data-ignore]").forEach((b) =>
-    b.addEventListener("click", () => openDialog(b.closest(".finding"))));
+    b.addEventListener("click", () => openDialog({ kind: "finding", el: b.closest(".finding") })));
+  document.querySelectorAll("[data-ignore-component]").forEach((b) =>
+    b.addEventListener("click", () => openDialog({ kind: "component", name: b.dataset.ignoreComponent })));
   document.querySelectorAll("[data-unignore]").forEach((b) =>
     b.addEventListener("click", async () => {
       if (!window.confirm("Remover da lista de ignorados? Os achados voltam a contar nos totais.")) return;

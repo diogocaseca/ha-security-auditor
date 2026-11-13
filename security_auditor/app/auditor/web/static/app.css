@@ -228,3 +228,4 @@ dialog input[type="text"] {
 }
 #ignore-manual { display: grid; gap: 10px; }
 .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }
+.level-checks { display: flex; flex-wrap: wrap; gap: 4px 14px; }

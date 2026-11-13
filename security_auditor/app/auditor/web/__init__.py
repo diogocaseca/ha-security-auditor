@@ -17,6 +17,7 @@ from aiohttp import web
 
 from ..allowlist import reapply
 from ..config import AllowlistEntry
+from ..models import Severity
 from ..report import render_html, to_json
 from ..scheduler import Scheduler
 from ..storage import Storage
@@ -43,13 +44,14 @@ CSRF_HEADER = "X-Auditor-CSRF"
 _FINGERPRINT = re.compile(r"^[0-9a-f]{24}$")
 _LIMITS = {"component": 200, "rule": 200, "path": 500, "reason": 500, "title": 300}
 MAX_IGNORED = 500
+_SEVERITY_KEYS = [s.key for s in sorted(Severity, reverse=True)]
 
 
 class InvalidEntryError(ValueError):
     """Entrada da lista de ignorados recusada (mensagem mostrada ao usuário)."""
 
 
-def parse_ignore_entry(body: Any) -> dict[str, str | None]:
+def parse_ignore_entry(body: Any) -> dict[str, Any]:
     """Valida o corpo de POST /api/ignored."""
     if not isinstance(body, dict):
         raise InvalidEntryError("Corpo inválido")
@@ -69,11 +71,16 @@ def parse_ignore_entry(body: Any) -> dict[str, str | None]:
     if fp is not None and (not isinstance(fp, str) or not _FINGERPRINT.match(fp)):
         raise InvalidEntryError("Identificador do achado inválido")
     out["fingerprint"] = fp
+    sevs = body.get("severities") or []
+    if not isinstance(sevs, list) or any(s not in _SEVERITY_KEYS for s in sevs):
+        raise InvalidEntryError("Nível de severidade inválido")
+    severities = tuple(k for k in _SEVERITY_KEYS if k in sevs)  # ordem fixa, sem repetição
     if not out["component"] or not out["rule"]:
         raise InvalidEntryError("Informe o componente e a regra (use * para qualquer um)")
-    if out["component"] == "*" and out["rule"] == "*" and not out["path"] and not fp:
-        raise InvalidEntryError("Componente e regra \"*\" juntos ignorariam tudo; restrinja um deles")
-    return out
+    every_level = not severities or len(severities) == len(_SEVERITY_KEYS)
+    if out["component"] == "*" and out["rule"] == "*" and not out["path"] and not fp and every_level:
+        raise InvalidEntryError("Componente e regra \"*\" em todos os níveis ignorariam tudo; restrinja algum deles")
+    return {**out, "severities": severities}
 
 
 def _allowed_peers() -> set[ipaddress.IPv4Address | ipaddress.IPv6Address]:
@@ -179,10 +186,12 @@ def create_app(
             lambda: storage.add_ignored(
                 component=entry["component"] or "", rule=entry["rule"] or "", reason=entry["reason"] or "",
                 path=entry["path"], fingerprint=entry["fingerprint"], title=entry["title"],
+                severities=entry["severities"],
                 created_at=datetime.now(UTC).isoformat(timespec="seconds"),
             )
         )
-        _LOGGER.info("Incluído na lista de ignorados: %s / %s (#%d)", entry["component"], entry["rule"], entry_id)
+        _LOGGER.info("Incluído na lista de ignorados: %s / %s %s(#%d)", entry["component"], entry["rule"],
+                     f"[{','.join(entry['severities'])}] " if entry["severities"] else "", entry_id)
         await _changed()
         return web.json_response({"id": entry_id}, status=201)
 

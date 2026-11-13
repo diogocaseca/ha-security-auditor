@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 from aiohttp import web
 
-from auditor.config import Options, Paths
+from auditor.config import DnsServer, Options, Paths
 from auditor.masking import Masker
 from auditor.models import Severity
 from auditor.net import EgressDeniedError, SafeHttpClient
@@ -95,11 +95,20 @@ def adguard_app(queries=QUERIES) -> web.Application:
     return app
 
 
-def _adguard_options(server, **kw) -> Options:
-    base = dict(dns_provider="adguard", dns_url=str(server.make_url("")).rstrip("/"),
-                dns_username="admin", dns_password="segredo-dns", dns_client_ips=(HA_IP, "172.30.32.3"))
-    base.update(kw)
-    return Options(**base)
+def _adguard(server, password="segredo-dns") -> DnsServer:
+    return DnsServer("adguard", str(server.make_url("")).rstrip("/"), "admin", password)
+
+
+def _pihole(server, password="senha-app") -> DnsServer:
+    return DnsServer("pihole", str(server.make_url("")).rstrip("/"), None, password)
+
+
+def _dns_options(*servers: DnsServer, clients=(HA_IP, "172.30.32.3")) -> Options:
+    return Options(dns_servers=servers, dns_client_ips=clients)
+
+
+def _adguard_options(server, password="segredo-dns") -> Options:
+    return _dns_options(_adguard(server, password))
 
 
 async def test_adguard_detection(aiohttp_server, tmp_path):
@@ -139,7 +148,7 @@ async def test_adguard_new_domains_on_second_run(aiohttp_server, tmp_path):
 
 async def test_adguard_wrong_password(aiohttp_server, tmp_path):
     server = await aiohttp_server(adguard_app())
-    findings = await DnsScanner().scan(_ctx(tmp_path, _adguard_options(server, dns_password="errada")))
+    findings = await DnsScanner().scan(_ctx(tmp_path, _adguard_options(server, password="errada")))
     falha = [f for f in findings if f.rule_id == "auditor.dns.falha"]
     assert len(falha) == 1 and "recusou" in falha[0].explanation
 
@@ -182,9 +191,7 @@ def pihole_app(state: dict) -> web.Application:
 async def test_pihole_detection_and_logout(aiohttp_server, tmp_path):
     state: dict = {}
     server = await aiohttp_server(pihole_app(state))
-    opts = Options(dns_provider="pihole", dns_url=str(server.make_url("")).rstrip("/"), dns_password="senha-app",
-                   dns_client_ips=(HA_IP, "172.30.32.3"))
-    ctx = _ctx(tmp_path, opts)
+    ctx = _ctx(tmp_path, _dns_options(_pihole(server)))
     findings = await DnsScanner().scan(ctx)
     rules = {f.rule_id for f in findings}
     assert {"auditor.dns.destino-suspeito", "auditor.dns.mineracao", "auditor.dns.bloqueados"} <= rules
@@ -194,9 +201,7 @@ async def test_pihole_detection_and_logout(aiohttp_server, tmp_path):
 
 async def test_pihole_wrong_password(aiohttp_server, tmp_path):
     server = await aiohttp_server(pihole_app({}))
-    opts = Options(dns_provider="pihole", dns_url=str(server.make_url("")).rstrip("/"), dns_password="x",
-                   dns_client_ips=(HA_IP,))
-    findings = await DnsScanner().scan(_ctx(tmp_path, opts))
+    findings = await DnsScanner().scan(_ctx(tmp_path, _dns_options(_pihole(server, "x"), clients=(HA_IP,))))
     assert [f.rule_id for f in findings if f.severity > Severity.INFO] == ["auditor.dns.falha"]
 
 
@@ -205,12 +210,12 @@ async def test_pihole_wrong_password(aiohttp_server, tmp_path):
 
 async def test_disabled_and_misconfigured(tmp_path):
     assert await DnsScanner().scan(_ctx(tmp_path, Options())) == []
-    (f,) = await DnsScanner().scan(_ctx(tmp_path, Options(dns_provider="adguard")))
-    assert f.rule_id == "auditor.dns.falha" and "dns_url" in f.explanation
-    (f,) = await DnsScanner().scan(_ctx(tmp_path, Options(dns_provider="adguard", dns_url="ftp://x")))
-    assert "inválida" in f.title
+    (f,) = await DnsScanner().scan(_ctx(tmp_path, _dns_options(DnsServer("adguard", None))))
+    assert f.rule_id == "auditor.dns.falha" and "URL do AdGuard Home" in f.explanation
+    (f,) = await DnsScanner().scan(_ctx(tmp_path, _dns_options(DnsServer("pihole", "ftp://x"))))
+    assert "inválida" in f.title and "Pi-hole" in f.title
     # Sem Supervisor e sem dns_client_ips não há como saber os IPs do HA.
-    (f,) = await DnsScanner().scan(_ctx(tmp_path, Options(dns_provider="adguard", dns_url="http://10.0.0.2")))
+    (f,) = await DnsScanner().scan(_ctx(tmp_path, _dns_options(DnsServer("adguard", "http://10.0.0.2"), clients=())))
     assert "dns_client_ips" in f.explanation
 
 
@@ -222,7 +227,7 @@ async def test_client_ips_from_supervisor(tmp_path):
                 {"ipv4": {"address": ["192.168.1.10/24"]}, "ipv6": {"address": ["fe80::1/64", "2001:db8::5/64"]}},
             ]}
 
-    ips = await client_ips(_ctx(tmp_path, Options(dns_provider="adguard"), supervisor=Sup()))
+    ips = await client_ips(_ctx(tmp_path, Options(), supervisor=Sup()))
     assert ips == ["192.168.1.10", "2001:db8::5", "172.30.32.3"]
 
 
@@ -253,8 +258,68 @@ def test_random_and_base_domain():
     assert base_domain("a.b.exemplo.com.br") == "exemplo.com.br" and base_domain("x.y.io") == "y.io"
 
 
-def test_options_parse_dns():
+def test_options_parse_dns_legacy():
     o = Options.from_dict({"dns_provider": "AdGuard", "dns_url": " http://x:3000 ", "dns_password": "p",
                            "dns_client_ips": ["192.168.1.10", ""], "dns_username": ""})
-    assert o.dns_provider == "adguard" and o.dns_url == "http://x:3000"
-    assert o.dns_client_ips == ("192.168.1.10",) and o.dns_username is None
+    assert o.dns_servers == (DnsServer("adguard", "http://x:3000", None, "p"),)
+    assert o.dns_client_ips == ("192.168.1.10",)
+
+
+def test_options_parse_dns_both():
+    o = Options.from_dict({"adguard_url": "http://ag:3000", "adguard_username": "admin", "adguard_password": "a",
+                           "pihole_url": " http://pi.hole ", "pihole_password": "b",
+                           "dns_provider": "pihole", "dns_url": "http://antigo"})  # antigo não duplica o Pi-hole
+    assert o.dns_servers == (DnsServer("adguard", "http://ag:3000", "admin", "a"),
+                             DnsServer("pihole", "http://pi.hole", None, "b"))
+    assert Options.from_dict({"pihole_url": "", "dns_provider": "nenhum"}).dns_servers == ()
+    # Opções novas + antigas de outro tipo: os dois são usados.
+    o = Options.from_dict({"pihole_url": "http://pi.hole", "dns_provider": "adguard", "dns_url": "http://ag"})
+    assert [s.kind for s in o.dns_servers] == ["pihole", "adguard"]
+
+
+async def test_adguard_and_pihole_together(aiohttp_server, tmp_path):
+    state: dict = {}
+    ag = await aiohttp_server(adguard_app())
+    pi = await aiohttp_server(pihole_app(state))
+    ctx = _ctx(tmp_path, _dns_options(_adguard(ag), _pihole(pi)))
+    findings = await DnsScanner().scan(ctx)
+    meta = ctx.components[("rede", "dns")]
+    assert meta["nome"] == "Domínios consultados (AdGuard Home + Pi-hole)"
+    assert meta["servidores"] == ["AdGuard Home", "Pi-hole"]
+    assert "AdGuard Home:" in meta["trafego"] and "Pi-hole:" in meta["trafego"]
+    domains = {d["dominio"]: d for d in meta["dominios"]}
+    assert domains["api.fabricante.com"]["consultas"] == 4  # 2 em cada servidor, somadas
+    assert domains["api.fabricante.com"]["servidores"] == ["AdGuard Home", "Pi-hole"]
+    # Achados não se repetem por servidor: um por regra.
+    rules = [f.rule_id for f in findings if f.rule_id.startswith("auditor.dns.") and f.severity > Severity.INFO]
+    assert rules.count("auditor.dns.destino-suspeito") == len({f.title for f in findings
+                                                                 if f.rule_id == "auditor.dns.destino-suspeito"})
+    assert state["logout_sid"] == "SID123"
+
+
+async def test_one_dns_down_other_still_counts(aiohttp_server, tmp_path):
+    ag = await aiohttp_server(adguard_app())
+    pi = await aiohttp_server(pihole_app({}))
+    ctx = _ctx(tmp_path, _dns_options(_adguard(ag, "errada"), _pihole(pi)))
+    findings = await DnsScanner().scan(ctx)
+    (falha,) = [f for f in findings if f.rule_id == "auditor.dns.falha"]
+    assert "AdGuard Home" in falha.title and "ficaram de fora" in falha.explanation
+    assert ctx.components[("rede", "dns")]["servidores"] == ["Pi-hole"]
+    assert any(f.rule_id == "auditor.dns.mineracao" for f in findings)
+
+
+def test_report_shows_server_column_only_with_two_servers():
+    from auditor.models import ComponentSummary, ScanResult
+    from auditor.report import render_html
+
+    def html(servers):
+        meta = {"nome": "Domínios consultados", "servidores": servers, "clientes": [HA_IP], "aviso": AVISO,
+                "trafego": "", "dominios_total": 1,
+                "dominios": [{"dominio": "a.com", "consultas": 2, "bloqueadas": 0, "novo": False,
+                              "servidores": servers, "ultima": None}]}
+        result = ScanResult(scan_id="x", started_at="2026-11-12T00:00:00+00:00", status="concluida",
+                            components=[ComponentSummary("dns", "rede", metadata=meta)])
+        return render_html(result, status={}, history=[], csrf_token="t")
+
+    assert "<th>Servidor</th>" in html(["AdGuard Home", "Pi-hole"]) and "<td>ambos</td>" in html(["AdGuard Home", "Pi-hole"])
+    assert "<th>Servidor</th>" not in html(["Pi-hole"])

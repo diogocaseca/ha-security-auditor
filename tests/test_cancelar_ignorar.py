@@ -170,6 +170,9 @@ async def test_ignore_rule_everywhere_applies_to_next_scan(ignore_client):
 
 @pytest.mark.parametrize(("body", "msg"), [
     ({"component": "*", "rule": "*", "reason": "tudo"}, "ignorariam tudo"),
+    ({"component": "*", "rule": "*", "severities": ["critical", "high", "medium", "low", "info"]}, "ignorariam tudo"),
+    ({"component": "a", "rule": "*", "severities": ["urgente"]}, "Nível de severidade inválido"),
+    ({"component": "a", "rule": "*", "severities": "low"}, "Nível de severidade inválido"),
     ({"component": "a", "reason": "sem regra"}, "Informe o componente e a regra"),
     ({"component": "a", "rule": "b", "fingerprint": "../../x"}, "Identificador"),
     ({"component": "a", "rule": "b", "reason": "x" * 501}, "grande demais"),
@@ -208,3 +211,60 @@ def test_reapply_is_json_roundtrip_safe(ignore_client):
     _, _, storage, *_ = ignore_client
     data = json.loads(storage.report_file(storage.latest_completed_id()).read_text())
     assert all("suppressed_by" in f for f in data["findings"])
+
+
+# --- Ignorar por nível -------------------------------------------------------------------
+
+
+def test_parse_ignore_entry_levels_ordered_and_deduped():
+    e = parse_ignore_entry({"component": "*", "rule": "*", "severities": ["info", "low", "info"]})
+    assert e["severities"] == ("low", "info")
+
+
+async def test_ignore_whole_level_everywhere(ignore_client):
+    client, token, storage, engine, _ = ignore_client
+    resp = await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                             json={"component": "*", "rule": "*", "severities": ["medium", "low"], "reason": "depois"})
+    assert resp.status == 201
+    counts = storage.load_latest().counts()
+    assert counts["medium"] == 0 and counts["low"] == 0 and counts["high"] == 1
+    assert storage.list_ignored()[0]["severities"] == ["medium", "low"]
+    html = await (await client.get("/")).text()
+    assert "níveis: Média, Baixa" in html
+    result = await engine.run()  # vale para as próximas varreduras
+    assert {f.severity.key for f in result.findings if f.suppressed} == {"medium", "low"}
+
+
+async def test_ignore_component_only_selected_levels(ignore_client):
+    client, token, storage, *_ = ignore_client
+    resp = await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                             json={"component": "minha_integracao", "rule": "*", "severities": ["medium"], "reason": "ok"})
+    assert resp.status == 201
+    comp = next(c for c in storage.load_latest().components if c.name == "minha_integracao")
+    assert comp.counts["medium"] == 0 and comp.counts["high"] == 1  # o nível alto continua contando
+    other = next(c for c in storage.load_latest().components if c.name == "outra")
+    assert other.counts["low"] == 1
+
+
+async def test_component_rows_have_ignore_button(ignore_client):
+    client, *_ = ignore_client
+    html = await (await client.get("/")).text()
+    assert 'data-ignore-component="minha_integracao"' in html and 'data-ignore-component="outra"' in html
+    assert 'data-ignore-component="limpa"' not in html  # componente sem achados
+    assert 'id="ignore-levels"' in html
+
+
+def test_storage_migrates_ignored_table_from_060(tmp_path):
+    import sqlite3
+
+    from auditor.storage import Storage
+
+    db = tmp_path / "auditor.db"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE ignored (id INTEGER PRIMARY KEY AUTOINCREMENT, component TEXT NOT NULL, "
+                     "rule TEXT NOT NULL, path TEXT, fingerprint TEXT, title TEXT, reason TEXT NOT NULL DEFAULT '', "
+                     "created_at TEXT NOT NULL)")
+        conn.execute("INSERT INTO ignored (component, rule, reason, created_at) VALUES ('a', 'b', 'r', 'x')")
+    storage = Storage(db, tmp_path / "reports")
+    (entry,) = storage.ignore_entries()
+    assert entry.component == "a" and entry.severities == ()

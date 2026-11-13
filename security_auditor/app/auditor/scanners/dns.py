@@ -1,4 +1,4 @@
-"""Fase 3: domínios consultados pelo host do HA, via AdGuard Home ou Pi-hole.
+"""Fase 3: domínios consultados pelo host do HA, via AdGuard Home e/ou Pi-hole.
 
 IMPORTANTE: o DNS de todos os add-ons e integrações passa pelo DNS do
 Supervisor (hassio_dns), que encaminha para o seu servidor. Para o AdGuard ou
@@ -6,8 +6,9 @@ Pi-hole, todas as consultas vêm do mesmo cliente (o host do HA, ou
 172.30.32.3 quando o AdGuard roda como add-on no próprio HA). Por isso NÃO é
 possível saber qual add-on ou integração fez cada consulta.
 
-O cliente HTTP desta etapa só fala com o host configurado em ``dns_url``;
-credenciais nunca vão para outro lugar e são mascaradas nos logs.
+Com os dois configurados, as consultas são somadas (cada domínio mostra em qual
+servidor apareceu). Cada servidor tem o seu próprio cliente HTTP, que só fala com
+o host da sua URL; credenciais nunca vão para outro lugar e são mascaradas nos logs.
 """
 
 from __future__ import annotations
@@ -20,11 +21,11 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any
 from urllib.parse import urlsplit
 
 import aiohttp
 
+from ..config import DnsServer
 from ..masking import shannon_entropy
 from ..models import ComponentType, Finding, Severity
 from ..net import EgressDeniedError, HttpError, SafeHttpClient
@@ -75,6 +76,7 @@ class DnsQuery:
     domain: str
     client: str
     blocked: bool
+    server: str = ""
 
 
 @dataclass
@@ -85,9 +87,12 @@ class DomainStats:
     first: datetime | None = None
     last: datetime | None = None
     new: bool = False
+    servers: set[str] = field(default_factory=set)
 
     def add(self, q: DnsQuery) -> None:
         self.count += 1
+        if q.server:
+            self.servers.add(q.server)
         self.blocked += int(q.blocked)
         self.first = q.ts if self.first is None or q.ts < self.first else self.first
         self.last = q.ts if self.last is None or q.ts > self.last else self.last
@@ -352,86 +357,110 @@ async def client_ips(ctx: ScanContext) -> list[str]:
     return list(dict.fromkeys(ips))
 
 
-@dataclass
-class DnsSummary:
-    provider: str
-    clients: list[str]
-    total: int = 0
-    domains: list[dict[str, Any]] = field(default_factory=list)
-
-
 class DnsScanner:
     name = "dns"
 
     async def scan(self, ctx: ScanContext) -> list[Finding]:
-        opts = ctx.options
-        if opts.dns_provider not in ("adguard", "pihole"):
+        servers = ctx.options.dns_servers
+        if not servers:
             return []
-        if not opts.dns_url:
-            return [_problem("Servidor DNS sem URL", "Configure dns_url com o endereço do AdGuard Home ou Pi-hole.")]
-        parts = urlsplit(opts.dns_url)
-        if parts.scheme not in ("http", "https") or not parts.hostname:
-            return [_problem("URL do servidor DNS inválida", f"'{parts.scheme}://…' não é http/https.")]
+        findings: list[Finding] = []
+        valid: list[tuple[DnsServer, str]] = []
+        for srv in servers:
+            if not srv.url:
+                findings.append(_problem(f"{srv.label} sem URL", f"Configure a URL do {srv.label}.", srv))
+                continue
+            parts = urlsplit(srv.url)
+            if parts.scheme not in ("http", "https") or not parts.hostname:
+                findings.append(_problem(f"URL do {srv.label} inválida",
+                                         f"'{parts.scheme}://…' não é http/https.", srv))
+                continue
+            valid.append((srv, parts.hostname.lower()))
+            if parts.scheme == "http" and (srv.password or srv.username):
+                findings.append(Finding(
+                    component="dns", component_type=ComponentType.NETWORK, category="tls",
+                    rule_id="auditor.dns.credenciais-sem-tls", severity=Severity.INFO,
+                    title=f"Credenciais do {srv.label} enviadas sem criptografia",
+                    explanation="A URL usa http://, então usuário e senha trafegam em texto na rede local.",
+                    recommendation="Se o servidor oferecer HTTPS, use-o (ou dns_verify_tls: false para "
+                                   "certificado próprio).",
+                    source="dns", extra={"fingerprint_key": srv.kind},
+                ))
+        if not valid:
+            return findings
         clients = await client_ips(ctx)
         if not clients:
-            return [_problem("IPs do Home Assistant desconhecidos",
-                             "Não deu para descobrir os IPs do host; preencha dns_client_ips nas opções.")]
+            return [*findings, _problem("IPs do Home Assistant desconhecidos",
+                                        "Não deu para descobrir os IPs do host; preencha dns_client_ips nas opções.")]
 
-        findings: list[Finding] = []
-        if parts.scheme == "http" and (opts.dns_password or opts.dns_username):
-            findings.append(Finding(
-                component="dns", component_type=ComponentType.NETWORK, category="tls",
-                rule_id="auditor.dns.credenciais-sem-tls", severity=Severity.INFO,
-                title="Credenciais do servidor DNS enviadas sem criptografia",
-                explanation="A URL usa http://, então usuário e senha trafegam em texto na rede local.",
-                recommendation="Se o servidor oferecer HTTPS, use-o (ou dns_verify_tls: false para certificado próprio).",
-                source="dns",
-            ))
-
-        http = SafeHttpClient(
-            allowed_hosts=frozenset({parts.hostname.lower()}),
-            allow_http=True,
-            verify_tls=opts.dns_verify_tls,
-            timeout=30,
-        )
-        provider = (
-            AdGuardHome(http, opts.dns_url, opts.dns_username, opts.dns_password)
-            if opts.dns_provider == "adguard"
-            else PiHole6(http, opts.dns_url, opts.dns_password)
-        )
         since = datetime.now(UTC) - WINDOW
         queries: list[DnsQuery] = []
-        try:
-            for ip in clients:
-                ctx.set_progress(self.name, f"consultas de {ip}")
-                queries.extend(await provider.queries(ip, since))
-        except DnsProviderError as err:
-            return [*findings, _problem("Consulta ao servidor DNS falhou", str(err))]
-        except (HttpError, EgressDeniedError, aiohttp.ClientError, TimeoutError, ValueError) as err:
-            return [*findings, _problem("Consulta ao servidor DNS falhou", f"{type(err).__name__}: {err}")]
-        finally:
-            await provider.close()
-            await http.close()
+        per_server: dict[str, int] = {}
+        for srv, host in valid:
+            try:
+                got = await self._fetch(ctx, srv, host, clients, since)
+            except DnsProviderError as err:
+                findings.append(_problem(f"Consulta ao {srv.label} falhou", str(err), srv))
+                continue
+            except (HttpError, EgressDeniedError, aiohttp.ClientError, TimeoutError, ValueError) as err:
+                findings.append(_problem(f"Consulta ao {srv.label} falhou", f"{type(err).__name__}: {err}", srv))
+                continue
+            for q in got:
+                q.server = srv.label
+            queries.extend(got)
+            per_server[srv.label] = len(got)
+        if not per_server:
+            return findings
 
         known = await _known(ctx)
         stats = aggregate(queries, known)
         findings.extend(analyze(stats, first_run=not known))
         await _remember(ctx, stats)
         top = sorted(stats.values(), key=lambda s: (-s.count, s.domain))[:TOP_DOMAINS]
+        names = list(per_server)
+        trafego = f"{len(queries)} consultas, {len(stats)} domínios nas últimas 24 h"
+        if len(names) > 1:
+            trafego += " (" + ", ".join(f"{n}: {c}" for n, c in per_server.items()) + ")"
         ctx.register_component(
             ComponentType.NETWORK, "dns",
-            nome=f"Domínios consultados ({'AdGuard Home' if opts.dns_provider == 'adguard' else 'Pi-hole'})",
-            trafego=f"{len(queries)} consultas, {len(stats)} domínios nas últimas 24 h",
+            nome=f"Domínios consultados ({' + '.join(names)})",
+            trafego=trafego,
             clientes=clients,
+            servidores=names,
             aviso=AVISO,
             dominios=[
                 {"dominio": s.domain, "consultas": s.count, "bloqueadas": s.blocked, "novo": s.new,
+                 "servidores": sorted(s.servers),
                  "ultima": s.last.isoformat(timespec="seconds") if s.last else None}
                 for s in top
             ],
             dominios_total=len(stats),
         )
         return findings
+
+    async def _fetch(self, ctx: ScanContext, srv: DnsServer, host: str, clients: list[str],
+                     since: datetime) -> list[DnsQuery]:
+        # Um cliente HTTP por servidor: a senha de um nunca pode ir para o outro.
+        http = SafeHttpClient(
+            allowed_hosts=frozenset({host}),
+            allow_http=True,
+            verify_tls=ctx.options.dns_verify_tls,
+            timeout=30,
+        )
+        provider = (
+            AdGuardHome(http, srv.url or "", srv.username, srv.password)
+            if srv.kind == "adguard"
+            else PiHole6(http, srv.url or "", srv.password)
+        )
+        out: list[DnsQuery] = []
+        try:
+            for ip in clients:
+                ctx.set_progress(self.name, f"{srv.label}: consultas de {ip}")
+                out.extend(await provider.queries(ip, since))
+        finally:
+            await provider.close()
+            await http.close()
+        return out
 
 
 async def _known(ctx: ScanContext) -> set[str]:
@@ -444,11 +473,13 @@ async def _remember(ctx: ScanContext, stats: dict[str, DomainStats]) -> None:
     await asyncio.to_thread(ctx.storage.upsert_dns_domains, rows)
 
 
-def _problem(title: str, detail: str) -> Finding:
+def _problem(title: str, detail: str, srv: DnsServer | None = None) -> Finding:
+    where = f"as consultas do {srv.label} ficaram de fora" if srv else "a etapa de DNS (Fase 3) não roda"
+    opts = f"as opções {srv.kind}_* do add-on" if srv else "as opções de DNS do add-on"
     return Finding(
         component="dns", component_type=ComponentType.NETWORK, category="configuracao",
         rule_id="auditor.dns.falha", severity=Severity.LOW, title=title,
-        explanation=f"{detail} Sem isso a etapa de DNS (Fase 3) não roda.",
-        recommendation="Revise as opções dns_* do add-on.", source="dns",
+        explanation=f"{detail} Sem isso {where}.",
+        recommendation=f"Revise {opts}.", source="dns",
         extra={"fingerprint_key": title},
     )

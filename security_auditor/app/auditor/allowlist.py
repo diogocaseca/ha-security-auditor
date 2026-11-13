@@ -18,6 +18,8 @@ def _match(pattern: str, value: str | None) -> bool:
 def entry_matches(entry: AllowlistEntry, finding: Finding) -> bool:
     if entry.fingerprint and entry.fingerprint != finding.fingerprint:
         return False
+    if entry.severities and finding.severity.key not in entry.severities:
+        return False
     if not _match(entry.component, finding.component):
         return False
     if not _match(entry.rule, finding.rule_id):

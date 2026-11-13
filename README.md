@@ -21,7 +21,7 @@ em português, para **revisão humana**.
 | **Imagens dos add-ons** | Trivy em modo remoto (sem Docker): CVEs e segredos embutidos |
 | **Código dos add-ons** | Dockerfile e scripts do GitHub: `curl \| sh`, shell reverso, `SUPERVISOR_TOKEN` enviado para fora, `map` com escrita em `/config` |
 | **Tráfego** | Histórico de CPU, memória e rede; alerta de picos de envio comparados à média do próprio add-on |
-| **DNS (opcional)** | AdGuard Home ou Pi-hole v6: exfiltração, mineração, domínios aleatórios, bloqueados e novos |
+| **DNS (opcional)** | AdGuard Home e/ou Pi-hole v6 (os dois juntos, se você tiver): exfiltração, mineração, domínios aleatórios, bloqueados e novos |
 
 O resultado aparece na barra lateral (Ingress), pode ser exportado em JSON, destaca o que é
 novo desde a varredura anterior e é publicado como sensores

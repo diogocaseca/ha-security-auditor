@@ -74,10 +74,14 @@ async def collect(supervisor: SupervisorClient) -> list[AddonInfo]:
     except SupervisorError as err:
         _LOGGER.warning("Não foi possível listar os repositórios da loja: %s", err)
 
+    own = await supervisor.self_slug()
     result: list[AddonInfo] = []
     for item in await supervisor.addons():
         slug = str(item.get("slug", ""))
         if not slug:
+            continue
+        if slug == own:
+            _LOGGER.debug("Ignorando o próprio auditor (%s)", slug)
             continue
         try:
             info = await supervisor.addon_info(slug)
