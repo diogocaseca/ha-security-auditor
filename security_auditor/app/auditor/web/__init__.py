@@ -19,6 +19,7 @@ from .. import blocklist_update
 from ..allowlist import reapply, skips_whole_component
 from ..blocklist import BlocklistError, validate_item
 from ..config import AllowlistEntry
+from ..i18n import LANGS, normalize
 from ..models import Severity
 from ..report import render_html, to_json
 from ..scheduler import Scheduler
@@ -193,6 +194,7 @@ def create_app(
         history = await asyncio.to_thread(storage.list_scans, HISTORY_PAGE_SIZE, (page - 1) * HISTORY_PAGE_SIZE)
         ignored = await asyncio.to_thread(storage.list_ignored)
         blocklist = await asyncio.to_thread(_blocklist_view)
+        lang = normalize(await asyncio.to_thread(storage.get_setting, "idioma"))
         for row, entry in zip(ignored, await asyncio.to_thread(storage.ignore_entries), strict=True):
             row["pula_varredura"] = skips_whole_component(entry)
         html = render_html(
@@ -205,6 +207,7 @@ def create_app(
             config_allowlist=config_allowlist,
             history_page={"page": page, "pages": pages, "total": total, "scan": scan_id},
             blocklist=blocklist,
+            lang=lang,
         )
         return web.Response(text=html, content_type="text/html", charset="utf-8")
 
@@ -296,6 +299,20 @@ def create_app(
         await _changed()
         return web.Response(status=204)
 
+    # --- Idioma da interface (guardado no add-on: vale em qualquer navegador) ---------
+
+    async def set_language(request: web.Request) -> web.Response:
+        try:
+            body = await request.json()
+        except ValueError:
+            return web.json_response({"error": "invalid JSON"}, status=400)
+        lang = body.get("idioma") if isinstance(body, dict) else None
+        if lang not in LANGS:
+            return web.json_response({"error": f"idioma must be one of {', '.join(LANGS)}"}, status=400)
+        await asyncio.to_thread(storage.set_setting, "idioma", lang)
+        _LOGGER.info("Idioma da interface alterado para %s", lang)
+        return web.json_response({"idioma": lang})
+
     # --- Lista negra pessoal (aba "Lista negra") ----------------------------------
 
     def _blocklist_view() -> dict[str, Any]:
@@ -368,6 +385,7 @@ def create_app(
             web.post("/api/ignored", add_ignored),
             web.patch("/api/ignored/{entry_id}", edit_ignored),
             web.delete("/api/ignored/{entry_id}", remove_ignored),
+            web.post("/api/idioma", set_language),
             web.get("/api/lista-negra", blocklist_list),
             web.post("/api/lista-negra", blocklist_add),
             web.put("/api/lista-negra/{item_id}", blocklist_edit),

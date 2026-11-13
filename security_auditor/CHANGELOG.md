@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.13.0
+
+- **Interface em inglês e português**, com o seletor **EN | PT** no topo. O padrão é inglês; a
+  escolha fica guardada no add-on e vale em qualquer navegador (inclusive no app do HA).
+- Datas no formato de cada idioma.
+- Ainda em português: o texto dos achados (título, explicação e recomendação), os detalhes
+  gerados na varredura e as mensagens de erro da API.
+
 ## 0.12.1
 
 - Filtro **Só lista negra** na tabela de componentes: mostra só os componentes com o selo

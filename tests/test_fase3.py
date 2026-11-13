@@ -405,7 +405,7 @@ async def test_dns_check_endpoint(aiohttp_client, tmp_path):
     client = await aiohttp_client(app)
     html = await (await client.get("/")).text()
     token = html.split('name="csrf-token" content="')[1].split('"')[0]
-    assert "Servidores DNS:" in html and 'id="dns-check"' in html
+    assert "DNS servers:" in html and 'id="dns-check"' in html
     assert (await client.post("/api/dns/check")).status == 403  # sem CSRF
     resp = await client.post("/api/dns/check", headers={CSRF_HEADER: token})
     assert resp.status == 200 and calls == [1]

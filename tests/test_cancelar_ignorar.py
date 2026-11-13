@@ -149,7 +149,7 @@ async def test_ignore_single_finding_and_remove(ignore_client):
     assert listing["interface"][0]["fingerprint"] == target.fingerprint
     assert listing["configuracoes"][0]["reason"] == "das configurações"
     html = await (await client.get("/")).text()
-    assert "Lista de ignorados" in html and f'data-unignore="{entry_id}"' in html and "Configurações" in html
+    assert "Ignore list" in html and f'data-unignore="{entry_id}"' in html and "Configuration" in html
 
     resp = await client.delete(f"/api/ignored/{entry_id}", headers={CSRF_HEADER: token})
     assert resp.status == 204
@@ -205,7 +205,7 @@ async def test_component_rows_carry_severity_levels(ignore_client):
     assert 'data-sevs="low "' in html
     assert 'data-sevs=""' in html
     assert 'id="scan-cancel"' in html and "hidden" in html.split('id="scan-cancel"')[1].split(">")[0]
-    assert '<option value="integracao">Integração</option>' in html
+    assert '<option value="integracao">Integration</option>' in html
 
 
 def test_reapply_is_json_roundtrip_safe(ignore_client):
@@ -231,7 +231,7 @@ async def test_ignore_whole_level_everywhere(ignore_client):
     assert counts["medium"] == 0 and counts["low"] == 0 and counts["high"] == 1
     assert storage.list_ignored()[0]["severities"] == ["medium", "low"]
     html = await (await client.get("/")).text()
-    assert "níveis: Média, Baixa" in html
+    assert "levels: Medium, Low" in html
     result = await engine.run()  # vale para as próximas varreduras
     assert {f.severity.key for f in result.findings if f.suppressed} == {"medium", "low"}
 
@@ -375,4 +375,4 @@ async def test_ignored_list_marks_entries_that_skip_scan(ignore_client):
     await client.post("/api/ignored", headers={CSRF_HEADER: token},
                       json={"component": "minha_integracao", "rule": "*", "severities": ["low"], "reason": "x"})
     html = await (await client.get("/")).text()
-    assert html.count("<strong>não é verificado</strong>") == 1
+    assert html.count("<strong>not scanned</strong>") == 1

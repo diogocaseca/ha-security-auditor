@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="{{ html_lang }}">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -8,8 +8,10 @@
   <script src="static/theme.js"></script>
   <link rel="stylesheet" href="static/app.css">
   <script src="static/app.js" defer></script>
+  {# Traduções usadas pelo JavaScript (bloco de dados; não é executado). #}
+  <script type="application/json" id="i18n-js">{{ js_catalog | tojson }}</script>
 </head>
-<body data-running="{{ 'true' if status.running else 'false' }}">
+<body data-running="{{ 'true' if status.running else 'false' }}" data-lang="{{ lang }}">
 <header class="topbar">
   <div class="brand">
     <span class="brand-mark" aria-hidden="true"></span>
@@ -17,93 +19,95 @@
       <h1>Security Auditor</h1>
       <p class="muted small">
         {% if result %}
-          Varredura de {{ result.finished_at | dt }}{% if not viewing_latest %} · <strong>visualizando relatório antigo</strong> · <a href="./">ir para o mais recente</a>{% endif %}
+          {{ _("Varredura de {data}", data=(result.finished_at | dt)) }}{% if not viewing_latest %} · <strong>{{ _("visualizando relatório antigo") }}</strong> · <a href="./">{{ _("ir para o mais recente") }}</a>{% endif %}
         {% else %}
-          Nenhuma varredura concluída ainda
+          {{ _("Nenhuma varredura concluída ainda") }}
         {% endif %}
       </p>
     </div>
   </div>
   <div class="actions">
-    <div class="theme-switch" role="group" aria-label="Tema">
-      <button type="button" data-theme-choice="system" aria-pressed="true" title="Seguir o tema do sistema">Sistema</button>
-      <button type="button" data-theme-choice="light" aria-pressed="false">Claro</button>
-      <button type="button" data-theme-choice="dark" aria-pressed="false">Escuro</button>
+    <div class="theme-switch" role="group" aria-label="{{ _('Idioma') }}">
+      <button type="button" data-lang-choice="en" aria-pressed="{{ 'true' if lang == 'en' else 'false' }}" lang="en" title="English">EN</button>
+      <button type="button" data-lang-choice="pt" aria-pressed="{{ 'true' if lang == 'pt' else 'false' }}" lang="pt-BR" title="Português">PT</button>
+    </div>
+    <div class="theme-switch" role="group" aria-label="{{ _('Tema') }}">
+      <button type="button" data-theme-choice="system" aria-pressed="true" title="{{ _('Seguir o tema do sistema') }}">{{ _("Sistema") }}</button>
+      <button type="button" data-theme-choice="light" aria-pressed="false">{{ _("Claro") }}</button>
+      <button type="button" data-theme-choice="dark" aria-pressed="false">{{ _("Escuro") }}</button>
     </div>
     <span class="muted small" id="scan-status">
       {% if status.running %}
-        Varrendo{% if status.progress.step %}: {{ status.progress.step }}{% endif %}…
+        {{ _("Varrendo") }}{% if status.progress.step %}: {{ status.progress.step }}{% endif %}…
       {% elif status.next_run %}
-        Próxima: {{ status.next_run | dt }}{% if status.daily_at %} (todo dia às {{ status.daily_at }}){% endif %}
+        {{ _("Próxima: {data}", data=(status.next_run | dt)) }}{% if status.daily_at %}{{ _(" (todo dia às {hora})", hora=status.daily_at) }}{% endif %}
       {% else %}
-        Agendamento desativado
+        {{ _("Agendamento desativado") }}
       {% endif %}
     </span>
     {% if result %}
-      <a class="btn btn-ghost" href="api/report.json?scan={{ result.scan_id }}&amp;download=1">Exportar JSON</a>
+      <a class="btn btn-ghost" href="api/report.json?scan={{ result.scan_id }}&amp;download=1">{{ _("Exportar JSON") }}</a>
     {% endif %}
     <button class="btn btn-primary" id="scan-now" type="button" {% if status.running %}disabled{% endif %}>
-      {{ 'Varrendo…' if status.running else 'Varrer agora' }}
+      {{ _("Varrendo…") if status.running else _("Varrer agora") }}
     </button>
     <button class="btn btn-danger" id="scan-cancel" type="button" {% if not status.running %}hidden{% endif %}
-            {% if status.cancelling %}disabled{% endif %}>{{ 'Cancelando…' if status.cancelling else 'Cancelar varredura' }}</button>
+            {% if status.cancelling %}disabled{% endif %}>{{ _("Cancelando…") if status.cancelling else _("Cancelar varredura") }}</button>
   </div>
 </header>
 
 <main>
-  <nav class="tabs" role="tablist" aria-label="Seções">
-    <button type="button" role="tab" data-tab="inicio" aria-selected="true">Início</button>
-    <button type="button" role="tab" data-tab="historico" aria-selected="false">Histórico de verificações</button>
-    <button type="button" role="tab" data-tab="listanegra" aria-selected="false">Lista negra</button>
+  <nav class="tabs" role="tablist" aria-label="{{ _('Seções') }}">
+    <button type="button" role="tab" data-tab="inicio" aria-selected="true">{{ _("Início") }}</button>
+    <button type="button" role="tab" data-tab="historico" aria-selected="false">{{ _("Histórico de verificações") }}</button>
+    <button type="button" role="tab" data-tab="listanegra" aria-selected="false">{{ _("Lista negra") }}</button>
   </nav>
-  {% set mode_labels = {'prioridade_baixa': 'prioridade baixa', 'modo_leve': 'modo leve', 'aguardar_folga': 'aguarda o sistema desocupar', 'horario_fixo': 'horário fixo'} %}
-  <p class="muted small modes">Proteções contra sobrecarga:
-    {% if status.modes %}{% for m in status.modes %}{{ mode_labels.get(m, m) }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}nenhuma{% endif %}</p>
+  {% set mode_labels = {'prioridade_baixa': _('prioridade baixa'), 'modo_leve': _('modo leve'), 'aguardar_folga': _('aguarda o sistema desocupar'), 'horario_fixo': _('horário fixo')} %}
+  <p class="muted small modes">{{ _("Proteções contra sobrecarga:") }}
+    {% if status.modes %}{% for m in status.modes %}{{ mode_labels.get(m, m) }}{% if not loop.last %} · {% endif %}{% endfor %}{% else %}{{ _("nenhuma") }}{% endif %}</p>
   {% if status.dns and status.dns.configurado %}
-    <p class="muted small dns-status" id="dns-status">Servidores DNS:
+    <p class="muted small dns-status" id="dns-status">{{ _("Servidores DNS:") }}
       {% if status.dns.testando and not status.dns.resultados %}
-        <span>testando a conexão…</span>
+        <span>{{ _("testando a conexão…") }}</span>
       {% endif %}
       {% for r in status.dns.resultados %}
         <span class="dns-pill {{ 'dns-ok' if r.ok else 'dns-fail' }}"
-              title="{{ r.endereco or '' }} · verificado em {{ r.verificado_em | dt }}{% if r.ms is defined %} · {{ r.ms }} ms{% endif %}">
+              title="{{ r.endereco or '' }} · {{ _('verificado em {data}', data=(r.verificado_em | dt)) }}{% if r.ms is defined %} · {{ r.ms }} ms{% endif %}">
           {{ '✓' if r.ok else '✗' }} {{ r.servidor }}{% if r.ok %}{% if r.versao %} {{ r.versao }}{% endif %}{% else %}: {{ r.mensagem }}{% endif %}</span>
       {% endfor %}
-      <button type="button" class="link" id="dns-check" {% if status.dns.testando %}disabled{% endif %}>Testar conexão</button>
+      <button type="button" class="link" id="dns-check" {% if status.dns.testando %}disabled{% endif %}>{{ _("Testar conexão") }}</button>
     </p>
   {% endif %}
   <p class="notice">
-    Este relatório aponta o que <strong>merece revisão humana</strong>. Um achado não significa que
-    o componente seja malicioso; leia a explicação e decida.
+    {{ _h("Este relatório aponta o que <strong>merece revisão humana</strong>. Um achado não significa que o componente seja malicioso; leia a explicação e decida.") }}
   </p>
 
   {% if not result %}
     <section class="empty">
-      <h2>Ainda não há relatório</h2>
-      <p>Clique em <strong>Varrer agora</strong> para executar a primeira varredura. Ela vira a linha de base
-         para destacar o que for novo nas próximas.</p>
+      <h2>{{ _("Ainda não há relatório") }}</h2>
+      <p>{{ _h("Clique em <strong>Varrer agora</strong> para executar a primeira varredura. Ela vira a linha de base para destacar o que for novo nas próximas.") }}</p>
     </section>
   {% else %}
     {% set counts = report.counts %}
-    <section class="cards" aria-label="Resumo por severidade">
+    <section class="cards" aria-label="{{ _('Resumo por severidade') }}">
       {% for sev in severities %}
         <button type="button" class="card sev-{{ sev.key }}" data-filter-sev="{{ sev.key }}" aria-pressed="false">
           <span class="card-count">{{ counts[sev.key] }}</span>
-          <span class="card-label">{{ sev.label }}</span>
+          <span class="card-label">{{ _(sev.label) }}</span>
         </button>
       {% endfor %}
       {% set n_rules = ignored | length + config_allowlist | length %}
       <button type="button" class="card card-ignored" id="toggle-ignored" aria-pressed="false" aria-controls="ignored"
-              title="Mostrar ou esconder a lista de ignorados">
+              title="{{ _('Mostrar ou esconder a lista de ignorados') }}">
         <span class="card-count">{{ (report.counts_including_suppressed.values() | sum) - (counts.values() | sum) }}</span>
-        <span class="card-label">Ignorados · {{ n_rules }} {{ 'item' if n_rules == 1 else 'itens' }} na lista</span>
+        <span class="card-label">{{ _("Ignorados · {n} item na lista", n=n_rules) if n_rules == 1 else _("Ignorados · {n} itens na lista", n=n_rules) }}</span>
       </button>
     </section>
 
     {% if result.errors %}
       <section class="panel panel-warn">
-        <h2>Etapas com erro</h2>
-        <p class="muted small">Estas etapas não terminaram; o relatório pode estar incompleto.</p>
+        <h2>{{ _("Etapas com erro") }}</h2>
+        <p class="muted small">{{ _("Estas etapas não terminaram; o relatório pode estar incompleto.") }}</p>
         <ul>
           {% for e in result.errors %}<li><code>{{ e }}</code></li>{% endfor %}
         </ul>
@@ -113,31 +117,31 @@
     {% if result.components %}
       <section class="panel" id="components">
         <div class="panel-head">
-          <h2>Componentes <span class="muted" id="comp-count"></span></h2>
+          <h2>{{ _("Componentes") }} <span class="muted" id="comp-count"></span></h2>
           <div class="actions">
             {% set comp_types = result.components | map(attribute='component_type') | unique | sort | list %}
-            <label class="small type-filter">Tipo
-              <select id="filter-type" aria-label="Filtrar componentes por tipo">
-                <option value="">Todos</option>
-                {% for t in comp_types %}<option value="{{ t }}">{{ type_label(t) }}</option>{% endfor %}
+            <label class="small type-filter">{{ _("Tipo") }}
+              <select id="filter-type" aria-label="{{ _('Filtrar componentes por tipo') }}">
+                <option value="">{{ _("Todos") }}</option>
+                {% for t in comp_types %}<option value="{{ t }}">{{ _(type_label(t)) }}</option>{% endfor %}
               </select>
             </label>
             {% if result.components | selectattr('metadata.lista_negra') | list %}
-              <label class="small"><input type="checkbox" id="only-blocklist"> Só lista negra</label>
+              <label class="small"><input type="checkbox" id="only-blocklist"> {{ _("Só lista negra") }}</label>
             {% endif %}
-            <label class="small"><input type="checkbox" id="hide-empty" checked> Esconder componentes sem achados</label>
+            <label class="small"><input type="checkbox" id="hide-empty" checked> {{ _("Esconder componentes sem achados") }}</label>
             <span class="muted small" id="comp-filter-note" hidden></span>
             {% if viewing_latest %}
               <button type="button" class="btn btn-ghost btn-sm" id="ignore-levels" hidden
-                      title="Ignora os achados dos níveis selecionados em todos os componentes">Ignorar estes níveis…</button>
+                      title="{{ _('Ignora os achados dos níveis selecionados em todos os componentes') }}">{{ _("Ignorar estes níveis…") }}</button>
             {% endif %}
           </div>
         </div>
         <div class="table-wrap">
           <table>
             <thead>
-              <tr><th>Componente</th><th>Tipo</th><th class="num">Nota de risco</th>
-                  {% for sev in severities %}<th class="num">{{ sev.label }}</th>{% endfor %}
+              <tr><th>{{ _("Componente") }}</th><th>{{ _("Tipo") }}</th><th class="num">{{ _("Nota de risco") }}</th>
+                  {% for sev in severities %}<th class="num">{{ _(sev.label) }}</th>{% endfor %}
                   {% if viewing_latest %}<th></th>{% endif %}</tr>
             </thead>
             <tbody>
@@ -150,52 +154,52 @@
                     {% set bl = c.metadata.lista_negra %}
                     {% if bl %}
                       <span class="badge {{ 'sev-critical' if bl.forte else 'sev-medium' }} badge-blocklist"
-                            title="Item {{ bl.id }} da lista {{ bl.origem }} · {{ bl.categoria }}{% if bl.total > 1 %} · {{ bl.total }} itens{% endif %}">
-                        {{ 'Lista negra' if bl.forte else 'Lista negra?' }}</span>
+                            title="{{ _('Item {id} da lista {origem} · {categoria}', id=bl.id, origem=_(bl.origem), categoria=bl.categoria) }}{% if bl.total > 1 %}{{ _(' · {n} itens', n=bl.total) }}{% endif %}">
+                        {{ _("Lista negra") if bl.forte else _("Lista negra?") }}</span>
                     {% endif %}
                     {% set details = component_details(c.metadata) %}
                     {% if details %}<div class="comp-meta">{{ details | join(' · ') }}</div>{% endif %}
                   </td>
-                  <td>{{ type_label(c.component_type) }}</td>
+                  <td>{{ _(type_label(c.component_type)) }}</td>
                   <td class="num"><span class="score score-{{ 'high' if c.score >= 40 else ('mid' if c.score >= 10 else 'low') }}">{{ c.score }}</span></td>
                   {% for sev in severities %}<td class="num">{{ c.counts.get(sev.key, 0) or '' }}</td>{% endfor %}
                   {% if viewing_latest %}
-                    <td>{% if c.counts.values() | sum %}<button type="button" class="btn btn-ghost btn-sm" data-ignore-component="{{ c.name }}">Ignorar…</button>{% endif %}</td>
+                    <td>{% if c.counts.values() | sum %}<button type="button" class="btn btn-ghost btn-sm" data-ignore-component="{{ c.name }}">{{ _("Ignorar…") }}</button>{% endif %}</td>
                   {% endif %}
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
-        <p class="muted" id="comp-no-match" hidden>Nenhum componente para mostrar com os filtros atuais.</p>
+        <p class="muted" id="comp-no-match" hidden>{{ _("Nenhum componente para mostrar com os filtros atuais.") }}</p>
       </section>
     {% endif %}
 
     {# Tela de achados de um componente: aberta ao clicar no nome dele na tabela (?componente=...). #}
     <section class="panel" id="findings-view">
       <div class="view-actions">
-        <button type="button" class="btn btn-ghost btn-sm" id="back-to-summary">← Voltar para o resumo</button>
-        <button type="button" class="btn btn-ghost btn-sm" id="bl-from-component" hidden>Adicionar à lista negra…</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="back-to-summary">{{ _("← Voltar para o resumo") }}</button>
+        <button type="button" class="btn btn-ghost btn-sm" id="bl-from-component" hidden>{{ _("Adicionar à lista negra…") }}</button>
       </div>
       <div class="panel-head view-head">
         <div>
-          <h2>Achados de <span id="findings-component"></span> <span class="muted" id="visible-count"></span></h2>
+          <h2>{{ _("Achados de") }} <span id="findings-component"></span> <span class="muted" id="visible-count"></span></h2>
           <p class="muted small" id="findings-component-meta"></p>
         </div>
       </div>
-      <div class="chips" role="group" aria-label="Filtrar por nível">
+      <div class="chips" role="group" aria-label="{{ _('Filtrar por nível') }}">
         {% for sev in severities %}
           <button type="button" class="chip sev-{{ sev.key }}" data-filter-sev="{{ sev.key }}" aria-pressed="false">
-            {{ sev.label }} <span class="chip-count" data-chip-count="{{ sev.key }}"></span></button>
+            {{ _(sev.label) }} <span class="chip-count" data-chip-count="{{ sev.key }}"></span></button>
         {% endfor %}
       </div>
       <div class="panel-head">
         <span></span>
         <div class="filters">
-          <input type="search" id="filter-text" placeholder="Filtrar por texto, arquivo, regra…" aria-label="Filtrar">
-          <label><input type="checkbox" id="filter-new"> Só novos</label>
-          <label><input type="checkbox" id="filter-suppressed"> Mostrar suprimidos</label>
-          <button type="button" class="btn btn-ghost btn-sm" id="filter-clear">Limpar filtros</button>
+          <input type="search" id="filter-text" placeholder="{{ _('Filtrar por texto, arquivo, regra…') }}" aria-label="{{ _('Filtrar') }}">
+          <label><input type="checkbox" id="filter-new"> {{ _("Só novos") }}</label>
+          <label><input type="checkbox" id="filter-suppressed"> {{ _("Mostrar suprimidos") }}</label>
+          <button type="button" class="btn btn-ghost btn-sm" id="filter-clear">{{ _("Limpar filtros") }}</button>
         </div>
       </div>
       <div id="findings">
@@ -206,64 +210,63 @@
                    data-rule="{{ f.rule_id }}" data-file="{{ f.file or '' }}" data-fingerprint="{{ f.fingerprint }}"
                    data-title="{{ f.title }}">
             <header>
-              <span class="badge sev-{{ f.severity.key }}">{{ f.severity.label }}</span>
-              {% if f.is_new %}<span class="badge badge-new">Novo</span>{% endif %}
-              {% if f.suppressed %}<span class="badge badge-muted">Suprimido</span>{% endif %}
+              <span class="badge sev-{{ f.severity.key }}">{{ _(f.severity.label) }}</span>
+              {% if f.is_new %}<span class="badge badge-new">{{ _("Novo") }}</span>{% endif %}
+              {% if f.suppressed %}<span class="badge badge-muted">{{ _("Suprimido") }}</span>{% endif %}
               <h3>{{ f.title }}</h3>
               {% if viewing_latest %}
                 {% if not f.suppressed %}
-                  <button type="button" class="btn btn-ghost btn-sm finding-action" data-ignore>Ignorar…</button>
+                  <button type="button" class="btn btn-ghost btn-sm finding-action" data-ignore>{{ _("Ignorar…") }}</button>
                 {% elif f.suppressed_by is not none %}
-                  <button type="button" class="btn btn-ghost btn-sm finding-action" data-unignore="{{ f.suppressed_by }}">Deixar de ignorar</button>
+                  <button type="button" class="btn btn-ghost btn-sm finding-action" data-unignore="{{ f.suppressed_by }}">{{ _("Deixar de ignorar") }}</button>
                 {% endif %}
               {% endif %}
             </header>
             <dl class="meta">
-              <div><dt>Componente</dt><dd>{{ f.component }} <span class="muted">({{ type_label(f.component_type) }})</span></dd></div>
-              <div><dt>Tipo</dt><dd>{{ f.category }}</dd></div>
-              {% if f.file %}<div><dt>Arquivo</dt><dd><code>{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</code></dd></div>{% endif %}
-              <div><dt>Regra</dt><dd><code>{{ f.rule_id }}</code> <span class="muted">· {{ (f.extra.sources or [f.source]) | join(', ') }}</span></dd></div>
+              <div><dt>{{ _("Componente") }}</dt><dd>{{ f.component }} <span class="muted">({{ _(type_label(f.component_type)) }})</span></dd></div>
+              <div><dt>{{ _("Tipo") }}</dt><dd>{{ f.category }}</dd></div>
+              {% if f.file %}<div><dt>{{ _("Arquivo") }}</dt><dd><code>{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</code></dd></div>{% endif %}
+              <div><dt>{{ _("Regra") }}</dt><dd><code>{{ f.rule_id }}</code> <span class="muted">· {{ (f.extra.sources or [f.source]) | join(', ') }}</span></dd></div>
             </dl>
             {% if f.snippet %}<pre class="snippet"><code>{{ f.snippet }}</code></pre>{% endif %}
-            <p class="why"><strong>Por que é suspeito:</strong> {{ f.explanation }}</p>
-            <p class="todo"><strong>O que fazer:</strong> {{ f.recommendation }}</p>
+            <p class="why"><strong>{{ _("Por que é suspeito:") }}</strong> {{ f.explanation }}</p>
+            <p class="todo"><strong>{{ _("O que fazer:") }}</strong> {{ f.recommendation }}</p>
             {% if f.extra.evidencias %}
-              <p class="small"><strong>Evidências:</strong>
+              <p class="small"><strong>{{ _("Evidências:") }}</strong>
                 {% for url in f.extra.evidencias if url.startswith('https://') %}<a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ url }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>
             {% endif %}
-            {% if f.suppressed %}<p class="muted small">Ignorado: {{ f.suppression_reason }}</p>{% endif %}
+            {% if f.suppressed %}<p class="muted small">{{ _("Ignorado: {motivo}", motivo=f.suppression_reason) }}</p>{% endif %}
           </article>
         {% endfor %}
       </div>
-      <p class="muted" id="no-match" hidden>Nenhum achado deste componente corresponde aos filtros.</p>
-      <p class="muted" id="component-empty" hidden>Este componente não tem achados nesta varredura.</p>
+      <p class="muted" id="no-match" hidden>{{ _("Nenhum achado deste componente corresponde aos filtros.") }}</p>
+      <p class="muted" id="component-empty" hidden>{{ _("Este componente não tem achados nesta varredura.") }}</p>
     </section>
   {% endif %}
 
     {# Aba de ignorados: aberta pelo quadrado "Ignorados" (?ver=ignorados). Sem relatório, fica sempre visível. #}
     <section class="panel{% if result %} ignored-tab{% endif %}" id="ignored">
-      {% if result %}<button type="button" class="btn btn-ghost btn-sm" id="back-from-ignored">← Voltar para o resumo</button>{% endif %}
+      {% if result %}<button type="button" class="btn btn-ghost btn-sm" id="back-from-ignored">{{ _("← Voltar para o resumo") }}</button>{% endif %}
       <div class="panel-head">
-        <h2>Lista de ignorados <span class="muted">({{ ignored | length + config_allowlist | length }})</span></h2>
-        <button type="button" class="btn btn-ghost btn-sm" id="ignore-add">Incluir na lista…</button>
+        <h2>{{ _("Lista de ignorados") }} <span class="muted">({{ ignored | length + config_allowlist | length }})</span></h2>
+        <button type="button" class="btn btn-ghost btn-sm" id="ignore-add">{{ _("Incluir na lista…") }}</button>
       </div>
-      <p class="muted small">Achados ignorados continuam no relatório (marque "Mostrar suprimidos"), mas não contam
-        nos totais, nas notas nem nos sensores. A mudança vale na hora para o relatório mais recente e nas próximas varreduras.</p>
+      <p class="muted small">{{ _("Achados ignorados continuam no relatório (marque \"Mostrar suprimidos\"), mas não contam nos totais, nas notas nem nos sensores. A mudança vale na hora para o relatório mais recente e nas próximas varreduras.") }}</p>
       {% if ignored or config_allowlist %}
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Componente</th><th>Regra</th><th>Alcance</th><th>Motivo</th><th>Origem</th><th></th></tr></thead>
+            <thead><tr><th>{{ _("Componente") }}</th><th>{{ _("Regra") }}</th><th>{{ _("Alcance") }}</th><th>{{ _("Motivo") }}</th><th>{{ _("Origem") }}</th><th></th></tr></thead>
             <tbody>
               {% for e in ignored %}
                 <tr>
                   <td><code>{{ e.component }}</code></td>
                   <td><code>{{ e.rule }}</code></td>
-                  <td class="wrap">{% if e.fingerprint %}só o achado “{{ e.title or 'específico' }}”{% elif e.path %}arquivos <code>{{ e.path }}</code>{% elif e.rule == '*' %}todos os achados{% else %}todos os achados da regra{% endif %}{% if e.severities %} · níveis: {{ severity_labels(e.severities) }}{% endif %}{% if e.pula_varredura %} · <strong>não é verificado</strong>{% endif %}</td>
+                  <td class="wrap">{% if e.fingerprint %}{{ _("só o achado “{titulo}”", titulo=(e.title or _("específico"))) }}{% elif e.path %}{{ _("arquivos") }} <code>{{ e.path }}</code>{% elif e.rule == '*' %}{{ _("todos os achados") }}{% else %}{{ _("todos os achados da regra") }}{% endif %}{% if e.severities %} · {{ _("níveis: {niveis}", niveis=severity_labels(e.severities)) }}{% endif %}{% if e.pula_varredura %} · <strong>{{ _("não é verificado") }}</strong>{% endif %}</td>
                   <td class="wrap reason-cell" data-reason="{{ e.reason }}"><span class="reason-text">{{ e.reason or '—' }}</span></td>
-                  <td>Interface · {{ e.created_at | dt }}</td>
+                  <td>{{ _("Interface · {data}", data=(e.created_at | dt)) }}</td>
                   <td class="row-actions">
-                    <button type="button" class="btn btn-ghost btn-sm" data-edit-reason="{{ e.id }}">Editar</button>
-                    <button type="button" class="btn btn-ghost btn-sm" data-unignore="{{ e.id }}">Remover</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-edit-reason="{{ e.id }}">{{ _("Editar") }}</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-unignore="{{ e.id }}">{{ _("Remover") }}</button>
                   </td>
                 </tr>
               {% endfor %}
@@ -271,17 +274,17 @@
                 <tr>
                   <td><code>{{ e.component }}</code></td>
                   <td><code>{{ e.rule }}</code></td>
-                  <td class="wrap">{% if e.path %}arquivos <code>{{ e.path }}</code>{% else %}todos os achados da regra{% endif %}</td>
+                  <td class="wrap">{% if e.path %}{{ _("arquivos") }} <code>{{ e.path }}</code>{% else %}{{ _("todos os achados da regra") }}{% endif %}</td>
                   <td class="wrap">{{ e.reason or '—' }}</td>
-                  <td>Configurações</td>
-                  <td class="muted small">remova na aba Configuração</td>
+                  <td>{{ _("Configurações") }}</td>
+                  <td class="muted small">{{ _("remova na aba Configuração") }}</td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         </div>
       {% else %}
-        <p class="muted">Nada está sendo ignorado.</p>
+        <p class="muted">{{ _("Nada está sendo ignorado.") }}</p>
       {% endif %}
     </section>
   {% if result %}
@@ -289,21 +292,21 @@
     {% for c in result.components if c.component_type == 'rede' and c.metadata.dominios %}
       <section class="panel">
         <div class="panel-head">
-          <h2>{{ c.metadata.nome or 'Domínios consultados' }}</h2>
+          <h2>{{ c.metadata.nome or _('Domínios consultados') }}</h2>
           <span class="muted small">{{ c.metadata.trafego }}</span>
         </div>
         <p class="notice notice-warn">{{ c.metadata.aviso }}</p>
-        <p class="muted small">Clientes considerados: {{ c.metadata.clientes | join(', ') }}.
-          {% if c.metadata.dominios_total > c.metadata.dominios | length %}Mostrando os {{ c.metadata.dominios | length }} mais consultados de {{ c.metadata.dominios_total }}.{% endif %}</p>
+        <p class="muted small">{{ _("Clientes considerados: {clientes}.", clientes=(c.metadata.clientes | join(', '))) }}
+          {% if c.metadata.dominios_total > c.metadata.dominios | length %}{{ _("Mostrando os {n} mais consultados de {total}.", n=(c.metadata.dominios | length), total=c.metadata.dominios_total) }}{% endif %}</p>
         <div class="table-wrap">
           <table>
             {% set multi = (c.metadata.servidores or []) | length > 1 %}
-            <thead><tr><th>Domínio</th>{% if multi %}<th>Servidor</th>{% endif %}<th class="num">Consultas</th><th class="num">Bloqueadas</th><th>Última</th></tr></thead>
+            <thead><tr><th>{{ _("Domínio") }}</th>{% if multi %}<th>{{ _("Servidor") }}</th>{% endif %}<th class="num">{{ _("Consultas") }}</th><th class="num">{{ _("Bloqueadas") }}</th><th>{{ _("Última") }}</th></tr></thead>
             <tbody>
               {% for d in c.metadata.dominios %}
                 <tr>
-                  <td><code>{{ d.dominio }}</code>{% if d.novo %} <span class="badge badge-new">Novo</span>{% endif %}</td>
-                  {% if multi %}<td>{{ 'ambos' if (d.servidores or []) | length > 1 else (d.servidores or ['—']) | first }}</td>{% endif %}
+                  <td><code>{{ d.dominio }}</code>{% if d.novo %} <span class="badge badge-new">{{ _("Novo") }}</span>{% endif %}</td>
+                  {% if multi %}<td>{{ _('ambos') if (d.servidores or []) | length > 1 else (d.servidores or ['—']) | first }}</td>{% endif %}
                   <td class="num">{{ d.consultas }}</td>
                   <td class="num">{{ d.bloqueadas or '' }}</td>
                   <td>{{ d.ultima | dt }}</td>
@@ -317,10 +320,10 @@
 
     {% if result.resolved %}
       <section class="panel">
-        <h2>Resolvidos desde a varredura anterior</h2>
+        <h2>{{ _("Resolvidos desde a varredura anterior") }}</h2>
         <ul class="resolved">
           {% for r in result.resolved %}
-            <li><span class="badge sev-{{ r.severity }}">{{ r.severity_label }}</span>
+            <li><span class="badge sev-{{ r.severity }}">{{ _(r.severity_label) }}</span>
               <strong>{{ r.component }}</strong> · {{ r.title }}{% if r.file %} · <code>{{ r.file }}</code>{% endif %}</li>
           {% endfor %}
         </ul>
@@ -328,55 +331,51 @@
     {% endif %}
   {% endif %}
 
-  {# Aba "Histórico de verificações" (?ver=historico). #}
   {# Aba "Lista negra" (?ver=listanegra): lista comunitária e lista pessoal. #}
-  {% set bl_niveis = {'critica': ('critical', 'Crítica'), 'alta': ('high', 'Alta'), 'media': ('medium', 'Média'), 'aviso': ('low', 'Aviso')} %}
-  {% set bl_categorias = {'malicioso': 'Malicioso', 'comprometido': 'Comprometido', 'vulneravel': 'Vulnerável', 'abandonado': 'Abandonado', 'telemetria': 'Telemetria', 'removido': 'Removido de loja', 'incompativel': 'Incompatível'} %}
-  {% set bl_tipos = {'integracao': 'Integração', 'frontend': 'Frontend', 'addon': 'Add-on'} %}
+  {% set bl_niveis = {'critica': ('critical', _('Crítica')), 'alta': ('high', _('Alta')), 'media': ('medium', _('Média')), 'aviso': ('low', _('Aviso'))} %}
+  {% set bl_categorias = {'malicioso': _('Malicioso'), 'comprometido': _('Comprometido'), 'vulneravel': _('Vulnerável'), 'abandonado': _('Abandonado'), 'telemetria': _('Telemetria'), 'removido': _('Removido de loja'), 'incompativel': _('Incompatível')} %}
+  {% set bl_tipos = {'integracao': _('Integração'), 'frontend': _('Frontend'), 'addon': _('Add-on')} %}
   <section class="panel" id="blocklist-view" role="tabpanel">
-    <h2>Lista negra</h2>
-    <p class="muted small">Componentes reportados ganham o selo <strong>Lista negra</strong> na tabela de
-      componentes. A comparação é local; as mudanças valem na <strong>próxima varredura</strong>.</p>
+    <h2>{{ _("Lista negra") }}</h2>
+    <p class="muted small">{{ _h("Componentes reportados ganham o selo <strong>Lista negra</strong> na tabela de componentes. A comparação é local; as mudanças valem na <strong>próxima varredura</strong>.") }}</p>
 
     {% set com = blocklist.comunitaria %}
     <div class="bl-community">
-      <h3>Lista comunitária</h3>
+      <h3>{{ _("Lista comunitária") }}</h3>
       {% if not com.ativa %}
-        <p class="muted">Desligada nas opções (<code>lista_comunitaria</code>).</p>
+        <p class="muted">{{ _h("Desligada nas opções (<code>lista_comunitaria</code>).") }}</p>
       {% elif com.baixado_em %}
-        <p><strong>{{ com.itens or 0 }}</strong> itens · lista de {{ com.atualizado_em or '?' }} · última busca
-          {{ com.verificado_em | dt }} · assinatura conferida (chave {{ com.chave }}).
-          <a href="https://github.com/diogocaseca/ha-security-blocklist" target="_blank" rel="noopener noreferrer">Ver no GitHub</a>
-          · inclui relatos da comunidade e as listas do HACS e do Home Assistant.</p>
+        <p>{{ _h("<strong>{itens}</strong> itens · lista de {data} · última busca {busca} · assinatura conferida (chave {chave}).", itens=(com.itens or 0), data=(com.atualizado_em or '?'), busca=(com.verificado_em | dt), chave=com.chave) }}
+          <a href="https://github.com/diogocaseca/ha-security-blocklist" target="_blank" rel="noopener noreferrer">{{ _("Ver no GitHub") }}</a>
+          {{ _("· inclui relatos da comunidade e as listas do HACS e do Home Assistant.") }}</p>
       {% else %}
-        <p class="muted">Ainda não baixada. Ela é buscada na próxima varredura (no máximo a cada 6 horas).</p>
+        <p class="muted">{{ _("Ainda não baixada. Ela é buscada na próxima varredura (no máximo a cada 6 horas).") }}</p>
       {% endif %}
     </div>
 
     <div class="panel-head">
-      <h3>Lista pessoal <span class="muted">({{ blocklist.interface | length }})</span></h3>
-      <button type="button" class="btn btn-primary btn-sm" id="bl-add">Adicionar item…</button>
+      <h3>{{ _("Lista pessoal") }} <span class="muted">({{ blocklist.interface | length }})</span></h3>
+      <button type="button" class="btn btn-primary btn-sm" id="bl-add">{{ _("Adicionar item…") }}</button>
     </div>
-    <p class="muted small">Vale só nesta instalação. Os itens ficam guardados no add-on (entram no backup dele)
-      e não precisam de assinatura nem de evidência.</p>
+    <p class="muted small">{{ _("Vale só nesta instalação. Os itens ficam guardados no add-on (entram no backup dele) e não precisam de assinatura nem de evidência.") }}</p>
     {% if blocklist.interface %}
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Nível</th><th>Componente</th><th>Versões</th><th>Categoria</th><th>Motivo</th><th>Criado em</th><th></th></tr></thead>
+          <thead><tr><th>{{ _("Nível") }}</th><th>{{ _("Componente") }}</th><th>{{ _("Versões") }}</th><th>{{ _("Categoria") }}</th><th>{{ _("Motivo") }}</th><th>{{ _("Criado em") }}</th><th></th></tr></thead>
           <tbody>
             {% for r in blocklist.interface %}
               {% set it = r.item %}
               <tr data-bl-item='{{ it | tojson }}'>
                 <td><span class="badge sev-{{ bl_niveis.get(it.nivel, ('info', it.nivel))[0] }}">{{ bl_niveis.get(it.nivel, ('', it.nivel))[1] }}</span></td>
                 <td class="wrap">{% if it.github %}<code>{{ it.github }}</code>{% endif %}{% if it.nome %} <code>{{ it.nome }}</code>{% endif %}{% if it.imagem %} <code>{{ it.imagem }}</code>{% endif %}
-                  <div class="comp-meta">{{ bl_tipos.get(it.tipo, 'qualquer tipo') }} · id {{ it.id }}</div></td>
-                <td>{{ it.versoes or 'todas' }}</td>
+                  <div class="comp-meta">{{ bl_tipos.get(it.tipo, _('qualquer tipo')) }} · id {{ it.id }}</div></td>
+                <td>{{ it.versoes or _('todas') }}</td>
                 <td>{{ bl_categorias.get(it.categoria, it.categoria) }}</td>
                 <td class="wrap">{{ it.motivo }}{% for url in it.evidencias or [] if url.startswith('https://') %}<br><a href="{{ url }}" target="_blank" rel="noopener noreferrer" class="small">{{ url }}</a>{% endfor %}</td>
                 <td>{{ r.criado_em | dt }}</td>
                 <td class="row-actions">
-                  <button type="button" class="btn btn-ghost btn-sm" data-bl-edit="{{ it.id }}">Editar</button>
-                  <button type="button" class="btn btn-ghost btn-sm" data-bl-remove="{{ it.id }}">Remover</button>
+                  <button type="button" class="btn btn-ghost btn-sm" data-bl-edit="{{ it.id }}">{{ _("Editar") }}</button>
+                  <button type="button" class="btn btn-ghost btn-sm" data-bl-remove="{{ it.id }}">{{ _("Remover") }}</button>
                 </td>
               </tr>
             {% endfor %}
@@ -384,26 +383,26 @@
         </table>
       </div>
     {% else %}
-      <p class="muted">Nenhum item. Use <strong>Adicionar item…</strong> ou, na tela de um componente,
-        <strong>Adicionar à lista negra…</strong>.</p>
+      <p class="muted">{{ _h("Nenhum item. Use <strong>Adicionar item…</strong> ou, na tela de um componente, <strong>Adicionar à lista negra…</strong>.") }}</p>
     {% endif %}
   </section>
 
+  {# Aba "Histórico de verificações" (?ver=historico). #}
   <section class="panel" id="history" role="tabpanel">
-    <h2>Histórico de verificações</h2>
+    <h2>{{ _("Histórico de verificações") }}</h2>
     {% if history %}
-      <p class="muted small">Clique na data para abrir o relatório daquela verificação.
-        {{ history_page.total }} verificaç{{ 'ão' if history_page.total == 1 else 'ões' }} guardada{{ '' if history_page.total == 1 else 's' }}
-        (o limite é a opção <code>report_retention</code>).</p>
+      <p class="muted small">{{ _("Clique na data para abrir o relatório daquela verificação.") }}
+        {{ _("{n} verificação guardada", n=history_page.total) if history_page.total == 1 else _("{n} verificações guardadas", n=history_page.total) }}
+        {{ _h("(o limite é a opção <code>report_retention</code>).") }}</p>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Varredura</th><th>Status</th><th class="num">Duração</th>
-            {% for sev in severities %}<th class="num">{{ sev.label }}</th>{% endfor %}<th class="num">Novos</th></tr></thead>
+          <thead><tr><th>{{ _("Varredura") }}</th><th>{{ _("Status") }}</th><th class="num">{{ _("Duração") }}</th>
+            {% for sev in severities %}<th class="num">{{ _(sev.label) }}</th>{% endfor %}<th class="num">{{ _("Novos") }}</th></tr></thead>
           <tbody>
             {% for h in history %}
               <tr{% if result and h.scan_id == result.scan_id %} class="current"{% endif %}>
                 <td><a href="./?scan={{ h.scan_id }}">{{ h.finished_at | dt }}</a></td>
-                <td>{{ {'concluida': 'Concluída', 'falhou': 'Falhou', 'cancelada': 'Cancelada', 'em_andamento': 'Em andamento'}.get(h.status, h.status) }}</td>
+                <td>{{ {'concluida': _('Concluída'), 'falhou': _('Falhou'), 'cancelada': _('Cancelada'), 'em_andamento': _('Em andamento')}.get(h.status, h.status) }}</td>
                 <td class="num">{{ duration(h.started_at, h.finished_at) }}</td>
                 {% for sev in severities %}<td class="num">{{ h.counts.get(sev.key, 0) or '' }}</td>{% endfor %}
                 <td class="num">{{ h.new_count or '' }}</td>
@@ -415,91 +414,88 @@
       {% if history_page.pages > 1 %}
         {% set hp = history_page %}
         {% macro page_url(n) %}./?ver=historico&amp;pagina={{ n }}{% if history_page.scan %}&amp;scan={{ history_page.scan | urlencode }}{% endif %}{% endmacro %}
-        <nav class="pager" aria-label="Páginas do histórico">
-          {% if hp.page > 1 %}<a class="btn btn-ghost btn-sm" href="{{ page_url(hp.page - 1) }}" rel="prev">← Anterior</a>
-          {% else %}<span class="btn btn-ghost btn-sm" aria-disabled="true">← Anterior</span>{% endif %}
+        <nav class="pager" aria-label="{{ _('Páginas do histórico') }}">
+          {% if hp.page > 1 %}<a class="btn btn-ghost btn-sm" href="{{ page_url(hp.page - 1) }}" rel="prev">{{ _("← Anterior") }}</a>
+          {% else %}<span class="btn btn-ghost btn-sm" aria-disabled="true">{{ _("← Anterior") }}</span>{% endif %}
           {% for n in range(1, hp.pages + 1) %}
             {% if n == hp.page %}<span class="pager-current" aria-current="page">{{ n }}</span>
             {% else %}<a class="pager-link" href="{{ page_url(n) }}">{{ n }}</a>{% endif %}
           {% endfor %}
-          {% if hp.page < hp.pages %}<a class="btn btn-ghost btn-sm" href="{{ page_url(hp.page + 1) }}" rel="next">Próxima →</a>
-          {% else %}<span class="btn btn-ghost btn-sm" aria-disabled="true">Próxima →</span>{% endif %}
+          {% if hp.page < hp.pages %}<a class="btn btn-ghost btn-sm" href="{{ page_url(hp.page + 1) }}" rel="next">{{ _("Próxima →") }}</a>
+          {% else %}<span class="btn btn-ghost btn-sm" aria-disabled="true">{{ _("Próxima →") }}</span>{% endif %}
         </nav>
       {% endif %}
     {% else %}
-      <p class="muted">Nenhuma verificação ainda.</p>
+      <p class="muted">{{ _("Nenhuma verificação ainda.") }}</p>
     {% endif %}
   </section>
 </main>
 
 <dialog id="blocklist-dialog" aria-labelledby="bl-title">
   <form method="dialog" id="bl-form">
-    <h2 id="bl-title">Adicionar à lista negra pessoal</h2>
-    <p class="muted small">Informe pelo menos o repositório do GitHub, o nome ou a imagem. O GitHub (ou a
-      imagem) dá correspondência forte; só o nome gera "possível correspondência".</p>
+    <h2 id="bl-title">{{ _("Adicionar à lista negra pessoal") }}</h2>
+    <p class="muted small">{{ _("Informe pelo menos o repositório do GitHub, o nome ou a imagem. O GitHub (ou a imagem) dá correspondência forte; só o nome gera \"possível correspondência\".") }}</p>
     <div class="form-grid">
-      <label>Tipo
+      <label>{{ _("Tipo") }}
         <select name="tipo">
-          <option value="">Qualquer</option>
+          <option value="">{{ _("Qualquer") }}</option>
           {% for k, v in bl_tipos.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
         </select>
       </label>
-      <label>Versões afetadas <input type="text" name="versoes" maxlength="100" placeholder="ex.: <1.4.2 (vazio = todas)"></label>
-      <label>Repositório do GitHub <input type="text" name="github" maxlength="201" placeholder="dono/repositorio"></label>
-      <label>Nome <input type="text" name="nome" maxlength="200" placeholder="domínio, pasta do card ou slug"></label>
-      <label class="span-2">Imagem do add-on <input type="text" name="imagem" maxlength="300" placeholder="ghcr.io/dono/{arch}-addon-x"></label>
-      <label>Nível
+      <label>{{ _("Versões afetadas") }} <input type="text" name="versoes" maxlength="100" placeholder="{{ _('ex.: <1.4.2 (vazio = todas)') }}"></label>
+      <label>{{ _("Repositório do GitHub") }} <input type="text" name="github" maxlength="201" placeholder="{{ _('dono/repositorio') }}"></label>
+      <label>{{ _("Nome") }} <input type="text" name="nome" maxlength="200" placeholder="{{ _('domínio, pasta do card ou slug') }}"></label>
+      <label class="span-2">{{ _("Imagem do add-on") }} <input type="text" name="imagem" maxlength="300" placeholder="ghcr.io/dono/{arch}-addon-x"></label>
+      <label>{{ _("Nível") }}
         <select name="nivel" required>
           {% for k, v in bl_niveis.items() %}<option value="{{ k }}"{% if k == 'alta' %} selected{% endif %}>{{ v[1] }}</option>{% endfor %}
         </select>
       </label>
-      <label>Categoria
+      <label>{{ _("Categoria") }}
         <select name="categoria" required>
           {% for k, v in bl_categorias.items() %}<option value="{{ k }}">{{ v }}</option>{% endfor %}
         </select>
       </label>
-      <label class="span-2">Motivo <textarea name="motivo" rows="2" maxlength="500" required placeholder="O que acontece, em uma ou duas frases"></textarea></label>
-      <label class="span-2">Evidências (opcional, um link https:// por linha) <textarea name="evidencias" rows="2"></textarea></label>
+      <label class="span-2">{{ _("Motivo") }} <textarea name="motivo" rows="2" maxlength="500" required placeholder="{{ _('O que acontece, em uma ou duas frases') }}"></textarea></label>
+      <label class="span-2">{{ _("Evidências (opcional, um link https:// por linha)") }} <textarea name="evidencias" rows="2"></textarea></label>
     </div>
     <p class="error small" id="bl-error" hidden></p>
     <div class="dialog-actions">
-      <button type="button" class="btn btn-ghost" id="bl-cancel">Cancelar</button>
-      <button type="submit" class="btn btn-primary" id="bl-submit">Salvar</button>
+      <button type="button" class="btn btn-ghost" id="bl-cancel">{{ _("Cancelar") }}</button>
+      <button type="submit" class="btn btn-primary" id="bl-submit">{{ _("Salvar") }}</button>
     </div>
   </form>
 </dialog>
 
 <dialog id="ignore-dialog" aria-labelledby="ignore-title">
   <form method="dialog" id="ignore-form">
-    <h2 id="ignore-title">Ignorar achado</h2>
+    <h2 id="ignore-title">{{ _("Ignorar achado") }}</h2>
     <p class="muted small" id="ignore-subject"></p>
     <fieldset id="ignore-scope">
-      <legend>O que ignorar</legend>
-      <label><input type="radio" name="scope" value="finding" checked> Só este achado</label>
-      <label><input type="radio" name="scope" value="file"> Esta regra neste arquivo</label>
-      <label><input type="radio" name="scope" value="component"> Esta regra em todo o componente</label>
-      <label><input type="radio" name="scope" value="all"> Esta regra em todos os componentes</label>
+      <legend>{{ _("O que ignorar") }}</legend>
+      <label><input type="radio" name="scope" value="finding" checked> {{ _("Só este achado") }}</label>
+      <label><input type="radio" name="scope" value="file"> {{ _("Esta regra neste arquivo") }}</label>
+      <label><input type="radio" name="scope" value="component"> {{ _("Esta regra em todo o componente") }}</label>
+      <label><input type="radio" name="scope" value="all"> {{ _("Esta regra em todos os componentes") }}</label>
     </fieldset>
     <fieldset id="ignore-levels-field" hidden>
-      <legend id="ignore-levels-legend">Níveis</legend>
-      <label class="level-all" id="level-all-wrap"><input type="checkbox" id="level-all"> <strong>Todos os níveis</strong></label>
+      <legend id="ignore-levels-legend">{{ _("Níveis") }}</legend>
+      <label class="level-all" id="level-all-wrap"><input type="checkbox" id="level-all"> <strong>{{ _("Todos os níveis") }}</strong></label>
       <div class="level-checks">
-        {% for sev in severities %}<label><input type="checkbox" name="severity" value="{{ sev.key }}"> {{ sev.label }}</label>{% endfor %}
+        {% for sev in severities %}<label><input type="checkbox" name="severity" value="{{ sev.key }}"> {{ _(sev.label) }}</label>{% endfor %}
       </div>
     </fieldset>
     <div id="ignore-manual" hidden>
-      <label>Componente <input type="text" name="component" maxlength="200" placeholder="ex.: minha_integracao ou *"></label>
-      <label>Regra <input type="text" name="rule" maxlength="200" placeholder="ex.: auditor.semgrep.eval ou semgrep.*"></label>
-      <label>Arquivo (opcional) <input type="text" name="path" maxlength="500" placeholder="ex.: */vendor/*"></label>
+      <label>{{ _("Componente") }} <input type="text" name="component" maxlength="200" placeholder="{{ _('ex.: minha_integracao ou *') }}"></label>
+      <label>{{ _("Regra") }} <input type="text" name="rule" maxlength="200" placeholder="{{ _('ex.: auditor.semgrep.eval ou semgrep.*') }}"></label>
+      <label>{{ _("Arquivo (opcional)") }} <input type="text" name="path" maxlength="500" placeholder="{{ _('ex.: */vendor/*') }}"></label>
     </div>
-    <label>Motivo <input type="text" name="reason" maxlength="500" placeholder="Por que isto pode ser ignorado?" required></label>
-    <p class="notice notice-warn small" id="ignore-skip-note" hidden>Com todos os níveis, este componente
-      <strong>deixa de ser verificado</strong> nas próximas varreduras (nenhuma ferramenta roda nele). Remova da
-      lista para voltar a verificá-lo.</p>
+    <label>{{ _("Motivo") }} <input type="text" name="reason" maxlength="500" placeholder="{{ _('Por que isto pode ser ignorado?') }}" required></label>
+    <p class="notice notice-warn small" id="ignore-skip-note" hidden>{{ _h("Com todos os níveis, este componente <strong>deixa de ser verificado</strong> nas próximas varreduras (nenhuma ferramenta roda nele). Remova da lista para voltar a verificá-lo.") }}</p>
     <p class="error small" id="ignore-error" hidden></p>
     <div class="dialog-actions">
-      <button type="button" class="btn btn-ghost" id="ignore-cancel">Cancelar</button>
-      <button type="submit" class="btn btn-primary" id="ignore-submit">Ignorar</button>
+      <button type="button" class="btn btn-ghost" id="ignore-cancel">{{ _("Cancelar") }}</button>
+      <button type="submit" class="btn btn-primary" id="ignore-submit">{{ _("Ignorar") }}</button>
     </div>
   </form>
 </dialog>

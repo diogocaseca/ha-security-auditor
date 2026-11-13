@@ -81,7 +81,9 @@ frontend, add-ons etc.;
   página (clique na data para abrir aquele relatório). Ficam guardadas as últimas
   `report_retention` verificações (padrão 10, até 100);
 - o botão **Exportar JSON**;
-- o seletor de tema **Sistema / Claro / Escuro**.
+- o seletor de tema **Sistema / Claro / Escuro**;
+- o seletor de idioma **EN | PT** (inglês é o padrão). A escolha fica guardada no add-on e
+  vale em qualquer navegador. O texto dos achados ainda é gerado em português.
 
 ## O que é verificado
 

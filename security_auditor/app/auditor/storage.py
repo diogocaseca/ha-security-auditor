@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS dns_domains (
     last_seen  TEXT,
     queries    INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS blocklist_items (
     id          TEXT PRIMARY KEY,
     item_json   TEXT NOT NULL,
@@ -98,6 +102,18 @@ class Storage:
                 conn.commit()
             finally:
                 conn.close()
+
+    # --- Preferências da interface (ex.: idioma) ------------------------------
+
+    def get_setting(self, key: str, default: str | None = None) -> str | None:
+        with self._conn() as conn:
+            row = conn.execute("SELECT value FROM settings WHERE key = ?", (key,)).fetchone()
+        return row["value"] if row else default
+
+    def set_setting(self, key: str, value: str) -> None:
+        with self._conn() as conn:
+            conn.execute("INSERT INTO settings (key, value) VALUES (?, ?) "
+                         "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (key, value))
 
     # --- Lista negra pessoal (gerenciada pela interface) --------------------
 

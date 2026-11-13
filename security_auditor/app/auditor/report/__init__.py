@@ -7,8 +7,9 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from jinja2 import Environment, FileSystemLoader, select_autoescape
+from jinja2 import Environment, FileSystemLoader, pass_context, select_autoescape
 
+from ..i18n import HTML_LANG, Translator, normalize
 from ..models import ComponentType, ScanResult, Severity
 
 _TEMPLATES = Path(__file__).resolve().parent.parent / "web" / "templates"
@@ -22,14 +23,22 @@ COMPONENT_TYPE_LABELS = {
 }
 
 
-def _fmt_dt(value: str | None) -> str:
+_DATE_FORMATS = {"pt": "%d/%m/%Y %H:%M", "en": "%Y-%m-%d %H:%M"}
+
+
+def _fmt_dt(value: str | None, lang: str = "pt") -> str:
     if not value:
         return "—"
     try:
         dt = datetime.fromisoformat(value)
     except ValueError:
         return value
-    return dt.astimezone().strftime("%d/%m/%Y %H:%M")
+    return dt.astimezone().strftime(_DATE_FORMATS.get(lang, _DATE_FORMATS["pt"]))
+
+
+@pass_context
+def _dt_filter(ctx: Any, value: str | None) -> str:
+    return _fmt_dt(value, ctx.get("lang", "pt"))
 
 
 def duration(started: str | None, finished: str | None) -> str:
@@ -63,15 +72,16 @@ _DETAIL_KEYS = (
 )
 
 
-def component_details(meta: dict) -> list[str]:
+def component_details(meta: dict, tr: Translator | None = None) -> list[str]:
+    tr = tr or Translator("pt")
     out = []
     for key, label in _DETAIL_KEYS:
         value = meta.get(key)
         if value not in (None, ""):
-            out.append(f"{label}: {value}" if label else str(value))
+            out.append(f"{tr.t(label)}: {value}" if label else str(value))
     cves = meta.get("cves")
     if isinstance(cves, dict) and any(cves.values()):
-        out.append(f"CVEs: {cves.get('critical', 0)} críticas, {cves.get('high', 0)} altas")
+        out.append(tr.t("CVEs: {c} críticas, {a} altas", c=cves.get("critical", 0), a=cves.get("high", 0)))
     return out
 
 
@@ -82,13 +92,10 @@ def _environment() -> Environment:
         trim_blocks=True,
         lstrip_blocks=True,
     )
-    env.filters["dt"] = _fmt_dt
+    env.filters["dt"] = _dt_filter
     env.globals["duration"] = duration
     env.globals["type_label"] = lambda t: COMPONENT_TYPE_LABELS.get(t, t)
     env.globals["severities"] = sorted(Severity, reverse=True)
-    env.globals["component_details"] = component_details
-    labels = {sev.key: sev.label for sev in Severity}
-    env.globals["severity_labels"] = lambda keys: ", ".join(labels.get(k, k) for k in keys)
     return env
 
 
@@ -106,9 +113,20 @@ def render_html(
     config_allowlist: tuple = (),
     history_page: dict[str, Any] | None = None,
     blocklist: dict[str, Any] | None = None,
+    lang: str = "pt",
 ) -> str:
+    lang = normalize(lang)
+    tr = Translator(lang)
+    sev_labels = {sev.key: sev.label for sev in Severity}
     template = _ENV.get_template("report.html")
     return template.render(
+        lang=lang,
+        html_lang=HTML_LANG[lang],
+        _=tr.t,
+        _h=tr.h,
+        js_catalog=tr.js_catalog(),
+        component_details=lambda meta: component_details(meta, tr),
+        severity_labels=lambda keys: ", ".join(tr.t(sev_labels.get(k, k)) for k in keys),
         result=result,
         report=result.to_dict() if result else None,
         status=status,

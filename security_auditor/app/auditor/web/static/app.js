@@ -3,6 +3,16 @@
   "use strict";
 
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
+
+  // --- Idioma: traduções vindas da página (vazio em português) ------------------------
+  let CATALOG = {};
+  try { CATALOG = JSON.parse(document.getElementById("i18n-js")?.textContent || "{}"); } catch (e) { CATALOG = {}; }
+  // T("Texto em português {x}", {x: 1}) -> texto no idioma escolhido, com as variáveis.
+  function T(text, vars) {
+    let out = CATALOG[text] || text;
+    for (const [k, v] of Object.entries(vars || {})) out = out.split("{" + k + "}").join(String(v));
+    return out;
+  }
   const findings = Array.from(document.querySelectorAll(".finding"));
   const compRows = Array.from(document.querySelectorAll(".comp-row"));
   const sevLabels = {};
@@ -97,7 +107,7 @@
     }
     if (inComponent) {
       document.getElementById("findings-component").textContent = state.component;
-      document.getElementById("visible-count").textContent = `(${visible} de ${total})`;
+      document.getElementById("visible-count").textContent = T("({a} de {b})", { a: visible, b: total });
       const row = compRows.find((r) => r.querySelector("[data-filter-component]")?.dataset.filterComponent === state.component);
       const meta = [row?.children[1]?.textContent.trim(), row?.querySelector(".comp-meta")?.textContent.trim()];
       document.getElementById("findings-component-meta").textContent = meta.filter(Boolean).join(" · ");
@@ -124,11 +134,12 @@
       if (show) compVisible++;
     }
     const compCount = document.getElementById("comp-count");
-    if (compCount) compCount.textContent = compRows.length && compVisible < compRows.length ? `(${compVisible} de ${compRows.length})` : "";
+    if (compCount) compCount.textContent = compRows.length && compVisible < compRows.length ? T("({a} de {b})", { a: compVisible, b: compRows.length }) : "";
     const compNote = document.getElementById("comp-filter-note");
     if (compNote) {
       compNote.hidden = state.sev.size === 0;
-      compNote.textContent = "Com achados de nível: " + Array.from(state.sev).map((k) => sevLabels[k] || k).join(", ");
+      compNote.textContent = T("Com achados de nível: {niveis}",
+        { niveis: Array.from(state.sev).map((k) => sevLabels[k] || k).join(", ") });
     }
     const compNone = document.getElementById("comp-no-match");
     if (compNone) compNone.hidden = compVisible > 0 || compRows.length === 0;
@@ -237,6 +248,15 @@
     apply();
   });
 
+  // --- Idioma (guardado no add-on: vale em qualquer navegador) --------------------------
+  document.querySelectorAll("[data-lang-choice]").forEach((b) => b.addEventListener("click", async () => {
+    if (b.getAttribute("aria-pressed") === "true") return;
+    try {
+      const resp = await post("api/idioma", { idioma: b.dataset.langChoice });
+      if (resp.ok) window.location.reload();
+    } catch (e) { /* mantém o idioma atual */ }
+  }));
+
   // --- Tema ---------------------------------------------------------------
   const themeButtons = document.querySelectorAll("[data-theme-choice]");
   function syncTheme() {
@@ -265,11 +285,11 @@
       const resp = await fetch("api/status", { cache: "no-store" });
       const data = await resp.json();
       if (data.running) {
-        statusEl.textContent = data.cancelling ? "Cancelando…" :
-          "Varrendo" + (data.progress && data.progress.step ? ": " + data.progress.step : "") + "…";
+        statusEl.textContent = data.cancelling ? T("Cancelando…") :
+          T("Varrendo") + (data.progress && data.progress.step ? ": " + data.progress.step : "") + "…";
         if (cancelBtn) {
           cancelBtn.hidden = false;
-          if (data.cancelling) { cancelBtn.disabled = true; cancelBtn.textContent = "Cancelando…"; }
+          if (data.cancelling) { cancelBtn.disabled = true; cancelBtn.textContent = T("Cancelando…"); }
         }
         setTimeout(poll, 2000);
       } else {
@@ -282,7 +302,7 @@
 
   button?.addEventListener("click", async () => {
     button.disabled = true;
-    button.textContent = "Varrendo…";
+    button.textContent = T("Varrendo…");
     try {
       const resp = await post("api/scan");
       if (resp.status !== 202 && resp.status !== 409) throw new Error("HTTP " + resp.status);
@@ -290,23 +310,23 @@
       setTimeout(poll, 1000);
     } catch (e) {
       button.disabled = false;
-      button.textContent = "Varrer agora";
-      statusEl.textContent = "Não foi possível iniciar a varredura.";
+      button.textContent = T("Varrer agora");
+      statusEl.textContent = T("Não foi possível iniciar a varredura.");
     }
   });
 
   cancelBtn?.addEventListener("click", async () => {
-    if (!window.confirm("Cancelar a varredura em andamento? O que já foi analisado fica salvo como relatório cancelado.")) return;
+    if (!window.confirm(T("Cancelar a varredura em andamento? O que já foi analisado fica salvo como relatório cancelado."))) return;
     cancelBtn.disabled = true;
-    cancelBtn.textContent = "Cancelando…";
+    cancelBtn.textContent = T("Cancelando…");
     try {
       const resp = await post("api/scan/cancel");
       if (resp.status !== 202 && resp.status !== 409) throw new Error("HTTP " + resp.status);
       setTimeout(poll, 500);
     } catch (e) {
       cancelBtn.disabled = false;
-      cancelBtn.textContent = "Cancelar varredura";
-      statusEl.textContent = "Não foi possível cancelar a varredura.";
+      cancelBtn.textContent = T("Cancelar varredura");
+      statusEl.textContent = T("Não foi possível cancelar a varredura.");
     }
   });
 
@@ -344,17 +364,17 @@
     errorEl.hidden = true;
     const k = mode.kind;
     const titles = {
-      finding: "Ignorar achado",
-      component: "Ignorar achados do componente",
-      levels: "Ignorar níveis inteiros",
-      manual: "Incluir na lista de ignorados",
+      finding: T("Ignorar achado"),
+      component: T("Ignorar achados do componente"),
+      levels: T("Ignorar níveis inteiros"),
+      manual: T("Incluir na lista de ignorados"),
     };
     document.getElementById("ignore-title").textContent = titles[k];
     document.getElementById("ignore-scope").hidden = k !== "finding";
     document.getElementById("ignore-manual").hidden = k !== "manual";
     levelsField.hidden = k === "finding";
     document.getElementById("ignore-levels-legend").textContent =
-      k === "levels" ? "Níveis a ignorar em todos os componentes" : "Só estes níveis (nenhum marcado = todos)";
+      k === "levels" ? T("Níveis a ignorar em todos os componentes") : T("Só estes níveis (nenhum marcado = todos)");
     form.elements.component.required = k === "manual";
     form.elements.rule.required = k === "manual";
     // Os níveis marcados nos cartões já vêm selecionados.
@@ -366,9 +386,9 @@
     if (fileOpt) fileOpt.parentElement.hidden = !(k === "finding" && mode.el.dataset.file);
     const subject = {
       finding: () => `${mode.el.dataset.title} — ${mode.el.dataset.component} · ${mode.el.dataset.rule}`,
-      component: () => `Componente ${mode.name}: todas as regras, nos níveis marcados abaixo.`,
-      levels: () => "Todos os componentes e regras. Os achados continuam visíveis com \"Mostrar suprimidos\".",
-      manual: () => "Use * como curinga (ex.: semgrep.* ou */vendor/*).",
+      component: () => T("Componente {nome}: todas as regras, nos níveis marcados abaixo.", { nome: mode.name }),
+      levels: () => T("Todos os componentes e regras. Os achados continuam visíveis com \"Mostrar suprimidos\"."),
+      manual: () => T("Use * como curinga (ex.: semgrep.* ou */vendor/*)."),
     };
     document.getElementById("ignore-subject").textContent = subject[k]();
     dialog.showModal();
@@ -404,11 +424,12 @@
     const entry = entryFromForm();
     if (mode.kind === "levels") {
       if (!entry.severities.length) {
-        errorEl.textContent = "Marque pelo menos um nível.";
+        errorEl.textContent = T("Marque pelo menos um nível.");
         errorEl.hidden = false;
         return;
       }
-      if (!window.confirm(`Ignorar todos os achados de nível ${labelsOf(entry.severities)} em todos os componentes?`)) return;
+      if (!window.confirm(T("Ignorar todos os achados de nível {niveis} em todos os componentes?",
+        { niveis: labelsOf(entry.severities) }))) return;
     }
     const submit = document.getElementById("ignore-submit");
     submit.disabled = true;
@@ -416,10 +437,10 @@
       const resp = await post("api/ignored", entry);
       if (resp.status === 201) { window.location.reload(); return; }
       const data = await resp.json().catch(() => ({}));
-      errorEl.textContent = data.error || "Não foi possível incluir (HTTP " + resp.status + ").";
+      errorEl.textContent = data.error || T("Não foi possível incluir (HTTP {status}).", { status: resp.status });
       errorEl.hidden = false;
     } catch (e) {
-      errorEl.textContent = "Não foi possível incluir.";
+      errorEl.textContent = T("Não foi possível incluir.");
       errorEl.hidden = false;
     } finally {
       submit.disabled = false;
@@ -434,7 +455,7 @@
     b.addEventListener("click", () => openDialog({ kind: "component", name: b.dataset.ignoreComponent })));
   document.querySelectorAll("[data-unignore]").forEach((b) =>
     b.addEventListener("click", async () => {
-      if (!window.confirm("Remover da lista de ignorados? Os achados voltam a contar nos totais.")) return;
+      if (!window.confirm(T("Remover da lista de ignorados? Os achados voltam a contar nos totais."))) return;
       b.disabled = true;
       try {
         const resp = await post("api/ignored/" + encodeURIComponent(b.dataset.unignore), undefined, "DELETE");
@@ -442,7 +463,7 @@
         throw new Error("HTTP " + resp.status);
       } catch (e) {
         b.disabled = false;
-        window.alert("Não foi possível remover da lista.");
+        window.alert(T("Não foi possível remover da lista."));
       }
     }));
   // Edição do motivo na tabela de ignorados (só itens incluídos pela interface).
@@ -460,15 +481,15 @@
       input.type = "text";
       input.maxLength = 500;
       input.value = original;
-      input.setAttribute("aria-label", "Motivo");
+      input.setAttribute("aria-label", T("Motivo"));
       const save = document.createElement("button");
       save.type = "button";
       save.className = "btn btn-primary btn-sm";
-      save.textContent = "Salvar";
+      save.textContent = T("Salvar");
       const cancel = document.createElement("button");
       cancel.type = "button";
       cancel.className = "btn btn-ghost btn-sm";
-      cancel.textContent = "Cancelar";
+      cancel.textContent = T("Cancelar");
       const err = document.createElement("p");
       err.className = "error small";
       err.hidden = true;
@@ -486,10 +507,10 @@
                                   { reason: input.value }, "PATCH");
           if (resp.ok) { window.location.reload(); return; }
           const data = await resp.json().catch(() => ({}));
-          err.textContent = data.error || "Não foi possível salvar (HTTP " + resp.status + ").";
+          err.textContent = data.error || T("Não foi possível salvar (HTTP {status}).", { status: resp.status });
           err.hidden = false;
         } catch (e) {
-          err.textContent = "Não foi possível salvar.";
+          err.textContent = T("Não foi possível salvar.");
           err.hidden = false;
         } finally {
           save.disabled = false;
@@ -507,7 +528,7 @@
   const dnsBtn = document.getElementById("dns-check");
   dnsBtn?.addEventListener("click", async () => {
     dnsBtn.disabled = true;
-    dnsBtn.textContent = "Testando…";
+    dnsBtn.textContent = T("Testando…");
     try {
       await post("api/dns/check");
     } catch (e) { /* o resultado (ou a falha) aparece ao recarregar */ }
@@ -536,7 +557,7 @@
     blForm.reset();
     blError.hidden = true;
     document.getElementById("bl-title").textContent =
-      editingId ? `Editar item ${editingId}` : "Adicionar à lista negra pessoal";
+      editingId ? T("Editar item {id}", { id: editingId }) : T("Adicionar à lista negra pessoal");
     for (const [key, value] of Object.entries(values || {})) {
       const field = blForm.elements[key];
       if (!field) continue;
@@ -562,7 +583,7 @@
     openBlocklist(item, b.dataset.blEdit);
   }));
   document.querySelectorAll("[data-bl-remove]").forEach((b) => b.addEventListener("click", async () => {
-    if (!window.confirm(`Remover o item ${b.dataset.blRemove} da lista negra pessoal?`)) return;
+    if (!window.confirm(T("Remover o item {id} da lista negra pessoal?", { id: b.dataset.blRemove }))) return;
     b.disabled = true;
     try {
       const resp = await post("api/lista-negra/" + encodeURIComponent(b.dataset.blRemove), undefined, "DELETE");
@@ -570,7 +591,7 @@
       throw new Error("HTTP " + resp.status);
     } catch (e) {
       b.disabled = false;
-      window.alert("Não foi possível remover o item.");
+      window.alert(T("Não foi possível remover o item."));
     }
   }));
   blForm?.addEventListener("submit", async (ev) => {
@@ -593,10 +614,10 @@
         return;
       }
       const data = await resp.json().catch(() => ({}));
-      blError.textContent = data.error || "Não foi possível salvar (HTTP " + resp.status + ").";
+      blError.textContent = data.error || T("Não foi possível salvar (HTTP {status}).", { status: resp.status });
       blError.hidden = false;
     } catch (e) {
-      blError.textContent = "Não foi possível salvar.";
+      blError.textContent = T("Não foi possível salvar.");
       blError.hidden = false;
     } finally {
       submit.disabled = false;
