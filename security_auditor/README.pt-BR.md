@@ -19,5 +19,6 @@ Os achados vêm classificados por severidade, com explicação em inglês ou por
 O auditor aponta o que merece revisão humana; **ele não decide sozinho que algo é malicioso**.
 
 Roda com `/config` somente leitura, perfil AppArmor próprio sem capacidades, Supervisor só
-para leitura e sem enviar dados da instalação para fora. Veja a aba **Documentação** para as
+para leitura e sem enviar dados da instalação para fora (o botão opcional **Perguntar à IA** da
+aba DNS envia só o nome de um domínio, e só quando você clica). Veja a aba **Documentação** para as
 opções, o motivo de cada permissão e as limitações.

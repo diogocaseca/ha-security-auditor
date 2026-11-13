@@ -50,6 +50,15 @@ configuration:
   intervalo_dns_minutos:
     name: DNS check interval (minutes)
     description: How often the auditor re-reads the AdGuard/Pi-hole log and updates only the DNS part of the report, without scanning the components again. New DNS findings raise an alert in HA according to the minimum alert level. From 0 to 1440 minutes; default 120. With 0, DNS only runs together with the full scan.
+  ia_provedor:
+    name: AI for checking domains
+    description: Shows the "Ask the AI" button in the DNS tab's domain table. When clicked, only the domain name is sent to the chosen provider (Gemini or Claude); nothing else about your installation leaves the add-on. Off by default. The answer is a language model's opinion and can be wrong.
+  ia_chave_api:
+    name: AI API key
+    description: Key from Google AI Studio (Gemini) or the Claude Console (Claude). It stays in the add-on and never shows in logs or in the report. Usage is billed by the provider, to your account.
+  ia_modelo:
+    name: AI model (optional)
+    description: Empty = the provider's default (gemini-3.5-flash-lite for Gemini, claude-opus-5-5 for Claude).
   lista_comunitaria:
     name: Community blocklist
     description: Downloads the signed list of reported components from GitHub and compares it locally. Nothing about your installation is sent.

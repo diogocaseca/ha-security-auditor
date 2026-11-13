@@ -155,6 +155,9 @@ class Translator:
 
 # Textos usados pelo app.js (passados para a página como JSON).
 JS_KEYS = (
+    "Malicioso", "Suspeito", "Provavelmente seguro", "Desconhecido", "Consultando o {provedor}…",
+    "Não foi possível consultar a IA (HTTP {status}).", "Não foi possível consultar a IA.",
+    "Resposta guardada de {data} · {modelo}", "Consultado agora · {modelo}",
     "Varrendo", "Varrendo…", "Varrer agora", "Cancelando…", "Cancelar varredura",
     "Não foi possível iniciar a varredura.", "Não foi possível cancelar a varredura.",
     "Cancelar a varredura em andamento? O que já foi analisado fica salvo como relatório cancelado.",
@@ -396,6 +399,23 @@ EN: dict[str, str] = {
     "removido": "removed",
     "verificação de instalação/atualização": "install/update check",
     "verificação de DNS": "DNS check",
+    "Perguntar à IA": "Ask the AI",
+    "Opinião da IA": "AI opinion",
+    "Opinião da IA ({modelo})": "AI opinion ({modelo})",
+    "IA:": "AI:",
+    "Malicioso": "Malicious",
+    "Suspeito": "Suspicious",
+    "Provavelmente seguro": "Probably safe",
+    "Desconhecido": "Unknown",
+    "Perguntar de novo": "Ask again",
+    "Fechar": "Close",
+    "Só o nome do domínio é enviado ao {provedor}, e só quando você pede. A resposta é a opinião de um modelo de linguagem: pode errar e não substitui a sua verificação.":
+        "Only the domain name is sent to {provedor}, and only when you ask. The answer is a language model's opinion: it can be wrong and does not replace your own check.",
+    "Consultando o {provedor}…": "Asking {provedor}…",
+    "Não foi possível consultar a IA (HTTP {status}).": "Could not ask the AI (HTTP {status}).",
+    "Não foi possível consultar a IA.": "Could not ask the AI.",
+    "Resposta guardada de {data} · {modelo}": "Saved answer from {data} · {modelo}",
+    "Consultado agora · {modelo}": "Asked just now · {modelo}",
     "Verificação de DNS (só a parte de DNS foi atualizada)": "DNS check (only the DNS part was updated)",
     "descoberto em {data}": "discovered {data}",
     "qualquer tipo": "any type",

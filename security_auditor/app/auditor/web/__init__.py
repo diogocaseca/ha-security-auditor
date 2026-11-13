@@ -16,6 +16,7 @@ from typing import Any
 from aiohttp import web
 
 from .. import blocklist_update
+from ..ai import AiError, check_domain
 from ..allowlist import reapply, skips_whole_component
 from ..blocklist import BlocklistError, validate_item
 from ..config import AllowlistEntry
@@ -156,10 +157,12 @@ def create_app(
     dns_check: Callable[[], Awaitable[list[dict[str, Any]]]] | None = None,
     blocklist_cache_dir: Path | None = None,  # onde fica a lista comunitária baixada
     community_enabled: bool = True,
+    ai: dict[str, Any] | None = None,  # {"label", "modelo", "ask": async (dominio, idioma) -> resposta}
 ) -> web.Application:
     dns = dns_state if dns_state is not None else {"configurado": False, "testando": False, "resultados": []}
     peers = allowed_peers if allowed_peers is not None else _allowed_peers()
     csrf_token = secrets.token_urlsafe(32)
+    ai_lock = asyncio.Lock()  # uma consulta à IA por vez
 
     async def _say(text: str) -> str:
         """Mensagem para a interface no idioma escolhido (texto Bi traz as duas versões)."""
@@ -219,6 +222,8 @@ def create_app(
             blocklist=blocklist,
             dns_ignored=dns_ignored,
             lang=lang,
+            ai={"label": ai["label"], "modelo": ai["modelo"]} if ai else None,
+            dns_ai=await asyncio.to_thread(storage.dns_ai) if ai else None,
         )
         return web.Response(text=html, content_type="text/html", charset="utf-8")
 
@@ -375,6 +380,41 @@ def create_app(
         _LOGGER.info("Domínio removido da lista de ignorados do DNS: #%d", entry_id)
         return web.Response(status=204)
 
+    async def ask_ai(request: web.Request) -> web.Response:
+        """Pergunta à IA sobre um domínio da tabela de DNS ({"dominio", "refazer"}).
+
+        Só o nome do domínio sai do add-on, e só para o provedor configurado (opção ia_provedor).
+        """
+        if ai is None:
+            return web.json_response({"error": await _say(Bi("Nenhuma IA configurada (opção ia_provedor)",
+                                                             "No AI configured (ia_provedor option)"))}, status=409)
+        try:
+            body = await request.json()
+            domain = check_domain(body.get("dominio") if isinstance(body, dict) else None)
+        except ValueError as err:
+            msg = err.args[0] if err.args and isinstance(err.args[0], Bi) else Bi("JSON inválido", "Invalid JSON")
+            return web.json_response({"error": await _say(msg)}, status=400)
+        # Só domínios que o auditor viu nas consultas do HA: o botão não vira um consultor genérico.
+        if domain not in await asyncio.to_thread(storage.known_dns_domains):
+            return web.json_response({"error": await _say(Bi("Este domínio não está na tabela de DNS",
+                                                             "This domain is not in the DNS table"))}, status=404)
+        cached = (await asyncio.to_thread(storage.dns_ai, domain)).get(domain)
+        if cached and not body.get("refazer"):
+            return web.json_response({**cached, "dominio": domain, "guardada": True})
+        if ai_lock.locked():
+            return web.json_response({"error": await _say(Bi("Outra consulta à IA está em andamento",
+                                                             "Another AI query is in progress"))}, status=409)
+        lang = normalize(await asyncio.to_thread(storage.get_setting, "idioma"))
+        async with ai_lock:
+            try:
+                answer = await ai["ask"](domain, lang)
+            except AiError as err:
+                _LOGGER.warning("Consulta à IA sobre %s falhou: %s", domain, err.args[0])
+                return web.json_response({"error": await _say(err.args[0])}, status=502)
+        now = datetime.now(UTC).isoformat(timespec="seconds")
+        await asyncio.to_thread(storage.save_dns_ai, domain, answer, lang, now)
+        return web.json_response({**answer, "idioma": lang, "data": now, "dominio": domain, "guardada": False})
+
     # --- Idioma da interface (guardado no add-on: vale em qualquer navegador) ---------
 
     async def set_language(request: web.Request) -> web.Response:
@@ -471,6 +511,7 @@ def create_app(
             web.post("/api/dns/ignorados", add_dns_ignored),
             web.patch("/api/dns/ignorados/{entry_id}", edit_dns_ignored),
             web.delete("/api/dns/ignorados/{entry_id}", remove_dns_ignored),
+            web.post("/api/dns/ia", ask_ai),
             web.post("/api/idioma", set_language),
             web.get("/api/lista-negra", blocklist_list),
             web.post("/api/lista-negra", blocklist_add),

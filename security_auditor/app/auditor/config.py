@@ -100,6 +100,9 @@ class Options:
     dns_client_ips: tuple[str, ...] = field(default_factory=tuple)
     dns_verify_tls: bool = True
     dns_interval_minutes: int = 120  # verificação só de DNS; 0 = só junto com a varredura completa
+    ai_provider: str = "desligado"  # desligado | gemini | claude (botão "Perguntar à IA" no DNS)
+    ai_api_key: str | None = None
+    ai_model: str | None = None  # vazio = modelo padrão do provedor
     community_blocklist: bool = True  # baixar a lista negra comunitária (assinada)
     watch_installs: bool = True  # varrer logo depois de instalar/atualizar um componente
     watch_interval_minutes: int = 2  # intervalo da conferência do que está instalado
@@ -149,6 +152,9 @@ class Options:
             dns_client_ips=tuple(str(x).strip() for x in (raw.get("dns_client_ips") or []) if str(x).strip()),
             dns_verify_tls=bool(raw.get("dns_verify_tls", True)),
             dns_interval_minutes=max(0, min(1440, int(raw.get("intervalo_dns_minutos", 120)))),
+            ai_provider=_ai_provider(raw.get("ia_provedor")),
+            ai_api_key=(str(raw.get("ia_chave_api") or "").strip() or None),
+            ai_model=(str(raw.get("ia_modelo") or "").strip() or None),
             community_blocklist=bool(raw.get("lista_comunitaria", True)),
             watch_installs=bool(raw.get("verificar_instalacoes", True)),
             watch_interval_minutes=max(1, min(60, int(raw.get("intervalo_verificacao_minutos", 2)))),
@@ -192,6 +198,11 @@ def load_paths() -> Paths:
 
 
 ALERT_LEVELS = ("critica", "alta", "media", "baixa", "desligado")
+
+
+def _ai_provider(value: Any) -> str:
+    text = str(value or "desligado").strip().lower()
+    return text if text in ("desligado", "gemini", "claude") else "desligado"
 
 
 def _alert_level(value: Any) -> str:

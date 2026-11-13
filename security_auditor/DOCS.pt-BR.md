@@ -257,6 +257,23 @@ HA (`security_auditor_rede_dns`) e dispara o evento `security_auditor_alerta` co
 `componente: dns` e `mudanca: verificacao_dns`. Domínios ignorados não geram aviso. Com `0`, o DNS
 só roda junto com a varredura completa.
 
+**Perguntar à IA (opcional).** Com `ia_provedor` em `gemini` ou `claude` e `ia_chave_api`
+preenchida, cada linha da tabela de domínios ganha o botão **Perguntar à IA**. O auditor pergunta
+ao modelo escolhido se o domínio é conhecido como malicioso, suspeito ou provavelmente seguro e
+mostra o veredito com uma explicação curta. É o único recurso que manda algo para fora do add-on,
+por isso segue regras estritas:
+
+- vem **desligado** e só roda quando você clica no botão;
+- envia **só o nome do domínio** (nada de IPs, contagens, componentes ou configuração), e só de
+  domínios que o auditor viu nas consultas do HA;
+- a conexão só aceita o host do provedor escolhido, e a chave nunca aparece nos logs.
+
+A resposta fica guardada e aparece como selo "IA: …" na linha do domínio; clicar de novo mostra a
+resposta guardada sem custo, e **Perguntar de novo** consulta o provedor outra vez. A resposta é a
+opinião de um modelo de linguagem, baseada no que ele aprendeu no treinamento (não navega na
+internet): pode errar, não conhece domínios muito novos e não gera achados nem decide nada
+sozinha. O uso é cobrado pelo provedor, na sua conta.
+
 O Pi-hole v5 não é suportado (API antiga).
 
 ## Opções
@@ -286,6 +303,9 @@ O Pi-hole v5 não é suportado (API antiga).
 | `intervalo_verificacao_minutos` | `2` | De quanto em quanto tempo (1 a 60 minutos) o auditor olha o que está instalado. É uma conferência leve; só varre quando algo mudou. |
 | `aviso_nivel_minimo` | `alta` | Nível mínimo que gera notificação depois de uma instalação, de uma atualização ou da verificação de DNS: `critica`, `alta`, `media`, `baixa` ou `desligado` (sem notificação). |
 | `dns_verify_tls` | `true` | Desative só se o AdGuard ou o Pi-hole usar HTTPS com certificado próprio (vale para os dois). |
+| `ia_provedor` | `desligado` | IA usada pelo botão **Perguntar à IA** da aba DNS: `desligado`, `gemini` ou `claude`. Veja [DNS](#dns-opcional-adguard-home-eou-pi-hole-v6). |
+| `ia_chave_api` | | Chave da API do Google AI Studio (Gemini) ou do Claude Console (Claude). O uso é cobrado pelo provedor, na sua conta. |
+| `ia_modelo` | | Modelo usado; vazio = `gemini-3.5-flash-lite` (Gemini) ou `claude-opus-5-5` (Claude). |
 | `intervalo_dns_minutos` | `120` | De quanto em quanto tempo (0 a 1440 minutos) o auditor roda a [verificação de DNS](#dns-opcional-adguard-home-eou-pi-hole-v6) sozinha, entre as varreduras completas. `0` = o DNS só roda junto com a varredura completa. |
 | `allowlist` | `[]` | Exceções; veja abaixo. |
 
@@ -618,8 +638,9 @@ temporário isolado e a telemetria e a checagem de versão de cada uma estão de
 
 ## Para onde o auditor se conecta
 
-O auditor **nunca envia dados da sua instalação para serviços externos**. As únicas saídas são
-downloads e consultas a bases de vulnerabilidades:
+O auditor **nunca envia dados da sua instalação para serviços externos por conta própria**. As
+únicas saídas são downloads e consultas a bases de vulnerabilidades, mais a
+[consulta à IA](#dns-opcional-adguard-home-eou-pi-hole-v6) opcional, que você liga e aciona:
 
 | Destino | Para quê | Quem acessa |
 |---|---|---|
@@ -629,13 +650,15 @@ downloads e consultas a bases de vulnerabilidades:
 | Registros das imagens (`ghcr.io`, Docker Hub e o registro que cada add-on usar) | Baixar manifesto e camadas das imagens | Trivy |
 | `mirror.gcr.io`, `ghcr.io` | Baixar a base de vulnerabilidades do Trivy | Trivy |
 | Os hosts de `adguard_url` e `pihole_url` | Ler o log de consultas dos seus servidores DNS (Fase 3, opcional) | Auditor (Python) |
+| `generativelanguage.googleapis.com` (Gemini) ou `api.anthropic.com` (Claude) | Só com `ia_provedor` preenchido e só quando você clica em **Perguntar à IA**: envia **só o nome do domínio** | Auditor (Python) |
 
 No código Python, toda conexão passa por um cliente único que exige HTTPS e confere o host de
 cada requisição **e de cada redirecionamento** contra a lista acima. O token do GitHub só é
 enviado para hosts do próprio GitHub, nunca para as CDNs para onde a API redireciona. Na Fase 3
 cada servidor DNS tem um cliente separado, que só fala com o host da própria URL (a senha do
 AdGuard nunca vai para o Pi-hole e vice-versa). É o único lugar onde HTTP sem TLS é aceito, por
-ser comum na rede local.
+ser comum na rede local. A consulta à IA também tem um cliente próprio, que só fala com o host do
+provedor escolhido.
 
 O AppArmor não consegue filtrar rede por domínio; por isso o filtro fica no código. As conexões
 do Trivy e do pip-audit são limitadas ao que essas ferramentas fazem (registros, bases de
@@ -691,7 +714,7 @@ Leia antes de concluir que "está tudo limpo":
 Tudo fica em `/data` do add-on (incluído nos backups do add-on):
 
 - `auditor.db` (SQLite): histórico de varreduras, lista de ignorados, lista negra pessoal da tela, estatísticas dos add-ons (30 dias), picos de
-  tráfego, domínios DNS já vistos, domínios DNS ignorados e a data de descoberta de cada
+  tráfego, domínios DNS já vistos, domínios DNS ignorados, as respostas da IA sobre domínios e a data de descoberta de cada
   componente e achado;
 - `reports/*.json`: os últimos `report_retention` relatórios, os mesmos do botão Exportar JSON;
 - `cache/`: código de referência do GitHub (integridade e add-ons), base do Trivy, cache do

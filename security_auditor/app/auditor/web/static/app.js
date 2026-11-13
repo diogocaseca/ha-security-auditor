@@ -637,6 +637,56 @@
     syncDnsView();
   }
 
+  // --- Perguntar à IA sobre um domínio (opção ia_provedor) ----------------------------
+  const aiDialog = document.getElementById("dns-ai-dialog");
+  const AI_VERDICTS = { malicioso: "Malicioso", suspeito: "Suspeito",
+                        provavelmente_seguro: "Provavelmente seguro", desconhecido: "Desconhecido" };
+  const AI_BADGE = { malicioso: "sev-critical", suspeito: "sev-medium" };
+  let aiDomain = null;
+  let aiChanged = false;
+  async function askAi(domain, again) {
+    aiDomain = domain;
+    const status = document.getElementById("dns-ai-status");
+    const result = document.getElementById("dns-ai-result");
+    const error = document.getElementById("dns-ai-error");
+    const againBtn = document.getElementById("dns-ai-again");
+    document.getElementById("dns-ai-domain").textContent = domain;
+    error.hidden = true;
+    result.hidden = true;
+    status.textContent = T("Consultando o {provedor}…", { provedor: aiDialog.dataset.provider });
+    status.hidden = false;
+    againBtn.disabled = true;
+    if (!aiDialog.open) aiDialog.showModal();
+    try {
+      const resp = await post("api/dns/ia", { dominio: domain, refazer: !!again });
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(data.error || T("Não foi possível consultar a IA (HTTP {status}).", { status: resp.status }));
+      const badge = document.getElementById("dns-ai-verdict");
+      badge.className = "badge " + (AI_BADGE[data.veredito] || "badge-muted");
+      badge.textContent = T(AI_VERDICTS[data.veredito] || data.veredito);
+      document.getElementById("dns-ai-explanation").textContent = data.explicacao;
+      let when = data.data || "";
+      try { when = new Date(data.data).toLocaleString(); } catch (e) { /* data como veio */ }
+      document.getElementById("dns-ai-meta").textContent =
+        T(data.guardada ? "Resposta guardada de {data} · {modelo}" : "Consultado agora · {modelo}",
+          { data: when, modelo: data.modelo });
+      result.hidden = false;
+      if (!data.guardada) aiChanged = true;
+    } catch (e) {
+      error.textContent = e.message || T("Não foi possível consultar a IA.");
+      error.hidden = false;
+    } finally {
+      status.hidden = true;
+      againBtn.disabled = false;
+    }
+  }
+  document.querySelectorAll("[data-dns-ai]").forEach((b) =>
+    b.addEventListener("click", () => askAi(b.dataset.dnsAi, false)));
+  document.getElementById("dns-ai-again")?.addEventListener("click", () => { if (aiDomain) askAi(aiDomain, true); });
+  document.getElementById("dns-ai-close")?.addEventListener("click", () => aiDialog.close());
+  // Resposta nova: recarrega para o selo "IA: …" aparecer na linha do domínio.
+  aiDialog?.addEventListener("close", () => { if (aiChanged) window.location.reload(); });
+
   // --- Lista negra pessoal (aba "Lista negra") --------------------------------------
   const blDialog = document.getElementById("blocklist-dialog");
   const blForm = document.getElementById("bl-form");

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.19.0
+
+- **Perguntar à IA (aba DNS):** novo botão em cada linha da tabela de domínios que pergunta ao
+  Gemini ou ao Claude se o domínio é conhecido como malicioso, suspeito ou provavelmente seguro,
+  com uma explicação curta. A resposta fica guardada e aparece como selo "IA: …" na linha;
+  **Perguntar de novo** consulta outra vez.
+- Novas opções `ia_provedor` (`desligado`, `gemini` ou `claude`; padrão `desligado`),
+  `ia_chave_api` e `ia_modelo` (vazio = `gemini-3.5-flash-lite` ou `claude-opus-5-5`).
+- É a única saída de dados do add-on, e é opcional: só o nome do domínio é enviado, só quando o
+  usuário clica, só para domínios que o auditor viu, e o cliente HTTP só aceita o host do provedor
+  escolhido. A chave é mascarada nos logs. A resposta é a opinião de um modelo e não gera achados.
+
 ## 0.18.0
 
 - **Verificação de DNS separada:** a cada `intervalo_dns_minutos` (0 a 1440, padrão 120) o auditor

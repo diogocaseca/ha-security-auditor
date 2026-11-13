@@ -20,5 +20,6 @@ action. The auditor points out what deserves human review; **it does not decide 
 something is malicious**.
 
 It runs with `/config` read-only, its own AppArmor profile with no capabilities, the Supervisor
-read-only and without sending installation data anywhere. See the **Documentation** tab for the
+read-only and without sending installation data anywhere (the optional **Ask the AI** button in
+the DNS tab sends only a domain name, and only when you click it). See the **Documentation** tab for the
 options, the reason for each permission and the limitations.

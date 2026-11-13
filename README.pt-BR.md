@@ -41,7 +41,9 @@ Falsos positivos revisados podem ser ignorados direto no relatório, sem sumir d
   caminhos).
 - **Nenhum dado da instalação sai para serviços externos.** Só há downloads do GitHub e dos
   registros de imagens e consultas a bases de vulnerabilidades, conferidos contra uma
-  allowlist de hosts a cada requisição e redirecionamento.
+  allowlist de hosts a cada requisição e redirecionamento. A única exceção é opcional e vem
+  desligada: o botão **Perguntar à IA** da aba DNS envia só o nome do domínio ao Gemini ou ao
+  Claude, e só quando você clica.
 - Tokens, senhas e o conteúdo do `secrets.yaml` **nunca** aparecem no log ou no relatório.
 - **Não sobrecarrega o HA**: prioridade baixa de CPU e disco, modo leve, espera o sistema
   desocupar antes das etapas pesadas e horário fixo de varredura, combináveis nas opções.

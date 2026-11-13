@@ -41,7 +41,8 @@ report, without disappearing from it.
 - Supervisor API used **read-only**, enforced in the code (only `GET`, on a fixed list of paths).
 - **No installation data goes to external services.** There are only downloads from GitHub and the
   image registries and queries to vulnerability databases, checked against a host allowlist on
-  every request and redirect.
+  every request and redirect. The one exception is optional and off by default: the **Ask the AI**
+  button in the DNS tab sends only the domain name to Gemini or Claude, and only when you click it.
 - Tokens, passwords and the contents of `secrets.yaml` **never** show up in the log or the report.
 - **Does not overload HA**: low CPU and disk priority, light mode, waits for the system to be idle
   before the heavy steps and a fixed scan time, combinable in the options.

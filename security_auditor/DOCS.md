@@ -252,6 +252,23 @@ auditor creates a notification in HA (`security_auditor_rede_dns`) and fires the
 `security_auditor_alerta` event with `componente: dns` and `mudanca: verificacao_dns`. Ignored
 domains do not alert. With `0`, DNS only runs together with the full scan.
 
+**Ask the AI (optional).** With `ia_provedor` set to `gemini` or `claude` and `ia_chave_api`
+filled in, every row of the domain table gets an **Ask the AI** button. The auditor asks the chosen
+model whether the domain is known to be malicious, suspicious or probably safe, and shows the
+verdict with a short explanation. It is the only feature that sends something out of the add-on,
+so it follows strict rules:
+
+- it is **off by default** and only runs when you click the button;
+- it sends **only the domain name** (no IPs, counts, components or configuration), and only for
+  domains the auditor saw in HA's queries;
+- the connection only accepts the chosen provider's host, and the key never shows in logs.
+
+The answer is saved and shows as an "AI: …" badge on the domain's row; clicking again shows the
+saved answer at no cost, and **Ask again** queries the provider again. The answer is a language
+model's opinion, based on what it learned during training (it does not browse the web): it can be
+wrong, it does not know very new domains, and it does not create findings or decide anything on its
+own. Usage is billed by the provider to your account.
+
 Pi-hole v5 is not supported (old API).
 
 ## Options
@@ -284,6 +301,9 @@ language.
 | `intervalo_verificacao_minutos` | `2` | How often (1 to 60 minutes) the auditor looks at what is installed. It is a light check; it only scans when something changed. |
 | `aviso_nivel_minimo` | `alta` | Minimum level that creates a notification after an install, an update or a DNS check: `critica`, `alta`, `media`, `baixa` or `desligado` (no notification). |
 | `dns_verify_tls` | `true` | Turn off only if AdGuard or Pi-hole uses HTTPS with a self-signed certificate (applies to both). |
+| `ia_provedor` | `desligado` | AI used by the **Ask the AI** button in the DNS tab: `desligado` (off), `gemini` or `claude`. See [DNS](#dns-optional-adguard-home-andor-pi-hole-v6). |
+| `ia_chave_api` | | API key from Google AI Studio (Gemini) or the Claude Console (Claude). Usage is billed by the provider to your account. |
+| `ia_modelo` | | Model to use; empty = `gemini-3.5-flash-lite` (Gemini) or `claude-opus-5-5` (Claude). |
 | `intervalo_dns_minutos` | `120` | How often (0 to 1440 minutes) the auditor runs the [DNS check](#dns-optional-adguard-home-andor-pi-hole-v6) on its own, between full scans. `0` = DNS only runs with the full scan. |
 | `allowlist` | `[]` | Exceptions; see below. |
 
@@ -617,8 +637,9 @@ temporary folder, and each tool's telemetry and version check are turned off.
 
 ## Where the auditor connects to
 
-The auditor **never sends data from your installation to external services**. The only outbound
-connections are downloads and queries to vulnerability databases:
+The auditor **never sends data from your installation to external services on its own**. The only
+outbound connections are downloads and queries to vulnerability databases, plus the optional
+[AI query](#dns-optional-adguard-home-andor-pi-hole-v6), which you turn on and trigger yourself:
 
 | Destination | What for | Who connects |
 |---|---|---|
@@ -628,13 +649,14 @@ connections are downloads and queries to vulnerability databases:
 | Image registries (`ghcr.io`, Docker Hub and whichever registry each add-on uses) | Download image manifests and layers | Trivy |
 | `mirror.gcr.io`, `ghcr.io` | Download Trivy's vulnerability database | Trivy |
 | The `adguard_url` and `pihole_url` hosts | Read your DNS servers' query log (optional) | Auditor (Python) |
+| `generativelanguage.googleapis.com` (Gemini) or `api.anthropic.com` (Claude) | Only with `ia_provedor` set and only when you click **Ask the AI**: sends **only the domain name** | Auditor (Python) |
 
 In the Python code, every connection goes through a single client that requires HTTPS and checks
 the host of every request **and every redirect** against the list above. The GitHub token is only
 sent to GitHub's own hosts, never to the CDNs the API redirects to. For DNS, each server has its own
 client, which only talks to the host of its own URL (the AdGuard password never goes to Pi-hole and
 vice versa). It is the only place where HTTP without TLS is accepted, since it is common on a local
-network.
+network. The AI query also has its own client, which only talks to the chosen provider's host.
 
 AppArmor cannot filter the network by domain, so the filter lives in the code. Trivy's and
 pip-audit's connections are limited to what those tools do (registries, vulnerability databases)
@@ -690,7 +712,7 @@ Everything lives in the add-on's `/data` (included in the add-on backups):
 
 - `auditor.db` (SQLite): scan history, ignore list, personal blocklist, interface preferences
   (language), add-on statistics (30 days), traffic spikes, DNS domains already seen, ignored DNS
-  domains and the discovery date of each component and finding;
+  domains, the AI answers about domains and the discovery date of each component and finding;
 - `reports/*.json`: the last `report_retention` reports, the same as the Export JSON button;
 - `cache/`: reference code from GitHub (integrity and add-ons), Trivy's database, pip-audit's cache
   and the community blocklist (`lista_comunitaria.json`).

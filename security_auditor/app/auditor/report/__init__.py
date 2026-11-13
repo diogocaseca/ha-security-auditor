@@ -116,6 +116,8 @@ def render_html(
     blocklist: dict[str, Any] | None = None,
     dns_ignored: list[dict[str, Any]] | None = None,
     lang: str = "pt",
+    ai: dict[str, Any] | None = None,
+    dns_ai: dict[str, dict[str, str]] | None = None,
 ) -> str:
     dns_patterns = [e["pattern"] for e in dns_ignored or []]
     lang = normalize(lang)
@@ -139,6 +141,11 @@ def render_html(
         or getattr(f, field),
         severity_labels=lambda keys: ", ".join(tr.t(sev_labels.get(k, k)) for k in keys),
         dns_ignored=dns_ignored or [],
+        ai=ai,  # None = botão "Perguntar à IA" escondido (ia_provedor: desligado)
+        dns_ai=dns_ai or {},
+        ai_verdicts={"malicioso": tr.t("Malicioso"), "suspeito": tr.t("Suspeito"),
+                     "provavelmente_seguro": tr.t("Provavelmente seguro"), "desconhecido": tr.t("Desconhecido")},
+        ai_badge={"malicioso": "sev-critical", "suspeito": "sev-medium"},
         # A tabela de domínios já reflete a lista atual; os achados mudam na próxima varredura.
         dns_is_ignored=lambda domain: is_ignored(domain, dns_patterns),
         result=result,

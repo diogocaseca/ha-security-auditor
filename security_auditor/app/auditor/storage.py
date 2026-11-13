@@ -82,6 +82,16 @@ CREATE TABLE IF NOT EXISTS dns_ignored (
     reason     TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
+-- Última resposta da IA (opção ia_provedor) para cada domínio consultado na aba DNS.
+CREATE TABLE IF NOT EXISTS dns_ai (
+    domain      TEXT PRIMARY KEY,
+    provider    TEXT NOT NULL,
+    model       TEXT NOT NULL,
+    verdict     TEXT NOT NULL,
+    explanation TEXT NOT NULL,
+    lang        TEXT NOT NULL,
+    created_at  TEXT NOT NULL
+);
 -- Primeira vez que cada componente ("c") ou achado ("f") apareceu numa varredura.
 CREATE TABLE IF NOT EXISTS discovered (
     key        TEXT PRIMARY KEY,
@@ -393,6 +403,20 @@ class Storage:
     def known_dns_domains(self) -> set[str]:
         with self._conn() as conn:
             return {r["domain"] for r in conn.execute("SELECT domain FROM dns_domains").fetchall()}
+
+    def dns_ai(self, domain: str | None = None) -> dict[str, dict[str, str]]:
+        """Respostas guardadas da IA: domínio -> {veredito, explicacao, provedor, modelo, idioma, data}."""
+        with self._conn() as conn:
+            rows = (conn.execute("SELECT * FROM dns_ai WHERE domain = ?", (domain,)) if domain
+                    else conn.execute("SELECT * FROM dns_ai")).fetchall()
+        return {r["domain"]: {"veredito": r["verdict"], "explicacao": r["explanation"], "provedor": r["provider"],
+                              "modelo": r["model"], "idioma": r["lang"], "data": r["created_at"]} for r in rows}
+
+    def save_dns_ai(self, domain: str, answer: dict[str, str], lang: str, created_at: str) -> None:
+        with self._conn() as conn:
+            conn.execute("INSERT OR REPLACE INTO dns_ai VALUES (?, ?, ?, ?, ?, ?, ?)",
+                         (domain, answer["provedor"], answer["modelo"], answer["veredito"], answer["explicacao"],
+                          lang, created_at))
 
     def dns_first_seen(self) -> dict[str, str | None]:
         """Domínios já vistos e a data da primeira consulta de cada um."""

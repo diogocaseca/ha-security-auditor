@@ -347,13 +347,14 @@
               {% for d in c.metadata.dominios %}
                 {% set ign = dns_is_ignored(d.dominio) %}
                 <tr{% if ign %} class="dns-ignored-row" hidden{% endif %}>
-                  <td><code>{{ d.dominio }}</code>{% if d.novo %} <span class="badge badge-new">{{ _("Novo") }}</span>{% endif %}</td>
+                  <td><code>{{ d.dominio }}</code>{% if d.novo %} <span class="badge badge-new">{{ _("Novo") }}</span>{% endif %}
+                    {% set q = dns_ai.get(d.dominio) %}{% if q %} <span class="badge {{ ai_badge.get(q.veredito, 'badge-muted') }}" title="{{ _('Opinião da IA ({modelo})', modelo=q.modelo) }}">{{ _("IA:") }} {{ ai_verdicts.get(q.veredito, q.veredito) }}</span>{% endif %}</td>
                   {% if multi %}<td>{{ _('ambos') if (d.servidores or []) | length > 1 else (d.servidores or ['—']) | first }}</td>{% endif %}
                   <td class="num">{{ d.consultas }}</td>
                   <td class="num">{{ d.bloqueadas or '' }}</td>
                   <td>{{ d.descoberto | dt }}</td>
                   <td>{{ d.ultima | dt }}</td>
-                  <td>{% if not ign %}<button type="button" class="btn btn-ghost btn-sm" data-dns-ignore="{{ d.dominio }}">{{ _("Ignorar…") }}</button>{% endif %}</td>
+                  <td class="dns-actions">{% if ai %}<button type="button" class="btn btn-ghost btn-sm" data-dns-ai="{{ d.dominio }}">{{ _("Perguntar à IA") }}</button>{% endif %}{% if not ign %}<button type="button" class="btn btn-ghost btn-sm" data-dns-ignore="{{ d.dominio }}">{{ _("Ignorar…") }}</button>{% endif %}</td>
                 </tr>
               {% endfor %}
             </tbody>
@@ -582,5 +583,25 @@
     </div>
   </form>
 </dialog>
+{% if ai %}
+<dialog id="dns-ai-dialog" aria-labelledby="dns-ai-title" data-provider="{{ ai.label }}">
+  <div class="dialog-body">
+    <h2 id="dns-ai-title">{{ _("Opinião da IA") }}</h2>
+    <p><code id="dns-ai-domain"></code></p>
+    <p class="muted small" id="dns-ai-status" hidden></p>
+    <div id="dns-ai-result" hidden>
+      <p><span class="badge" id="dns-ai-verdict"></span></p>
+      <p id="dns-ai-explanation"></p>
+      <p class="muted small" id="dns-ai-meta"></p>
+    </div>
+    <p class="error small" id="dns-ai-error" hidden></p>
+    <p class="notice small">{{ _("Só o nome do domínio é enviado ao {provedor}, e só quando você pede. A resposta é a opinião de um modelo de linguagem: pode errar e não substitui a sua verificação.", provedor=ai.label) }}</p>
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-ghost" id="dns-ai-again">{{ _("Perguntar de novo") }}</button>
+      <button type="button" class="btn btn-primary" id="dns-ai-close">{{ _("Fechar") }}</button>
+    </div>
+  </div>
+</dialog>
+{% endif %}
 </body>
 </html>

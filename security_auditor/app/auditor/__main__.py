@@ -14,6 +14,7 @@ import aiohttp
 from aiohttp import web
 
 from . import __version__
+from .ai import PROVIDERS, AiError, ask_domain, model_for
 from .config import MODE_FIXED_TIME, load_options, load_paths
 from .engine import ScanEngine
 from .i18n import normalize
@@ -57,7 +58,7 @@ async def main() -> None:
         _LOGGER.info("Prioridade baixa aplicada: %s", ", ".join(applied) or "nada")
 
     # Segredos conhecidos, só em memória, para nunca aparecerem em logs/relatórios.
-    masker.add_known(os.environ.get("SUPERVISOR_TOKEN"), options.github_token,
+    masker.add_known(os.environ.get("SUPERVISOR_TOKEN"), options.github_token, options.ai_api_key,
                      *(s.password for s in options.dns_servers))
     loaded = masker.load_secrets_yaml(paths.config_dir / "secrets.yaml")
     _LOGGER.info("Mascaramento ativo (%d valores do secrets.yaml carregados em memória)", loaded)
@@ -120,10 +121,11 @@ async def main() -> None:
         async def on_ignored_change() -> None:
             await on_status(status_holder["status"])
 
+        ai = _ai_settings(options)
         app = create_app(storage, scheduler, engine.progress, config_allowlist=options.allowlist,
                          on_change=on_ignored_change, dns_state=dns_state, dns_check=check_dns,
                          blocklist_cache_dir=paths.cache_dir,
-                         community_enabled=options.community_blocklist)
+                         community_enabled=options.community_blocklist, ai=ai)
         runner = web.AppRunner(app, access_log=None)
         await runner.setup()
         port = int(os.environ.get("AUDITOR_PORT", "8099"))
@@ -189,6 +191,29 @@ async def main() -> None:
             task.cancel()
         await scheduler.stop()
         await runner.cleanup()
+
+
+def _ai_settings(options) -> dict | None:
+    """Consulta à IA na aba DNS (opção ia_provedor). None = desligada ou incompleta."""
+    if options.ai_provider not in PROVIDERS:
+        _LOGGER.info("Consulta de domínios à IA desligada (ia_provedor: desligado)")
+        return None
+    label = PROVIDERS[options.ai_provider].label
+    if not options.ai_api_key:
+        _LOGGER.warning("ia_provedor: %s, mas falta a chave (ia_chave_api): consulta à IA desligada", label)
+        return None
+    try:
+        model = model_for(options.ai_provider, options.ai_model)
+    except AiError as err:
+        _LOGGER.warning("Consulta à IA desligada: %s", err.args[0] if err.args else err)
+        return None
+    _LOGGER.info("Consulta de domínios à IA ativa: %s (%s). Só o nome do domínio é enviado, e só quando o "
+                 "usuário clica em Perguntar à IA", label, model)
+
+    async def ask(domain: str, lang: str) -> dict:
+        return await ask_domain(options.ai_provider, options.ai_api_key, model, domain, lang)
+
+    return {"label": label, "modelo": model, "ask": ask}
 
 
 async def _timezone(supervisor: SupervisorClient) -> tzinfo:

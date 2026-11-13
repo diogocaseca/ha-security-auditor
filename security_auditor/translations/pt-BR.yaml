@@ -77,6 +77,21 @@ configuration:
       do relatório, sem varrer os componentes de novo. Achados de DNS novos geram aviso no HA conforme
       o nível mínimo para avisos. De 0 a 1440 minutos; padrão 120. Com 0, o DNS só roda junto com a
       varredura completa.
+  ia_provedor:
+    name: IA para consultar domínios
+    description: >-
+      Mostra o botão "Perguntar à IA" na tabela de domínios da aba DNS. Ao clicar, só o nome do
+      domínio é enviado ao provedor escolhido (Gemini ou Claude); nada mais da instalação sai do
+      add-on. Desligado por padrão. A resposta é a opinião de um modelo de linguagem e pode errar.
+  ia_chave_api:
+    name: Chave da API da IA
+    description: >-
+      Chave do Google AI Studio (Gemini) ou do Claude Console (Claude). Fica só no add-on, nunca
+      aparece em logs nem no relatório. O uso é cobrado pelo provedor, na sua conta.
+  ia_modelo:
+    name: Modelo da IA (opcional)
+    description: >-
+      Vazio = padrão do provedor (gemini-3.5-flash-lite no Gemini, claude-opus-5-5 no Claude).
   lista_comunitaria:
     name: Lista negra comunitária
     description: >-
