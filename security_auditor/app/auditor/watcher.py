@@ -1,6 +1,6 @@
 """Verificação de instalações e atualizações: varre só o componente que mudou e avisa no HA.
 
-A cada ``CHECK_INTERVAL`` tira uma "foto" leve do que está instalado:
+A cada ``intervalo_verificacao_minutos`` (padrão: ``CHECK_INTERVAL``) tira uma "foto" leve do que está instalado:
  - integrações (``custom_components/<nome>``) e cards (``www/community/<nome>``): nome, tamanho e
    data de cada arquivo (sem ler o conteúdo);
  - add-ons: versão de cada um (``GET /addons`` no Supervisor, só leitura).
@@ -140,6 +140,10 @@ def build_alert(result: ScanResult, change: dict[str, str], min_level: str, lang
     return event, (notification_id, title, "\n".join(lines))
 
 
+def _every(seconds: float) -> str:
+    return f"{int(seconds // 60)} min" if seconds >= 60 and seconds % 60 == 0 else f"{int(seconds)} s"
+
+
 class InstallWatcher:
     def __init__(self, *, config_dir: Path, storage: Any, supervisor: Any | None, notifier: Any | None,
                  run_job: Callable[[list[dict[str, str]]], Awaitable[ScanResult | None]],
@@ -195,10 +199,10 @@ class InstallWatcher:
         self._base = await asyncio.to_thread(self._load_base)
         if self._base is None:
             await asyncio.to_thread(self.set_base, await self.snapshot())
-            _LOGGER.info("Verificação de instalações ativa: referência criada com %d componente(s)",
-                         len(self._base or {}))
+            _LOGGER.info("Verificação de instalações ativa (conferência a cada %s): referência criada com "
+                         "%d componente(s)", _every(self._interval), len(self._base or {}))
         else:
-            _LOGGER.info("Verificação de instalações ativa (a cada %d s)", int(self._interval))
+            _LOGGER.info("Verificação de instalações ativa (conferência a cada %s)", _every(self._interval))
         while True:
             await asyncio.sleep(self._interval)
             try:

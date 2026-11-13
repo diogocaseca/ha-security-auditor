@@ -101,6 +101,7 @@ class Options:
     dns_verify_tls: bool = True
     community_blocklist: bool = True  # baixar a lista negra comunitária (assinada)
     watch_installs: bool = True  # varrer logo depois de instalar/atualizar um componente
+    watch_interval_minutes: int = 2  # intervalo da conferência do que está instalado
     alert_min_level: str = "alta"  # critica | alta | media | baixa | desligado
     execution_modes: frozenset[str] = frozenset(DEFAULT_EXECUTION_MODES)
     scan_time: str = DEFAULT_SCAN_TIME  # HH:MM, usado com horario_fixo
@@ -148,6 +149,7 @@ class Options:
             dns_verify_tls=bool(raw.get("dns_verify_tls", True)),
             community_blocklist=bool(raw.get("lista_comunitaria", True)),
             watch_installs=bool(raw.get("verificar_instalacoes", True)),
+            watch_interval_minutes=max(1, min(60, int(raw.get("intervalo_verificacao_minutos", 2)))),
             alert_min_level=_alert_level(raw.get("aviso_nivel_minimo")),
             execution_modes=_parse_modes(raw.get("modo_execucao")),
             scan_time=_parse_time(raw.get("horario_varredura")),

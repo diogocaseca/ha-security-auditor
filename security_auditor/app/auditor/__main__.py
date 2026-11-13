@@ -27,7 +27,7 @@ from .scanners.traffic import TrafficCollector
 from .scheduler import SENSOR_REFRESH, Scheduler
 from .storage import Storage
 from .supervisor import CoreNotifier, CoreStatesPublisher, SupervisorClient
-from .watcher import CHECK_INTERVAL, InstallWatcher
+from .watcher import InstallWatcher
 from .web import create_app
 
 _LOGGER = logging.getLogger("auditor")
@@ -161,8 +161,8 @@ async def main() -> None:
                 run_job=lambda changes: scheduler.run_job(lambda: engine.run(changes)),
                 is_busy=lambda: scheduler.running, min_level=options.alert_min_level,
                 addons=options.addons_scan,
-                # Só para desenvolvimento: intervalo curto para testar sem esperar 2 minutos.
-                interval=float(os.environ.get("AUDITOR_DEV_WATCH_SECONDS") or CHECK_INTERVAL),
+                # AUDITOR_DEV_WATCH_SECONDS: só para desenvolvimento (intervalo em segundos).
+                interval=float(os.environ.get("AUDITOR_DEV_WATCH_SECONDS") or options.watch_interval_minutes * 60),
             )
             background.append(asyncio.create_task(watcher.run(), name="auditor-instalacoes"))
         else:

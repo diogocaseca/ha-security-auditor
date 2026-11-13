@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.2
+
+- Nova opção `intervalo_verificacao_minutos` (1 a 60, padrão 2), logo abaixo de
+  `verificar_instalacoes`: define de quanto em quanto tempo o auditor confere o que está
+  instalado.
+
 ## 0.17.1
 
 - **DNS:** "Mostrar domínios ignorados" agora troca a tabela de domínios consultados pela lista de

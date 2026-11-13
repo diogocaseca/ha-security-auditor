@@ -52,7 +52,10 @@ configuration:
     description: Downloads the signed list of reported components from GitHub and compares it locally. Nothing about your installation is sent.
   verificar_instalacoes:
     name: Check installs and updates
-    description: Every 2 minutes, checks whether an integration, frontend card or add-on was installed or updated and scans only that component right away.
+    description: Periodically checks whether an integration, frontend card or add-on was installed or updated and scans only that component right away.
+  intervalo_verificacao_minutos:
+    name: Install check interval (minutes)
+    description: How often the auditor looks at what is installed (a light check, no file contents read; it only scans when something changed). From 1 to 60 minutes; default 2. The scan starts on the following check, once the install has finished.
   aviso_nivel_minimo:
     name: Minimum level for alerts
     description: "After checking an install or update, warns in HA (notification and the security_auditor_alerta event) when there are findings from this level up or a blocklist match. Values: critica, alta, media, baixa or desligado (off)."

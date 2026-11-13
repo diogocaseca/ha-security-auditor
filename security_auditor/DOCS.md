@@ -272,6 +272,7 @@ language.
 | `dns_client_ips` | `[]` | IPs HA shows up with on the DNS server. Empty = host IPs (through the Supervisor) + `172.30.32.3` (Supervisor DNS). |
 | `lista_comunitaria` | `true` | Download and use the signed [community blocklist](#blocklist). |
 | `verificar_instalacoes` | `true` | Check installs and updates right away. See [Installs and updates](#installs-and-updates). |
+| `intervalo_verificacao_minutos` | `2` | How often (1 to 60 minutes) the auditor looks at what is installed. It is a light check; it only scans when something changed. |
 | `aviso_nivel_minimo` | `alta` | Minimum level that creates a notification after an install or update: `critica`, `alta`, `media`, `baixa` or `desligado` (no notification). |
 | `dns_verify_tls` | `true` | Turn off only if AdGuard or Pi-hole uses HTTPS with a self-signed certificate (applies to both). |
 | `allowlist` | `[]` | Exceptions; see below. |
@@ -310,13 +311,14 @@ Limitations:
 
 ## Installs and updates
 
-With `verificar_instalacoes` on (default), every 2 minutes the auditor takes a light snapshot of
-what is installed: the name, size and date of each file in `custom_components/<name>` and
-`www/community/<name>` (without reading their contents) and the version of each add-on (`GET
-/addons`). When something is **installed, updated or removed**, it waits until the snapshot stops
-changing (HACS writes the files little by little) and runs a **scan of only that component**, which
-takes seconds. The rest of the report comes from the latest full scan. The scan shows up in the
-history as "Install/update: name (new)".
+With `verificar_instalacoes` on (default), every `intervalo_verificacao_minutos` (default 2) the
+auditor takes a light snapshot of what is installed: the name, size and date of each file in
+`custom_components/<name>` and `www/community/<name>` (without reading their contents) and the
+version of each add-on (`GET /addons`). When something is **installed, updated or removed**, it
+waits until the snapshot stops changing (HACS writes the files little by little, so the scan starts
+on the following check) and runs a **scan of only that component**, which takes seconds. The rest of
+the report comes from the latest full scan. The scan shows up in the history as "Install/update:
+name (new)".
 
 Then it **warns you in HA**:
 

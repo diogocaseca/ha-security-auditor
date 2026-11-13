@@ -273,6 +273,7 @@ O Pi-hole v5 não é suportado (API antiga).
 | `dns_client_ips` | `[]` | IPs com que o HA aparece no servidor DNS. Vazio = IPs do host (via Supervisor) + `172.30.32.3` (DNS do Supervisor). |
 | `lista_comunitaria` | `true` | Baixa e usa a [lista negra comunitária](#lista-negra) assinada. |
 | `verificar_instalacoes` | `true` | Verificar instalações e atualizações logo em seguida. Veja [Instalações e atualizações](#instalações-e-atualizações). |
+| `intervalo_verificacao_minutos` | `2` | De quanto em quanto tempo (1 a 60 minutos) o auditor olha o que está instalado. É uma conferência leve; só varre quando algo mudou. |
 | `aviso_nivel_minimo` | `alta` | Nível mínimo que gera notificação depois de uma instalação ou atualização: `critica`, `alta`, `media`, `baixa` ou `desligado` (sem notificação). |
 | `dns_verify_tls` | `true` | Desative só se o AdGuard ou o Pi-hole usar HTTPS com certificado próprio (vale para os dois). |
 | `allowlist` | `[]` | Exceções; veja abaixo. |
@@ -311,13 +312,13 @@ Limitações:
 
 ## Instalações e atualizações
 
-Com `verificar_instalacoes` ligado (padrão), a cada 2 minutos o auditor tira uma foto leve do que
-está instalado: nome, tamanho e data de cada arquivo em `custom_components/<nome>` e
-`www/community/<nome>` (sem ler o conteúdo) e a versão de cada add-on (`GET /addons`). Quando algo
-é **instalado, atualizado ou removido**, ele espera a foto parar de mudar (o HACS grava os arquivos
-aos poucos) e roda uma **varredura só desse componente**, que leva segundos. O resto do relatório
-vem da última varredura completa. A varredura aparece no histórico como "Instalação/atualização:
-nome (novo)".
+Com `verificar_instalacoes` ligado (padrão), a cada `intervalo_verificacao_minutos` (padrão 2) o
+auditor tira uma foto leve do que está instalado: nome, tamanho e data de cada arquivo em
+`custom_components/<nome>` e `www/community/<nome>` (sem ler o conteúdo) e a versão de cada add-on
+(`GET /addons`). Quando algo é **instalado, atualizado ou removido**, ele espera a foto parar de
+mudar (o HACS grava os arquivos aos poucos, então a varredura começa na conferência seguinte) e roda
+uma **varredura só desse componente**, que leva segundos. O resto do relatório vem da última
+varredura completa. A varredura aparece no histórico como "Instalação/atualização: nome (novo)".
 
 Depois ele **avisa no HA**:
 

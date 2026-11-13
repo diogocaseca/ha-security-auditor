@@ -223,6 +223,10 @@ async def test_notifier_only_allows_its_own_ids():
 def test_options_defaults():
     opts = Options.from_dict({})
     assert opts.watch_installs is True and opts.alert_min_level == "alta"
+    assert opts.watch_interval_minutes == 2
+    assert Options.from_dict({"intervalo_verificacao_minutos": 10}).watch_interval_minutes == 10
+    assert Options.from_dict({"intervalo_verificacao_minutos": 0}).watch_interval_minutes == 1  # limites 1..60
+    assert Options.from_dict({"intervalo_verificacao_minutos": 500}).watch_interval_minutes == 60
     assert Options.from_dict({"aviso_nivel_minimo": "qualquer"}).alert_min_level == "alta"
     off = Options.from_dict({"verificar_instalacoes": False, "aviso_nivel_minimo": "desligado"})
     assert off.watch_installs is False and off.alert_min_level == "desligado"
@@ -232,3 +236,19 @@ def test_component_types_have_labels():
     from auditor.watcher import _TYPE_LABELS
 
     assert {ComponentType.INTEGRATION, ComponentType.FRONTEND, ComponentType.ADDON} <= set(_TYPE_LABELS)
+
+
+def test_config_yaml_option_order_and_schema():
+    from pathlib import Path
+
+    import yaml
+
+    addon = Path(__file__).parents[1] / "security_auditor"
+    cfg = yaml.safe_load((addon / "config.yaml").read_text())
+    keys = list(cfg["options"])
+    assert keys.index("intervalo_verificacao_minutos") == keys.index("verificar_instalacoes") + 1
+    assert cfg["options"]["intervalo_verificacao_minutos"] == 2
+    assert cfg["schema"]["intervalo_verificacao_minutos"] == "int(1,60)"
+    for lang in ("en", "pt-BR"):
+        conf = yaml.safe_load((addon / "translations" / f"{lang}.yaml").read_text())["configuration"]
+        assert conf["intervalo_verificacao_minutos"]["name"]

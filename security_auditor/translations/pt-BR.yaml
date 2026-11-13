@@ -78,8 +78,14 @@ configuration:
   verificar_instalacoes:
     name: Verificar instalações e atualizações
     description: >-
-      A cada 2 minutos, confere se uma integração, card de frontend ou add-on foi instalado ou
+      Confere periodicamente se uma integração, card de frontend ou add-on foi instalado ou
       atualizado e varre só esse componente logo em seguida.
+  intervalo_verificacao_minutos:
+    name: Intervalo da conferência de instalações (minutos)
+    description: >-
+      De quanto em quanto tempo o auditor olha o que está instalado (conferência leve, sem ler o
+      conteúdo dos arquivos; só varre quando algo mudou). De 1 a 60 minutos; padrão 2. A
+      varredura começa na conferência seguinte, quando a instalação terminou.
   aviso_nivel_minimo:
     name: Nível mínimo para avisos
     description: >-
