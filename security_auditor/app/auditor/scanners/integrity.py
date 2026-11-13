@@ -26,6 +26,7 @@ from typing import Any
 
 import aiohttp
 
+from ..i18n import Bi, english
 from ..inventory import Component, Inventory, walk_files
 from ..models import ComponentType, Finding, Severity, en_text
 from ..net import DownloadTooLargeError, EgressDeniedError, HttpError
@@ -113,20 +114,21 @@ class IntegrityScanner:
                 found, status = await self._check(ctx, inv, comp)
                 findings.extend(found)
             except NotVerifiableError as err:
-                status = f"não verificada: {err}"
+                status = Bi(f"não verificada: {err}", f"not verified: {err.en}")
                 findings.append(_not_verified(comp, str(err), err.en))
             except (HttpError, EgressDeniedError, DownloadTooLargeError, UnsafeArchiveError,
                     aiohttp.ClientError, TimeoutError, OSError, json.JSONDecodeError) as err:
                 reason, reason_en = _describe_error(err)
-                status = f"não verificada: {reason}"
+                status = Bi(f"não verificada: {reason}", f"not verified: {reason_en}")
                 findings.append(_not_verified(comp, reason, reason_en))
-            ctx.register_component(comp.component_type, comp.name, integridade=status)
+            ctx.register_component(comp.component_type, comp.name, integridade=str(status),
+                                   integridade_en=english(status))
         return findings
 
     async def _check(self, ctx: ScanContext, inv: Inventory, comp: Component) -> tuple[list[Finding], str]:
         repo = comp.github_repo()
         if repo is None:
-            return [_unknown_origin(comp)], "sem repositório identificável"
+            return [_unknown_origin(comp)], Bi("sem repositório identificável", "no identifiable repository")
         refs = candidate_refs(comp)
         if not refs:
             raise NotVerifiableError("versão instalada desconhecida (sem HACS e sem 'version' no manifest)",
@@ -144,9 +146,11 @@ class IntegrityScanner:
             elif local[rel] != remote[rel]:
                 findings.append(self._modified(comp, inv, rel, upstream, repo))
         status = f"verificada contra {repo[0]}/{repo[1]}@{upstream.ref}"
+        status_en = f"verified against {repo[0]}/{repo[1]}@{upstream.ref}"
         if findings:
             status += f" ({len(findings)} diferença(s))"
-        return findings, status
+            status_en += f" ({len(findings)} difference(s))"
+        return findings, Bi(status, status_en)
 
     # --- Download / cache ---------------------------------------------------
 

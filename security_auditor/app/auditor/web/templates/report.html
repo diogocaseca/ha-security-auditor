@@ -10,6 +10,7 @@
   <script src="static/app.js" defer></script>
   {# Traduções usadas pelo JavaScript (bloco de dados; não é executado). #}
   <script type="application/json" id="i18n-js">{{ js_catalog | tojson }}</script>
+  <script type="application/json" id="i18n-steps">{{ steps | tojson }}</script>
 </head>
 <body data-running="{{ 'true' if status.running else 'false' }}" data-lang="{{ lang }}">
 <header class="topbar">
@@ -38,7 +39,7 @@
     </div>
     <span class="muted small" id="scan-status">
       {% if status.running %}
-        {{ _("Varrendo") }}{% if status.progress.step %}: {{ status.progress.step }}{% endif %}…
+        {{ _("Varrendo") }}{% if status.progress.step %}: {{ steps.get(status.progress.step, status.progress.step) }}{% endif %}…
       {% elif status.next_run %}
         {{ _("Próxima: {data}", data=(status.next_run | dt)) }}{% if status.daily_at %}{{ _(" (todo dia às {hora})", hora=status.daily_at) }}{% endif %}
       {% else %}
@@ -214,18 +215,18 @@
             </header>
             <dl class="meta">
               <div><dt>{{ _("Componente") }}</dt><dd>{{ f.component }} <span class="muted">({{ _(type_label(f.component_type)) }})</span></dd></div>
-              <div><dt>{{ _("Tipo") }}</dt><dd>{{ f.category }}</dd></div>
+              <div><dt>{{ _("Tipo") }}</dt><dd>{{ cat_label(f.category) }}</dd></div>
               {% if f.file %}<div><dt>{{ _("Arquivo") }}</dt><dd><code>{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</code></dd></div>{% endif %}
               <div><dt>{{ _("Regra") }}</dt><dd><code>{{ f.rule_id }}</code> <span class="muted">· {{ (f.extra.sources or [f.source]) | join(', ') }}</span></dd></div>
             </dl>
-            {% if f.snippet %}<pre class="snippet"><code>{{ f.snippet }}</code></pre>{% endif %}
+            {% if f.snippet %}<pre class="snippet"><code>{{ ftext(f, 'snippet') }}</code></pre>{% endif %}
             <p class="why"><strong>{{ _("Por que é suspeito:") }}</strong> {{ ftext(f, 'explanation') }}</p>
             <p class="todo"><strong>{{ _("O que fazer:") }}</strong> {{ ftext(f, 'recommendation') }}</p>
             {% if f.extra.evidencias %}
               <p class="small"><strong>{{ _("Evidências:") }}</strong>
                 {% for url in f.extra.evidencias if url.startswith('https://') %}<a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ url }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>
             {% endif %}
-            {% if f.suppressed %}<p class="muted small">{{ _("Ignorado: {motivo}", motivo=f.suppression_reason) }}</p>{% endif %}
+            {% if f.suppressed %}<p class="muted small">{{ _("Ignorado: {motivo}", motivo=suppression(f.suppression_reason)) }}</p>{% endif %}
           </article>
         {% endfor %}
       </div>
@@ -305,7 +306,7 @@
       {% for r in status.dns.resultados %}
         <span class="dns-pill {{ 'dns-ok' if r.ok else 'dns-fail' }}"
               title="{{ r.endereco or '' }} · {{ _('verificado em {data}', data=(r.verificado_em | dt)) }}{% if r.ms is defined %} · {{ r.ms }} ms{% endif %}">
-          {{ '✓' if r.ok else '✗' }} {{ r.servidor }}{% if r.ok %}{% if r.versao %} {{ r.versao }}{% endif %}{% else %}: {{ r.mensagem }}{% endif %}</span>
+          {{ '✓' if r.ok else '✗' }} {{ r.servidor }}{% if r.ok %}{% if r.versao %} {{ r.versao }}{% endif %}{% else %}: {{ mtext(r, 'mensagem') }}{% endif %}</span>
       {% endfor %}
       <button type="button" class="link" id="dns-check" {% if status.dns.testando %}disabled{% endif %}>{{ _("Testar conexão") }}</button>
     </p>
@@ -321,10 +322,10 @@
     {% for c in dns_components if c.metadata.dominios %}
       <div class="dns-domains">
         <div class="panel-head">
-          <h3>{{ c.metadata.nome or _('Domínios consultados') }}</h3>
-          <span class="muted small">{{ c.metadata.trafego }}</span>
+          <h3>{{ mtext(c.metadata, 'nome') or _('Domínios consultados') }}</h3>
+          <span class="muted small">{{ mtext(c.metadata, 'trafego') }}</span>
         </div>
-        <p class="notice notice-warn">{{ c.metadata.aviso }}</p>
+        <p class="notice notice-warn">{{ mtext(c.metadata, 'aviso') }}</p>
         <p class="muted small">{{ _("Clientes considerados: {clientes}.", clientes=(c.metadata.clientes | join(', '))) }}
           {% if c.metadata.dominios_total > c.metadata.dominios | length %}{{ _("Mostrando os {n} mais consultados de {total}.", n=(c.metadata.dominios | length), total=c.metadata.dominios_total) }}{% endif %}</p>
         <div class="table-wrap">

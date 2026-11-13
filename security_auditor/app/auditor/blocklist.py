@@ -28,6 +28,7 @@ from typing import Any
 from packaging.specifiers import InvalidSpecifier, SpecifierSet
 from packaging.version import InvalidVersion, Version
 
+from .i18n import Bi, english
 from .models import ComponentType, Severity
 
 _LOGGER = logging.getLogger(__name__)
@@ -148,24 +149,25 @@ def _text(item: dict[str, Any], key: str, limit: int, pattern: re.Pattern[str] |
     value = item.get(key)
     if value is None or value == "":
         if required:
-            raise BlocklistError(f"campo '{key}' obrigatório")
+            raise BlocklistError(Bi(f"campo '{key}' obrigatório", f"field '{key}' is required"))
         return None
     if not isinstance(value, str) or len(value) > limit or any(ord(c) < 32 for c in value):
-        raise BlocklistError(f"campo '{key}' inválido")
+        raise BlocklistError(Bi(f"campo '{key}' inválido", f"field '{key}' is invalid"))
     if pattern and not pattern.match(value):
-        raise BlocklistError(f"campo '{key}' com formato inválido")
+        raise BlocklistError(Bi(f"campo '{key}' com formato inválido", f"field '{key}' has an invalid format"))
     return value.strip()
 
 
 def parse(data: Any, origem: str) -> tuple[list[BlocklistEntry], list[str]]:
     """Valida o conteúdo (já decodificado do JSON). Entradas inválidas são descartadas com erro."""
     if not isinstance(data, dict) or data.get("versao") != FORMAT_VERSION:
-        raise BlocklistError(f"formato desconhecido (esperado \"versao\": {FORMAT_VERSION})")
+        raise BlocklistError(Bi(f"formato desconhecido (esperado \"versao\": {FORMAT_VERSION})",
+                                 f"unknown format (expected \"versao\": {FORMAT_VERSION})"))
     items = data.get("itens")
     if not isinstance(items, list):
-        raise BlocklistError("campo 'itens' ausente ou não é uma lista")
+        raise BlocklistError(Bi("campo 'itens' ausente ou não é uma lista", "field 'itens' missing or not a list"))
     if len(items) > MAX_ITEMS:
-        raise BlocklistError(f"lista grande demais (máximo {MAX_ITEMS} itens)")
+        raise BlocklistError(Bi(f"lista grande demais (máximo {MAX_ITEMS} itens)", f"list too large (maximum {MAX_ITEMS} items)"))
     entries: list[BlocklistEntry] = []
     errors: list[str] = []
     newer = 0
@@ -173,16 +175,17 @@ def parse(data: Any, origem: str) -> tuple[list[BlocklistEntry], list[str]]:
     for n, item in enumerate(items, start=1):
         try:
             if not isinstance(item, dict):
-                raise BlocklistError("item não é um objeto")
+                raise BlocklistError(Bi("item não é um objeto", "item is not an object"))
             entry_id = _text(item, "id", 40, _ID, required=True) or ""
             if entry_id in seen:
-                raise BlocklistError(f"id '{entry_id}' repetido")
+                raise BlocklistError(Bi(f"id '{entry_id}' repetido", f"duplicate id '{entry_id}'"))
             tipo = _text(item, "tipo", 20)
             if tipo is not None and tipo not in TYPES:
                 raise _NewerFormat
             nivel = _text(item, "nivel", 20, required=True) or ""
             if nivel not in LEVELS:
-                raise BlocklistError("campo 'nivel' deve ser critica, alta, media ou aviso")
+                raise BlocklistError(Bi("campo 'nivel' deve ser critica, alta, media ou aviso",
+                                         "field 'nivel' must be critica, alta, media or aviso"))
             categoria = _text(item, "categoria", 20, required=True) or ""
             if categoria not in CATEGORIES:
                 raise _NewerFormat
@@ -191,16 +194,18 @@ def parse(data: Any, origem: str) -> tuple[list[BlocklistEntry], list[str]]:
                 try:
                     SpecifierSet(versoes)
                 except InvalidSpecifier as err:
-                    raise BlocklistError("campo 'versoes' inválido (ex.: \"<1.4.2\" ou \">=1.0,<1.2\")") from err
+                    raise BlocklistError(Bi("campo 'versoes' inválido (ex.: \"<1.4.2\" ou \">=1.0,<1.2\")",
+                                             "field 'versoes' is invalid (e.g. \"<1.4.2\" or \">=1.0,<1.2\")")) from err
             evid = item.get("evidencias") or []
             if not isinstance(evid, list) or len(evid) > 10:
-                raise BlocklistError("campo 'evidencias' deve ser uma lista (até 10 links)")
+                raise BlocklistError(Bi("campo 'evidencias' deve ser uma lista (até 10 links)",
+                                         "field 'evidencias' must be a list (up to 10 links)"))
             links = []
             for url in evid:
                 # Só https: os links viram <a href>, então nada de javascript: ou data:.
                 if not isinstance(url, str) or not url.startswith("https://") or len(url) > 500 \
                         or any(ord(c) <= 32 for c in url):
-                    raise BlocklistError("evidências devem ser links https://")
+                    raise BlocklistError(Bi("evidências devem ser links https://", "evidence must be https:// links"))
                 links.append(url)
             entry = BlocklistEntry(
                 id=entry_id, nivel=nivel, categoria=categoria, origem=origem,
@@ -216,13 +221,13 @@ def parse(data: Any, origem: str) -> tuple[list[BlocklistEntry], list[str]]:
             if entry.fonte is not None and entry.fonte not in SOURCES:
                 raise _NewerFormat
             if not (entry.github or entry.nome or entry.imagem):
-                raise BlocklistError("informe 'github', 'nome' ou 'imagem'")
+                raise BlocklistError(Bi("informe 'github', 'nome' ou 'imagem'", "provide 'github', 'nome' or 'imagem'"))
             if entry.nome and set(entry.nome) <= {"*", "?"}:
-                raise BlocklistError("'nome' não pode ser só curinga")
+                raise BlocklistError(Bi("'nome' não pode ser só curinga", "'nome' cannot be only a wildcard"))
             seen.add(entry_id)
             entries.append(entry)
         except BlocklistError as err:
-            errors.append(f"item {n}: {err}")
+            errors.append(Bi(f"item {n}: {err}", f"item {n}: {english(err.args[0] if err.args else err)}"))
         except _NewerFormat:
             # Compatibilidade: categorias/tipos/fontes novos não quebram versões antigas do add-on.
             newer += 1
@@ -263,9 +268,10 @@ def validate_item(item: Any) -> BlocklistEntry:
     """Valida um item vindo da interface (lista pessoal). Levanta BlocklistError com a explicação."""
     entries, errors = parse({"versao": FORMAT_VERSION, "itens": [item]}, "pessoal")
     if errors:
-        raise BlocklistError(errors[0].removeprefix("item 1: "))
+        raise BlocklistError(Bi(errors[0].removeprefix("item 1: "), english(errors[0]).removeprefix("item 1: ")))
     if not entries:
-        raise BlocklistError("valor de 'tipo', 'categoria' ou 'fonte' desconhecido")
+        raise BlocklistError(Bi("valor de 'tipo', 'categoria' ou 'fonte' desconhecido",
+                                "unknown 'tipo', 'categoria' or 'fonte' value"))
     return entries[0]
 
 

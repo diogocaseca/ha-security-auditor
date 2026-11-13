@@ -142,3 +142,31 @@ async def test_english_finding_text_is_shown_and_masked(paths, storage, masker):
     assert "English title" not in html_pt and f.title in html_pt
     saved = storage.load_scan(result.scan_id)
     assert saved.findings[0].en["title"] == "English title"  # sobrevive ao JSON salvo
+
+
+def test_categories_steps_and_suppression_have_english():
+    import ast
+
+    import yaml
+
+    from auditor.i18n import CATEGORY_LABELS, STEP_LABELS
+    from auditor.scanners import default_scanners
+
+    root = Path(i18n.__file__).resolve().parent
+    used = set()
+    for path in root.rglob("*.py"):
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.keyword) and node.arg == "category" and isinstance(node.value, ast.Constant):
+                used.add(node.value.value)
+    for path in (root.parent / "rules" / "semgrep").rglob("*.yaml"):
+        used |= {r["metadata"]["categoria"] for r in yaml.safe_load(path.read_text())["rules"]}
+    from auditor.scanners.static import _BANDIT_INFO
+
+    used |= {v[0] for v in _BANDIT_INFO.values()}
+    assert sorted(used - set(CATEGORY_LABELS)) == []
+    assert {s.name for s in default_scanners()} <= set(STEP_LABELS)
+    assert all(label in EN for label in STEP_LABELS.values() if label != "DNS")
+    tr = Translator("en")
+    assert tr.category("ofuscacao") == "obfuscation" and Translator("pt").category("ofuscacao") == "ofuscação"
+    assert tr.suppression("revisado (lista de ignorados)") == "revisado (ignore list)"
+    assert tr.meta({"x": "pt", "x_en": "en"}, "x") == "en" and Translator("pt").meta({"x": "pt", "x_en": "en"}, "x") == "pt"

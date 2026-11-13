@@ -189,7 +189,7 @@ async def test_ignore_api_rejects_bad_json(ignore_client):
     client, token, *_ = ignore_client
     resp = await client.post("/api/ignored", headers={CSRF_HEADER: token, "Content-Type": "application/json"},
                              data="{nao json")
-    assert resp.status == 400 and (await resp.json())["error"] == "JSON inválido"
+    assert resp.status == 400 and (await resp.json())["error"] == "Invalid JSON"
     resp = await client.post("/api/ignored", headers={CSRF_HEADER: token},
                              json={"component": "*", "rule": "*", "reason": "x"})
     assert resp.status == 400

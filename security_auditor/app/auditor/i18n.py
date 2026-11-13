@@ -18,6 +18,77 @@ DEFAULT_LANG = "en"
 HTML_LANG = {"en": "en", "pt": "pt-BR"}
 
 
+class Bi(str):
+    """Texto em português (o próprio valor) que carrega a versão em inglês em ``en``."""
+
+    en: str
+
+    def __new__(cls, pt: str, en: str | None = None) -> Bi:
+        obj = super().__new__(cls, pt)
+        obj.en = en if en is not None else pt
+        return obj
+
+
+def english(text: Any) -> str:
+    """Versão em inglês de um texto (``Bi``) ou o próprio texto."""
+    return getattr(text, "en", None) or str(text)
+
+
+_SUPPRESSION_EN = (
+    ("(lista de ignorados)", "(ignore list)"),
+    ("(allowlist das configurações)", "(configuration allowlist)"),
+    ("sem motivo informado", "no reason given"),
+)
+
+# Nome interno de cada etapa da varredura -> rótulo em português (o inglês fica em EN)
+STEP_LABELS: dict[str, str] = {
+    "lista_negra": "lista negra",
+    "analise_estatica": "análise estática",
+    "dependencias": "dependências",
+    "integridade": "integridade",
+    "permissoes_addons": "permissões dos add-ons",
+    "codigo_addons": "código dos add-ons",
+    "trafego_addons": "tráfego dos add-ons",
+    "dns": "DNS",
+    "imagens_addons": "imagens dos add-ons",
+}
+
+# Categoria interna do achado -> (rótulo em português, em inglês)
+CATEGORY_LABELS: dict[str, tuple[str, str]] = {
+    "acesso_sensivel": ("acesso a dados sensíveis", "sensitive data access"),
+    "analise_incompleta": ("análise incompleta", "incomplete analysis"),
+    "arquivo_temporario": ("arquivo temporário", "temporary file"),
+    "atualizacao": ("atualização", "update"),
+    "bandit": ("bandit", "bandit"),
+    "configuracao": ("configuração", "configuration"),
+    "criptografia_fraca": ("criptografia fraca", "weak cryptography"),
+    "cve": ("CVE", "CVE"),
+    "dependencia": ("dependência", "dependency"),
+    "dependencia_vulneravel": ("dependência vulnerável", "vulnerable dependency"),
+    "desserializacao": ("desserialização", "deserialization"),
+    "destino_suspeito": ("destino suspeito", "suspicious destination"),
+    "dns_anormal": ("DNS anormal", "abnormal DNS"),
+    "dns_bloqueado": ("DNS bloqueado", "blocked DNS"),
+    "dns_novo": ("DNS novo", "new DNS"),
+    "download_execucao": ("download e execução", "download and execution"),
+    "execucao_de_comandos": ("execução de comandos", "command execution"),
+    "execucao_dinamica": ("execução dinâmica", "dynamic execution"),
+    "integridade": ("integridade", "integrity"),
+    "link_simbolico": ("link simbólico", "symbolic link"),
+    "lista_negra": ("lista negra", "blocklist"),
+    "mineracao": ("mineração", "mining"),
+    "ofuscacao": ("ofuscação", "obfuscation"),
+    "origem": ("origem", "origin"),
+    "permissao": ("permissão", "permission"),
+    "rede": ("rede", "network"),
+    "segredo_embutido": ("segredo embutido", "embedded secret"),
+    "semgrep": ("semgrep", "semgrep"),
+    "tls": ("TLS", "TLS"),
+    "trafego_anormal": ("tráfego anormal", "abnormal traffic"),
+    "url_ip_fixo": ("URL/IP fixo", "hard-coded URL/IP"),
+}
+
+
 def normalize(lang: Any) -> str:
     value = str(lang or "").strip().lower()[:5]
     return value if value in LANGS else DEFAULT_LANG
@@ -42,6 +113,28 @@ class Translator:
         # O texto vem do catálogo (confiável); as variáveis são escapadas pelo Markup.format.
         out = Markup(self._raw(text))  # noqa: S704 - texto estático do próprio add-on
         return out.format(**{k: escape(v) for k, v in kw.items()}) if kw else out
+
+    def category(self, key: str) -> str:
+        labels = CATEGORY_LABELS.get(key)
+        return (labels[1] if self.lang == "en" else labels[0]) if labels else key
+
+    def meta(self, meta: dict, key: str) -> Any:
+        """Valor de metadado no idioma: ``chave_en`` em inglês, quando existir."""
+        if self.lang == "en" and meta.get(f"{key}_en") not in (None, ""):
+            return meta[f"{key}_en"]
+        return meta.get(key)
+
+    def suppression(self, text: str | None) -> str:
+        """Motivo de supressão ("motivo (origem)") com a origem no idioma."""
+        out = text or ""
+        if self.lang == "en":
+            for pt, en in _SUPPRESSION_EN:
+                out = out.replace(pt, en)
+        return out
+
+    def steps(self) -> dict[str, str]:
+        """Rótulos das etapas no idioma (usados no status da varredura)."""
+        return {k: self.t(v) for k, v in STEP_LABELS.items()}
 
     def js_catalog(self) -> dict[str, str]:
         """Traduções usadas pelo JavaScript (vazio em português)."""
@@ -218,6 +311,14 @@ EN: dict[str, str] = {
     "Última": "Last",
     "ambos": "both",
     "Resolvidos desde a varredura anterior": "Resolved since the previous scan",
+    # Etapas da varredura
+    "lista negra": "blocklist",
+    "análise estática": "static analysis",
+    "dependências": "dependencies",
+    "permissões dos add-ons": "add-on permissions",
+    "código dos add-ons": "add-on code",
+    "tráfego dos add-ons": "add-on traffic",
+    "imagens dos add-ons": "add-on images",
     "Achados de DNS: {n}": "DNS findings: {n}",
     "Ver achados": "View findings",
     "Nenhum achado de DNS nesta varredura.": "No DNS findings in this scan.",

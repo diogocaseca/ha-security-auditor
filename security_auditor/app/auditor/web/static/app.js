@@ -5,6 +5,8 @@
   const csrf = document.querySelector('meta[name="csrf-token"]').content;
 
   // --- Idioma: traduções vindas da página (vazio em português) ------------------------
+  let STEPS = {};
+  try { STEPS = JSON.parse(document.getElementById("i18n-steps")?.textContent || "{}"); } catch (e) { STEPS = {}; }
   let CATALOG = {};
   try { CATALOG = JSON.parse(document.getElementById("i18n-js")?.textContent || "{}"); } catch (e) { CATALOG = {}; }
   // T("Texto em português {x}", {x: 1}) -> texto no idioma escolhido, com as variáveis.
@@ -292,7 +294,7 @@
       const data = await resp.json();
       if (data.running) {
         statusEl.textContent = data.cancelling ? T("Cancelando…") :
-          T("Varrendo") + (data.progress && data.progress.step ? ": " + data.progress.step : "") + "…";
+          T("Varrendo") + (data.progress && data.progress.step ? ": " + (STEPS[data.progress.step] || data.progress.step) : "") + "…";
         if (cancelBtn) {
           cancelBtn.hidden = false;
           if (data.cancelling) { cancelBtn.disabled = true; cancelBtn.textContent = T("Cancelando…"); }

@@ -76,7 +76,7 @@ def component_details(meta: dict, tr: Translator | None = None) -> list[str]:
     tr = tr or Translator("pt")
     out = []
     for key, label in _DETAIL_KEYS:
-        value = meta.get(key)
+        value = tr.meta(meta, key)
         if value not in (None, ""):
             out.append(f"{tr.t(label)}: {value}" if label else str(value))
     cves = meta.get("cves")
@@ -125,7 +125,11 @@ def render_html(
         _=tr.t,
         _h=tr.h,
         js_catalog=tr.js_catalog(),
+        steps=tr.steps(),
         component_details=lambda meta: component_details(meta, tr),
+        cat_label=tr.category,
+        suppression=tr.suppression,
+        mtext=tr.meta,
         # Texto do achado no idioma escolhido (português quando não houver tradução).
         ftext=lambda f, field: ((getattr(f, "en", None) or {}).get(field) if lang == "en" else None)
         or getattr(f, field),

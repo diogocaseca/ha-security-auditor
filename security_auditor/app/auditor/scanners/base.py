@@ -46,7 +46,8 @@ class ScanContext:
         if entry is None:
             return False
         self.register_component(component_type, name, **metadata,
-                                verificacao=f"não verificado: ignorado por completo ({describe(entry)})")
+                                verificacao=f"não verificado: ignorado por completo ({describe(entry)})",
+                                verificacao_en=f"not scanned: fully ignored ({entry.reason or 'no reason given'})")
         self.logger.info("Componente %s pulado: ignorado por completo", name)
         return True
 

@@ -145,6 +145,13 @@ def _finding(ctype: str, name: str, version: str | None, m: Match) -> Finding:
         match_en = (f"Matched only by {how_en}; the repository could not be confirmed, so it may be another "
                     "project with the same name.")
     source_en = f" Source: {_SOURCES_EN.get(e.fonte, e.fonte)}." if e.fonte else ""
+    range_en = f"versions {e.versoes}" if e.versoes else "all versions"
+    lines_en = [f"Item {e.id} · {range_en} · installed: {version or 'unknown'}"]
+    if e.adicionado_em:
+        lines_en[0] += f" · added on {e.adicionado_em}"
+    if e.fonte:
+        lines_en.append(f"Source: {_SOURCES_EN.get(e.fonte, e.fonte)}")
+    lines_en += [f"Evidence: {url}" for url in e.evidencias]
     return Finding(
         component=name,
         component_type=ctype,
@@ -162,6 +169,7 @@ def _finding(ctype: str, name: str, version: str | None, m: Match) -> Finding:
             f"This component was reported on the {origin_en} blocklist: {e.motivo} {match_en}{source_en} "
             "The list records reports with evidence; check the links before deciding.",
             _ADVICE_EN.get(e.categoria, "Check the evidence and decide."),
+            "\n".join(lines_en),
         ),
         snippet="\n".join(lines),
         source="lista_negra",

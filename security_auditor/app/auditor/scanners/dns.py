@@ -28,6 +28,7 @@ from urllib.parse import urlsplit
 import aiohttp
 
 from ..config import DnsServer
+from ..i18n import Bi, english
 from ..masking import shannon_entropy
 from ..models import ComponentType, Finding, Severity, en_text
 from ..net import EgressDeniedError, HttpError, SafeHttpClient
@@ -169,7 +170,7 @@ class AdGuardHome:
                 data = await self._http.get_json(f"{self._base}/control/querylog", headers=self._headers, params=params)
             except HttpError as err:
                 if err.status in (401, 403):
-                    raise DnsProviderError("o AdGuard Home recusou o usuário/senha") from err
+                    raise DnsProviderError(Bi("o AdGuard Home recusou o usuário/senha", "AdGuard Home rejected the username/password")) from err
                 raise
             entries = data.get("data") or []
             for e in entries:
@@ -191,9 +192,10 @@ class AdGuardHome:
             data = await self._http.get_json(f"{self._base}/control/status", headers=self._headers)
         except HttpError as err:
             if err.status in (401, 403):
-                raise DnsProviderError("o AdGuard Home recusou o usuário/senha") from err
+                raise DnsProviderError(Bi("o AdGuard Home recusou o usuário/senha", "AdGuard Home rejected the username/password")) from err
             if err.status == 404:
-                raise DnsProviderError("API /control não encontrada: confira se a URL é do AdGuard Home") from err
+                raise DnsProviderError(Bi("API /control não encontrada: confira se a URL é do AdGuard Home",
+                                          "/control API not found: check that the URL is AdGuard Home's")) from err
             raise
         return str((data or {}).get("version") or "") or None
 
@@ -224,13 +226,16 @@ class PiHole6:
             data = await self._http.post_json(f"{self._base}/api/auth", {"password": self._password})
         except HttpError as err:
             if err.status in (400, 401, 403):
-                raise DnsProviderError("o Pi-hole recusou a senha (use a senha de app do Pi-hole v6)") from err
+                raise DnsProviderError(Bi("o Pi-hole recusou a senha (use a senha de app do Pi-hole v6)",
+                                          "Pi-hole rejected the password (use a Pi-hole v6 app password)")) from err
             if err.status == 404:
-                raise DnsProviderError("API /api não encontrada: só o Pi-hole v6 é suportado") from err
+                raise DnsProviderError(Bi("API /api não encontrada: só o Pi-hole v6 é suportado",
+                                          "/api not found: only Pi-hole v6 is supported")) from err
             raise
         session = (data or {}).get("session") or {}
         if not session.get("valid"):
-            raise DnsProviderError("o Pi-hole não abriu a sessão (senha incorreta?)")
+            raise DnsProviderError(Bi("o Pi-hole não abriu a sessão (senha incorreta?)",
+                                      "Pi-hole did not open the session (wrong password?)"))
         self._sid = session.get("sid")
         self._logged_in = True
 
@@ -300,9 +305,11 @@ async def check_server(srv: DnsServer, verify_tls: bool = True) -> dict[str, Any
     parts = urlsplit(srv.url or "")
     if not srv.url:
         out["mensagem"] = "URL não configurada"
+        out["mensagem_en"] = "URL not configured"
         return out
     if parts.scheme not in ("http", "https") or not parts.hostname:
         out["mensagem"] = "URL inválida (use http:// ou https://)"
+        out["mensagem_en"] = "invalid URL (use http:// or https://)"
         return out
     out["endereco"] = parts.hostname + (f":{parts.port}" if parts.port else "")
     http = SafeHttpClient(allowed_hosts=frozenset({parts.hostname.lower()}), allow_http=True,
@@ -313,20 +320,28 @@ async def check_server(srv: DnsServer, verify_tls: bool = True) -> dict[str, Any
         out["versao"] = await provider.check()
         out["ok"] = True
         out["mensagem"] = "conectado"
+        out["mensagem_en"] = "connected"
     except DnsProviderError as err:
         out["mensagem"] = str(err)
+        out["mensagem_en"] = english(err.args[0] if err.args else err)
     except HttpError as err:
         out["mensagem"] = f"o servidor respondeu HTTP {err.status}"
+        out["mensagem_en"] = f"the server answered HTTP {err.status}"
     except EgressDeniedError as err:
         out["mensagem"] = f"bloqueado pelo filtro de saída ({err})"
+        out["mensagem_en"] = f"blocked by the outbound filter ({err})"
     except (aiohttp.ClientConnectorCertificateError, aiohttp.ClientSSLError):
         out["mensagem"] = "certificado TLS inválido (para certificado próprio, desative dns_verify_tls)"
+        out["mensagem_en"] = "invalid TLS certificate (for a self-signed certificate, turn off dns_verify_tls)"
     except aiohttp.ClientConnectorError:
         out["mensagem"] = "não foi possível conectar (confira endereço e porta)"
+        out["mensagem_en"] = "could not connect (check address and port)"
     except TimeoutError:
         out["mensagem"] = f"sem resposta em {CHECK_TIMEOUT} s"
+        out["mensagem_en"] = f"no answer within {CHECK_TIMEOUT} s"
     except (aiohttp.ClientError, ValueError) as err:
         out["mensagem"] = f"erro de conexão ({type(err).__name__})"
+        out["mensagem_en"] = f"connection error ({type(err).__name__})"
     finally:
         await provider.close()
         await http.close()
@@ -369,12 +384,13 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
     findings: list[Finding] = []
 
     def finding(rule: str, sev: Severity, title: str, why: str, todo: str, snippet: str,
-                category: str, key: str = "", en: tuple[str, str, str] = ("", "", "")) -> None:
+                category: str, key: str = "", en: tuple[str, str, str] = ("", "", ""),
+                snippet_en: str | None = None) -> None:
         findings.append(Finding(
             component="dns", component_type=ComponentType.NETWORK, category=category,
             rule_id=f"auditor.dns.{rule}", severity=sev, title=title,
             explanation=f"{why} {AVISO}", recommendation=todo, snippet=snippet, source="dns",
-            en=en_text(en[0], f"{en[1]} {AVISO_EN}", en[2]),
+            en=en_text(en[0], f"{en[1]} {AVISO_EN}", en[2], snippet_en),
             extra={"fingerprint_key": key},
         ))
 
@@ -382,6 +398,11 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
         last = s.last.astimezone().strftime("%d/%m %H:%M") if s.last else "?"
         extra = f", {s.blocked} bloqueada(s)" if s.blocked else ""
         return f"{s.domain}: {s.count} consulta(s){extra}, última {last}"
+
+    def line_en(s: DomainStats) -> str:
+        last = s.last.astimezone().strftime("%m-%d %H:%M") if s.last else "?"
+        extra = f", {s.blocked} blocked" if s.blocked else ""
+        return f"{s.domain}: {s.count} query(ies){extra}, last {last}"
 
     for s in sorted(stats.values(), key=lambda s: s.domain):
         if _SUSPICIOUS.search(s.domain):
@@ -395,7 +416,8 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
                      "The HA host queried a service often used for data exfiltration, reverse tunnels or hosting "
                      "payloads.",
                      "Search for this domain in the integrations' and add-ons' code (the static analysis findings "
-                     "help) and in the logs; stop the responsible component if there is no explanation."))
+                     "help) and in the logs; stop the responsible component if there is no explanation."),
+                    line_en(s))
         elif _MINING.search(s.domain):
             finding("mineracao", Severity.HIGH, f"Consulta a pool de mineração: {s.domain}",
                     "Contato com pool de mineração de criptomoedas é o sinal típico de cryptojacking: alguém "
@@ -405,7 +427,8 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
                     (f"Query to a mining pool: {s.domain}",
                      "Contact with a cryptocurrency mining pool is the typical sign of cryptojacking: someone using "
                      "your machine's processor to mine.",
-                     "Check in the statistics which add-on has high CPU and investigate it."))
+                     "Check in the statistics which add-on has high CPU and investigate it."),
+                    line_en(s))
 
     random_like = sorted((s for s in stats.values() if looks_random(s.domain)), key=lambda s: -s.count)
     if random_like:
@@ -418,7 +441,8 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
                 (f"{len(random_like)} random-looking domain(s)",
                  "Long, meaningless names can be generated by malware (DGA) or used to tunnel data over DNS. They "
                  "can also belong to unrecognised CDNs and cloud services.",
-                 "Check that the domains belong to services you use."))
+                 "Check that the domains belong to services you use."),
+                "\n".join(line_en(s) for s in random_like[:15]))
 
     blocked = sorted((s for s in stats.values() if s.blocked), key=lambda s: -s.blocked)
     if blocked:
@@ -431,7 +455,8 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
                 (f"{len(blocked)} domain(s) blocked by your DNS filter",
                  "The HA host tried to reach domains your AdGuard/Pi-hole blocks (ads, trackers or threat lists). "
                  "It is usually some component's telemetry.",
-                 "Check whether any domain is on a threat list (not just an ad list)."))
+                 "Check whether any domain is on a threat list (not just an ad list)."),
+                "\n".join(line_en(s) for s in blocked[:20]))
 
     new = sorted((s for s in stats.values() if s.new), key=lambda s: -s.count)
     if new and not first_run:
@@ -444,7 +469,8 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
                 (f"{len(new)} new domain(s) since the previous scan",
                  "Domains the HA host had never queried before. This is normal after installing or updating "
                  "something; without a change in the installation, it deserves a look.",
-                 "Check that the domains match something you installed or updated."))
+                 "Check that the domains match something you installed or updated."),
+                "\n".join(line_en(s) for s in new[:30]))
     return findings
 
 
@@ -525,7 +551,7 @@ class DnsScanner:
                 got = await self._fetch(ctx, srv, host, clients, since)
             except DnsProviderError as err:
                 findings.append(_problem(f"Consulta ao {srv.label} falhou", str(err), srv,
-                                         f"Query to {srv.label} failed", str(err)))
+                                         f"Query to {srv.label} failed", english(err.args[0] if err.args else err)))
                 continue
             except (HttpError, EgressDeniedError, aiohttp.ClientError, TimeoutError, ValueError) as err:
                 findings.append(_problem(f"Consulta ao {srv.label} falhou", f"{type(err).__name__}: {err}", srv,
@@ -545,12 +571,18 @@ class DnsScanner:
         top = sorted(stats.values(), key=lambda s: (-s.count, s.domain))[:TOP_DOMAINS]
         names = list(per_server)
         trafego = f"{len(queries)} consultas, {len(stats)} domínios nas últimas 24 h"
+        trafego_en = f"{len(queries)} queries, {len(stats)} domains in the last 24 h"
         if len(names) > 1:
-            trafego += " (" + ", ".join(f"{n}: {c}" for n, c in per_server.items()) + ")"
+            per = " (" + ", ".join(f"{n}: {c}" for n, c in per_server.items()) + ")"
+            trafego += per
+            trafego_en += per
         ctx.register_component(
             ComponentType.NETWORK, "dns",
             nome=f"Domínios consultados ({' + '.join(names)})",
+            nome_en=f"Queried domains ({' + '.join(names)})",
             trafego=trafego,
+            trafego_en=trafego_en,
+            aviso_en=AVISO_EN,
             clientes=clients,
             servidores=names,
             aviso=AVISO,

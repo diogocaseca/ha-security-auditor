@@ -163,10 +163,11 @@ class TrafficScanner:
 
 def summarize(samples: list[dict[str, Any]], info: dict[str, Any]) -> dict[str, Any]:
     if info.get("host_network"):
-        return {"trafego": "não medido (usa a rede do host)"}
+        return {"trafego": "não medido (usa a rede do host)", "trafego_en": "not measured (uses the host network)"}
     tx = [r for _, r in rates(samples)]
     if len(tx) < MIN_SAMPLES:
-        return {"trafego": f"coletando dados ({len(samples)} amostras)"}
+        return {"trafego": f"coletando dados ({len(samples)} amostras)",
+                "trafego_en": f"collecting data ({len(samples)} samples)"}
     rx = [r for _, r in rates(samples, "network_rx")]
     cpu = [s["cpu_percent"] for s in samples if s.get("cpu_percent") is not None]
     mem = [s["memory_usage"] for s in samples if s.get("memory_usage") is not None]
@@ -196,6 +197,11 @@ def findings_from_events(events: list[dict[str, Any]]) -> list[Finding]:
             f"(média {human_rate(e['baseline_mean'])})"
             for e in evs[-10:]
         ]
+        lines_en = [
+            f"{_parse(e['ts']).astimezone().strftime('%m-%d %H:%M')}: {human_rate(e['rate'])} "
+            f"(average {human_rate(e['baseline_mean'])})"
+            for e in evs[-10:]
+        ]
         out.append(Finding(
             component=slug,
             component_type=ComponentType.ADDON,
@@ -219,6 +225,7 @@ def findings_from_events(events: list[dict[str, Any]]) -> list[Finding]:
                 "the typical sign of data exfiltration.",
                 "Compare the times with what the add-on should be doing (backups, scheduled uploads). If there is "
                 "no explanation, check the add-on log and consider stopping it.",
+                "\n".join(lines_en),
             ),
             snippet="\n".join(lines),
             source="estatisticas",

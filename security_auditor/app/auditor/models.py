@@ -62,9 +62,15 @@ class ComponentType:
 _WS = re.compile(r"\s+")
 
 
-def en_text(title: str, explanation: str, recommendation: str) -> dict[str, str]:
-    """Texto do achado em inglês (o português vai nos campos normais do Finding)."""
-    return {"title": title, "explanation": explanation, "recommendation": recommendation}
+def en_text(title: str, explanation: str, recommendation: str, snippet: str | None = None) -> dict[str, str]:
+    """Texto do achado em inglês (o português vai nos campos normais do Finding).
+
+    ``snippet`` só quando o trecho é texto explicativo (não código), ex.: linhas do DNS.
+    """
+    out = {"title": title, "explanation": explanation, "recommendation": recommendation}
+    if snippet is not None:
+        out["snippet"] = snippet
+    return out
 
 
 @dataclass
