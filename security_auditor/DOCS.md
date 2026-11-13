@@ -430,6 +430,9 @@ que tem o passo a passo completo.
 | Nome igual, mas o componente tem outro repositório | nenhum (é outro projeto) | — |
 | Versão instalada fora da faixa de versões | nenhum (já corrigido) | — |
 
+Para ver só os componentes marcados, use **Só lista negra** no cabeçalho da tabela de
+componentes (aparece quando há algum).
+
 Itens com erro são ignorados e geram o achado "Lista negra com erro", dizendo qual item e por
 quê; o resto da lista continua valendo. A lista só **acrescenta** avisos: ela não libera nem
 esconde nada, e a comparação é toda local.

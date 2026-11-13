@@ -11,7 +11,8 @@
   });
   const SEV_KEYS = Object.keys(sevLabels);
   const state = { sev: new Set(), component: null, view: null, text: "", onlyNew: false, suppressed: false,
-                  hideEmpty: true, type: "" };
+                  hideEmpty: true, type: "", onlyBlocklist: false };
+  const onlyBlocklist = document.getElementById("only-blocklist");
   const typeSelect = document.getElementById("filter-type");
   const TYPES = typeSelect ? Array.from(typeSelect.options).map((o) => o.value).filter(Boolean) : [];
   // Preferência "Esconder componentes sem achados" (marcada por padrão), lembrada neste navegador.
@@ -29,6 +30,8 @@
     state.view = state.component ? null : (VIEWS.includes(q.get("ver")) ? q.get("ver") : null);
     state.sev = new Set((q.get("niveis") || "").split(",").filter((k) => SEV_KEYS.includes(k)));
     state.type = TYPES.includes(q.get("tipo")) ? q.get("tipo") : "";
+    state.onlyBlocklist = !!onlyBlocklist && q.get("lista") === "1";
+    if (onlyBlocklist) onlyBlocklist.checked = state.onlyBlocklist;
     if (typeSelect) typeSelect.value = state.type;
   }
 
@@ -38,11 +41,13 @@
     q.delete("ver");
     q.delete("niveis");
     q.delete("tipo");
+    q.delete("lista");
     if (component) q.set("componente", component);
     else if (view) q.set("ver", view);
     if (view !== "historico") q.delete("pagina"); // a página só vale na aba de histórico
     if (state.sev.size) q.set("niveis", SEV_KEYS.filter((k) => state.sev.has(k)).join(","));
     if (state.type) q.set("tipo", state.type);
+    if (state.onlyBlocklist) q.set("lista", "1");
     const qs = q.toString();
     return window.location.pathname + (qs ? "?" + qs : "");
   }
@@ -113,7 +118,8 @@
     for (const row of compRows) {
       const sevs = row.dataset.sevs.split(" ").filter(Boolean);
       const show = (state.sev.size === 0 || sevs.some((s) => state.sev.has(s))) &&
-        (!state.hideEmpty || sevs.length > 0) && (!state.type || row.dataset.type === state.type);
+        (!state.hideEmpty || sevs.length > 0) && (!state.type || row.dataset.type === state.type) &&
+        (!state.onlyBlocklist || row.dataset.blocklist !== "");
       row.hidden = !show;
       if (show) compVisible++;
     }
@@ -195,6 +201,13 @@
   // Quadrado "Ignorados": abre a aba da lista; clicar de novo volta ao resumo.
   document.getElementById("toggle-ignored")?.addEventListener("click", () =>
     state.view === "ignorados" ? backToSummary() : openView(null, "ignorados"));
+
+  // "Só lista negra": só os componentes com o selo (fica na URL, como o tipo e os níveis).
+  onlyBlocklist?.addEventListener("change", () => {
+    state.onlyBlocklist = onlyBlocklist.checked;
+    saveLevels();
+    apply();
+  });
 
   // Filtro de tipo (fica na URL, como os níveis, e volta selecionado ao retornar ao resumo).
   typeSelect?.addEventListener("change", () => {

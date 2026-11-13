@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.12.1
+
+- Filtro **Só lista negra** na tabela de componentes: mostra só os componentes com o selo
+  (inclusive "possível correspondência"). Aparece quando há algum marcado e fica na URL.
+
 ## 0.12.0
 
 - Nova aba **Lista negra**: mostra a situação da lista comunitária e permite adicionar, editar e

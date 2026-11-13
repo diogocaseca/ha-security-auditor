@@ -184,6 +184,8 @@ async def test_badge_and_evidence_links_in_report(tmp_path):
     html = " ".join(render_html(result, status={}, history=[], csrf_token="t").split())
     assert 'badge sev-critical badge-blocklist" title="Item P-1 da lista pessoal · comprometido"> Lista negra</span>' in html
     assert "Lista negra?</span>" in html  # correspondência só pelo nome
+    assert 'id="only-blocklist"' in html  # filtro aparece quando há componente marcado
+    assert 'data-blocklist="forte"' in html and 'data-blocklist="possivel"' in html and 'data-blocklist=""' in html
     assert ('<a href="https://github.com/exemplo/ha-adulterada/issues/7" target="_blank" '
             'rel="noopener noreferrer">') in html
 

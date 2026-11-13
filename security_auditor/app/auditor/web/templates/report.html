@@ -122,6 +122,9 @@
                 {% for t in comp_types %}<option value="{{ t }}">{{ type_label(t) }}</option>{% endfor %}
               </select>
             </label>
+            {% if result.components | selectattr('metadata.lista_negra') | list %}
+              <label class="small"><input type="checkbox" id="only-blocklist"> Só lista negra</label>
+            {% endif %}
             <label class="small"><input type="checkbox" id="hide-empty" checked> Esconder componentes sem achados</label>
             <span class="muted small" id="comp-filter-note" hidden></span>
             {% if viewing_latest %}
@@ -139,7 +142,8 @@
             </thead>
             <tbody>
               {% for c in result.components %}
-                <tr class="comp-row" data-type="{{ c.component_type }}" data-github="{{ c.metadata.repositorio or '' }}"
+                <tr class="comp-row" data-type="{{ c.component_type }}"
+                    data-blocklist="{{ ('forte' if c.metadata.lista_negra.forte else 'possivel') if c.metadata.lista_negra else '' }}" data-github="{{ c.metadata.repositorio or '' }}"
                     data-image="{{ c.metadata.imagem or '' }}" data-sevs="{% for sev in severities if c.counts.get(sev.key, 0) %}{{ sev.key }} {% endfor %}">
                   <td>
                     <button type="button" class="link" data-filter-component="{{ c.name }}">{{ c.name }}</button>
