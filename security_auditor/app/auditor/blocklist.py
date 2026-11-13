@@ -44,7 +44,12 @@ CATEGORIES = {
     "vulneravel": "com vulnerabilidade grave conhecida",
     "abandonado": "abandonado, sem correções de segurança",
     "telemetria": "envia dados para terceiros sem aviso claro",
+    "removido": "removido ou bloqueado numa loja oficial (ex.: HACS)",
+    "incompativel": "versão bloqueada pelo próprio Home Assistant",
 }
+# Fontes conhecidas (campo opcional "fonte"), com o nome exibido no relatório.
+SOURCES = {"hacs": "lista de removidos do HACS", "home-assistant": "lista de bloqueados do Home Assistant",
+           "comunidade": "relato da comunidade"}
 
 _GITHUB = re.compile(r"^[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}$")
 _NAME = re.compile(r"^[A-Za-z0-9_.*?-]{1,200}$")
@@ -55,6 +60,10 @@ _DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 class BlocklistError(ValueError):
     """Arquivo da lista inválido (mensagem em português, sem dados sensíveis)."""
+
+
+class _NewerFormat(Exception):  # noqa: N818 - sinal interno, não é erro
+    """Item usa um valor (categoria, tipo, fonte) de uma versão mais nova do formato."""
 
 
 @dataclass(frozen=True)
@@ -71,6 +80,7 @@ class BlocklistEntry:
     versoes: str = ""
     evidencias: tuple[str, ...] = ()
     adicionado_em: str | None = None
+    fonte: str | None = None  # hacs | home-assistant | comunidade
 
     @property
     def severity(self) -> Severity:
@@ -110,6 +120,8 @@ class Blocklist:
                 if e.github and repos:
                     continue  # o componente tem outro repositório: é outro projeto com o mesmo nome
                 how = f"nome {e.nome}"
+                # O Home Assistant bloqueia pelo domínio da integração: para essa fonte o nome é a chave.
+                strong = e.fonte == "home-assistant"
             if how is None or not version_affected(e.versoes, version):
                 continue
             out.append(Match(e, strong, how))
@@ -156,6 +168,7 @@ def parse(data: Any, origem: str) -> tuple[list[BlocklistEntry], list[str]]:
         raise BlocklistError(f"lista grande demais (máximo {MAX_ITEMS} itens)")
     entries: list[BlocklistEntry] = []
     errors: list[str] = []
+    newer = 0
     seen: set[str] = set()
     for n, item in enumerate(items, start=1):
         try:
@@ -166,13 +179,13 @@ def parse(data: Any, origem: str) -> tuple[list[BlocklistEntry], list[str]]:
                 raise BlocklistError(f"id '{entry_id}' repetido")
             tipo = _text(item, "tipo", 20)
             if tipo is not None and tipo not in TYPES:
-                raise BlocklistError("campo 'tipo' deve ser integracao, frontend ou addon")
+                raise _NewerFormat
             nivel = _text(item, "nivel", 20, required=True) or ""
             if nivel not in LEVELS:
                 raise BlocklistError("campo 'nivel' deve ser critica, alta, media ou aviso")
             categoria = _text(item, "categoria", 20, required=True) or ""
             if categoria not in CATEGORIES:
-                raise BlocklistError("campo 'categoria' desconhecido")
+                raise _NewerFormat
             versoes = _text(item, "versoes", 100) or ""
             if versoes:
                 try:
@@ -198,7 +211,10 @@ def parse(data: Any, origem: str) -> tuple[list[BlocklistEntry], list[str]]:
                 imagem=_text(item, "imagem", 300, _IMAGE),
                 versoes=versoes, evidencias=tuple(links),
                 adicionado_em=_text(item, "adicionado_em", 10, _DATE),
+                fonte=_text(item, "fonte", 30),
             )
+            if entry.fonte is not None and entry.fonte not in SOURCES:
+                raise _NewerFormat
             if not (entry.github or entry.nome or entry.imagem):
                 raise BlocklistError("informe 'github', 'nome' ou 'imagem'")
             if entry.nome and set(entry.nome) <= {"*", "?"}:
@@ -207,6 +223,12 @@ def parse(data: Any, origem: str) -> tuple[list[BlocklistEntry], list[str]]:
             entries.append(entry)
         except BlocklistError as err:
             errors.append(f"item {n}: {err}")
+        except _NewerFormat:
+            # Compatibilidade: categorias/tipos/fontes novos não quebram versões antigas do add-on.
+            newer += 1
+    if newer:
+        _LOGGER.info("Lista negra %s: %d item(ns) ignorado(s) por usar(em) valores de uma versão mais nova "
+                     "do formato; atualize o add-on para usá-los", origem, newer)
     return entries, errors
 
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.11.0
+
+- **Lista negra (fase 4):** a lista comunitária passa a incluir a lista de removidos do HACS e a
+  de integrações bloqueadas pelo Home Assistant. Novas categorias `removido` e `incompativel`;
+  o achado mostra a fonte de cada item. Itens do HA casam pelo domínio da integração (é como o
+  próprio HA bloqueia), com a severidade cheia.
+- Compatibilidade: itens com categoria, tipo ou fonte de uma versão mais nova do formato são
+  ignorados (com aviso no log) em vez de virar erro.
+
 ## 0.10.0
 
 - **Lista negra comunitária (fase 2):** baixada do repositório `diogocaseca/ha-security-blocklist`

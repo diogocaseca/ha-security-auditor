@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 
 from .. import blocklist_update
-from ..blocklist import CATEGORIES, Blocklist, Match, load, personal_path
+from ..blocklist import CATEGORIES, SOURCES, Blocklist, Match, load, personal_path
 from ..models import ComponentType, Finding, Severity
 from .base import ScanContext
 
@@ -23,6 +23,8 @@ _ADVICE = {
     "vulneravel": "Atualize para uma versão corrigida ou desative o componente até haver correção.",
     "abandonado": "Procure uma alternativa mantida; sem correções, falhas futuras não serão consertadas.",
     "telemetria": "Confira as evidências e decida se aceita o envio desses dados; desative se não aceitar.",
+    "removido": "Veja o motivo da remoção; se o projeto foi abandonado ou substituído, procure a alternativa indicada.",
+    "incompativel": "Atualize para uma versão fora da faixa bloqueada; o Home Assistant não carrega a versão afetada.",
 }
 
 _LOWER = {Severity.CRITICAL: Severity.HIGH, Severity.HIGH: Severity.MEDIUM, Severity.MEDIUM: Severity.LOW,
@@ -92,6 +94,8 @@ def _finding(ctype: str, name: str, version: str | None, m: Match) -> Finding:
     lines = [f"Item {e.id} · {faixa} · instalada: {version or 'desconhecida'}"]
     if e.adicionado_em:
         lines[0] += f" · incluído em {e.adicionado_em}"
+    if e.fonte:
+        lines.append(f"Fonte: {SOURCES.get(e.fonte, e.fonte)}")
     lines += [f"Evidência: {url}" for url in e.evidencias]
     return Finding(
         component=name,

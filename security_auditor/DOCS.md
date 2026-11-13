@@ -367,7 +367,11 @@ evidências antes de decidir.
 - **Lista pessoal:** crie `/config/security_auditor/lista_negra.json` (pelo File editor, Studio
   Code Server ou Samba) para marcar o que você mesmo quiser. Ela vale na próxima varredura.
 - **Lista comunitária:** mantida em
-  [diogocaseca/ha-security-blocklist](https://github.com/diogocaseca/ha-security-blocklist) e
+  [diogocaseca/ha-security-blocklist](https://github.com/diogocaseca/ha-security-blocklist).
+  Além dos relatos da comunidade, ela inclui a **lista de removidos do HACS** (repositórios
+  tirados da lista padrão: crítico, blacklist, removido, abandonado) e a **lista de bloqueados do
+  Home Assistant** (versões de integrações que o próprio HA não carrega). O achado mostra a
+  fonte de cada item. A lista é
   baixada a cada varredura (no máximo a cada 6 horas), somada à pessoal. Opção
   `lista_comunitaria` (ligada por padrão) para desligar.
 
@@ -416,7 +420,8 @@ Campos: `id` (único), `tipo` (`integracao`, `frontend`, `addon`; vazio = qualqu
 (`dono/repo`), `nome` (domínio, pasta do card ou slug; aceita `*`), `imagem` (`{arch}` vale
 qualquer arquitetura), `versoes` (faixa no formato do pip, vazio = todas), `nivel` (`critica`,
 `alta`, `media`, `aviso`), `categoria` (`malicioso`, `comprometido`, `vulneravel`,
-`abandonado`, `telemetria`), `motivo` e `evidencias` (links `https://`). É preciso informar
+`abandonado`, `telemetria`, `removido`, `incompativel`), `motivo` e `evidencias` (links
+`https://`). É preciso informar
 `github`, `nome` ou `imagem`.
 
 Como a correspondência é feita:

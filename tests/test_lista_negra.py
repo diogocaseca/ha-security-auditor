@@ -38,15 +38,16 @@ def test_parse_valid_and_invalid_items():
         _item(id="ok-1", github="a/b"),  # id repetido
         _item(id="sem-alvo"),
         _item(id="nivel", github="a/b", nivel="urgente"),
+        _item(id="futuro", github="a/b", categoria="categoria-do-futuro"),  # ignorado, sem erro
         _item(id="link", github="a/b", evidencias=["javascript:alert(1)"]),
         _item(id="versao", github="a/b", versoes="depois da 2"),
         _item(id="curinga", nome="*"),
-        _item(id="tipo", github="a/b", tipo="tema"),
+        _item(id="tipo", github="a/b", tipo="tema"),  # tipo de versão futura: ignorado, sem erro
         "texto",
     ), "pessoal")
     assert [e.id for e in entries] == ["ok-1", "ok-2"]
     assert entries[0].severity is Severity.HIGH and entries[0].origem == "pessoal"
-    assert len(errors) == 8
+    assert len(errors) == 7
     assert any("repetido" in e for e in errors) and any("https://" in e for e in errors)
 
 
@@ -172,3 +173,23 @@ async def test_badge_and_evidence_links_in_report(tmp_path, config_with_list):
     assert "Lista negra?</span>" in html  # correspondência só pelo nome
     assert ('<a href="https://github.com/exemplo/ha-adulterada/issues/7" target="_blank" '
             'rel="noopener noreferrer">') in html
+
+
+async def test_new_categories_and_source(tmp_path):
+    from auditor.blocklist import Match
+    from auditor.scanners.blocklist import _finding
+
+    entries, errors = parse(_list(
+        _item(id="hacs-x", github="dono/card", nivel="aviso", categoria="removido", fonte="hacs",
+              motivo="Removido da lista padrão do HACS: Repository is archived"),
+        _item(id="ha-spook", nome="spook", tipo="integracao", versoes="<4.0.0", categoria="incompativel",
+              fonte="home-assistant", motivo="O Home Assistant bloqueia: breaks the template engine"),
+        _item(id="fonte-ruim", github="a/b", fonte="blog"),
+    ), "comunitária")
+    assert [e.id for e in entries] == ["hacs-x", "ha-spook"] and errors == []  # fonte nova: ignorada
+    f = _finding(ComponentType.INTEGRATION, "spook", "3.2.0", Match(entries[1], False, "nome spook"))
+    assert "Fonte: lista de bloqueados do Home Assistant" in f.snippet
+    assert f.rule_id == "auditor.lista-negra.incompativel" and "versão bloqueada" in f.title
+    assert Blocklist(entries).matches(ComponentType.INTEGRATION, "spook", version="4.0.1") == []
+    (m,) = Blocklist(entries).matches(ComponentType.INTEGRATION, "spook", version="3.2.0")
+    assert m.strong  # o HA bloqueia pelo domínio: correspondência forte
