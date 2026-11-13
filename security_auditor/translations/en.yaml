@@ -47,6 +47,9 @@ configuration:
     name: Home Assistant IPs on the DNS server (optional)
   dns_verify_tls:
     name: Verify TLS certificate
+  intervalo_dns_minutos:
+    name: DNS check interval (minutes)
+    description: How often the auditor re-reads the AdGuard/Pi-hole log and updates only the DNS part of the report, without scanning the components again. New DNS findings raise an alert in HA according to the minimum alert level. From 0 to 1440 minutes; default 120. With 0, DNS only runs together with the full scan.
   lista_comunitaria:
     name: Community blocklist
     description: Downloads the signed list of reported components from GitHub and compares it locally. Nothing about your installation is sent.

@@ -247,6 +247,16 @@ WARNING DNS Pi-hole (192.168.1.3): falha na conexão: o Pi-hole recusou a senha 
 Use **Testar conexão** na aba **DNS** para repetir o teste depois de corrigir algo (a
 configuração nova só vale depois de reiniciar o add-on).
 
+**Verificação de DNS entre as varreduras completas.** A cada `intervalo_dns_minutos` (padrão
+120) o auditor relê o log dos servidores DNS e atualiza **só a parte de DNS** do relatório
+(achados e tabela de domínios), sem varrer os componentes de novo; leva poucos segundos. No
+histórico aparece como "Verificação de DNS"; verificações de DNS seguidas viram uma entrada só (a
+mais recente), para não empurrar as varreduras completas para fora do `report_retention`. Quando
+surge um achado de DNS **novo** a partir do `aviso_nivel_minimo`, o auditor cria uma notificação no
+HA (`security_auditor_rede_dns`) e dispara o evento `security_auditor_alerta` com
+`componente: dns` e `mudanca: verificacao_dns`. Domínios ignorados não geram aviso. Com `0`, o DNS
+só roda junto com a varredura completa.
+
 O Pi-hole v5 não é suportado (API antiga).
 
 ## Opções
@@ -274,8 +284,9 @@ O Pi-hole v5 não é suportado (API antiga).
 | `lista_comunitaria` | `true` | Baixa e usa a [lista negra comunitária](#lista-negra) assinada. |
 | `verificar_instalacoes` | `true` | Verificar instalações e atualizações logo em seguida. Veja [Instalações e atualizações](#instalações-e-atualizações). |
 | `intervalo_verificacao_minutos` | `2` | De quanto em quanto tempo (1 a 60 minutos) o auditor olha o que está instalado. É uma conferência leve; só varre quando algo mudou. |
-| `aviso_nivel_minimo` | `alta` | Nível mínimo que gera notificação depois de uma instalação ou atualização: `critica`, `alta`, `media`, `baixa` ou `desligado` (sem notificação). |
+| `aviso_nivel_minimo` | `alta` | Nível mínimo que gera notificação depois de uma instalação, de uma atualização ou da verificação de DNS: `critica`, `alta`, `media`, `baixa` ou `desligado` (sem notificação). |
 | `dns_verify_tls` | `true` | Desative só se o AdGuard ou o Pi-hole usar HTTPS com certificado próprio (vale para os dois). |
+| `intervalo_dns_minutos` | `120` | De quanto em quanto tempo (0 a 1440 minutos) o auditor roda a [verificação de DNS](#dns-opcional-adguard-home-eou-pi-hole-v6) sozinha, entre as varreduras completas. `0` = o DNS só roda junto com a varredura completa. |
 | `allowlist` | `[]` | Exceções; veja abaixo. |
 
 ## Proteções contra sobrecarga
@@ -349,7 +360,9 @@ automation:
 
 Dados do evento: `tipo` (`integracao`, `frontend`, `addon`), `componente`, `mudanca` (`novo` ou
 `atualizado`), `versao`, `achados` (contagem por nível: `critical`, `high`, `medium`, `low`,
-`info`), `lista_negra`, `alerta` (se atingiu o nível da notificação) e `scan_id`.
+`info`), `lista_negra`, `alerta` (se atingiu o nível da notificação) e `scan_id`. A
+[verificação de DNS](#dns-opcional-adguard-home-eou-pi-hole-v6) dispara o mesmo evento quando
+encontra algo novo, com `tipo: rede`, `componente: dns` e `mudanca: verificacao_dns`.
 
 O que saber:
 

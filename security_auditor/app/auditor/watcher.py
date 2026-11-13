@@ -10,6 +10,9 @@ poucos), roda uma varredura parcial só com o que mudou e, se houver achados a p
 configurado ou correspondência na lista negra, cria uma notificação no HA. Sempre dispara o
 evento ``security_auditor_alerta`` (para automações, ex.: aviso no celular).
 
+Também roda a verificação só de DNS (``intervalo_dns_minutos``, ``DnsWatcher``): relê o log do
+AdGuard/Pi-hole, atualiza a parte de DNS do relatório e avisa sobre achados de DNS novos.
+
 O auditor **não bloqueia** nada: a verificação acontece logo depois da instalação.
 """
 
@@ -132,12 +135,75 @@ def build_alert(result: ScanResult, change: dict[str, str], min_level: str, lang
     lines.append("")
     if ingress_url:
         lines += [f"[{'Open Security Auditor' if en else 'Abrir o Security Auditor'}]({ingress_url})", ""]
-    lines.append("The auditor points out what deserves review; it does not decide on its own that something "
-                 "is malicious." if en else
-                 "O auditor aponta o que merece revisão; não decide sozinho que algo é malicioso.")
+    lines.append(_DISCLAIMER[1] if en else _DISCLAIMER[0])
     title = (f"Security Auditor: review {name}" if en else f"Security Auditor: revise {name}")
     notification_id = "security_auditor_" + _SAFE.sub("_", f"{change['tipo']}_{name}".lower())[:80]
     return event, (notification_id, title, "\n".join(lines))
+
+
+_DISCLAIMER = ("O auditor aponta o que merece revisão; não decide sozinho que algo é malicioso.",
+               ("The auditor points out what deserves review; it does not decide on its own that something "
+                "is malicious."))
+DNS_NOTIFICATION_ID = "security_auditor_rede_dns"
+
+
+def build_dns_alert(result: ScanResult, min_level: str, lang: str, ingress_url: str | None = None
+                    ) -> tuple[dict[str, Any] | None, tuple[str, str, str] | None]:
+    """Verificação de DNS: (evento, notificação). Evento só se houver achado de DNS novo."""
+    findings = [f for f in result.findings
+                if (f.component_type, f.component) == (ComponentType.NETWORK, "dns") and f.is_new
+                and not f.suppressed]
+    if not findings:
+        return None, None
+    counts = {sev.key: sum(1 for f in findings if f.severity is sev) for sev in Severity}
+    threshold = LEVELS.get(min_level)
+    serious = [f for f in findings if threshold is not None and f.severity >= threshold]
+    event = {"tipo": str(ComponentType.NETWORK), "componente": "dns", "mudanca": "verificacao_dns",
+             "versao": None, "achados": counts, "lista_negra": False, "alerta": bool(serious),
+             "scan_id": result.scan_id}
+    if not serious:
+        return event, None
+    en = lang == "en"
+    tr = Translator(lang)
+    names = _SEV_EN if en else _SEV_PT
+    summary = ", ".join(f"{counts[s.key]} {names[s]}" for s in sorted(Severity, reverse=True) if counts[s.key])
+    lines = ["The DNS check found something new in the queries made by Home Assistant." if en else
+             "A verificação de DNS encontrou algo novo nas consultas feitas pelo Home Assistant.", "",
+             ("- New findings: " if en else "- Achados novos: ") + summary]
+    for f in sorted(serious, key=lambda f: -int(f.severity))[:3]:
+        title = ((f.en or {}).get("title") if en else None) or f.title
+        lines.append(f"- {tr.t(f.severity.label)}: {title}")
+    lines.append("")
+    if ingress_url:
+        lines += [f"[{'Open Security Auditor' if en else 'Abrir o Security Auditor'}]({ingress_url})", ""]
+    lines.append(_DISCLAIMER[1] if en else _DISCLAIMER[0])
+    title = "Security Auditor: review DNS queries" if en else "Security Auditor: revise as consultas DNS"
+    return event, (DNS_NOTIFICATION_ID, title, "\n".join(lines))
+
+
+async def _ingress_url(supervisor: Any | None) -> str | None:
+    if supervisor is None:
+        return None
+    try:
+        slug = await supervisor.self_slug()
+    except Exception:  # noqa: BLE001
+        return None
+    return f"/hassio/ingress/{slug}" if slug else None
+
+
+async def _send(notifier: Any | None, event: dict[str, Any], note: tuple[str, str, str] | None,
+                label: str) -> str:
+    """Dispara o evento e cria a notificação. Devolve o complemento para o log."""
+    if notifier is not None and notifier.available:
+        try:
+            await notifier.fire_alert(event)
+            if note:
+                await notifier.notify(*note)
+                return " — notificação criada no HA"
+        except Exception as err:  # noqa: BLE001 - aviso nunca derruba o vigia
+            _LOGGER.warning("Não foi possível avisar no HA sobre %s: %s", label, err)
+        return ""
+    return " — merece aviso, mas sem acesso ao HA (SUPERVISOR_TOKEN)" if note else ""
 
 
 def _every(seconds: float) -> str:
@@ -242,26 +308,67 @@ class InstallWatcher:
         if not changes:
             return
         lang = normalize(await asyncio.to_thread(self._storage.get_setting, "idioma"))
-        ingress = None
-        if self._supervisor is not None:
-            try:
-                slug = await self._supervisor.self_slug()
-                ingress = f"/hassio/ingress/{slug}" if slug else None
-            except Exception:  # noqa: BLE001
-                ingress = None
+        ingress = await _ingress_url(self._supervisor)
         for change in changes:
             event, note = build_alert(result, change, self._min_level, lang, ingress)
             counts = ", ".join(f"{k}={v}" for k, v in event["achados"].items() if v) or "sem achados"
-            sent = ""
-            if self._notifier is not None and self._notifier.available:
-                try:
-                    await self._notifier.fire_alert(event)
-                    if note:
-                        await self._notifier.notify(*note)
-                        sent = " — notificação criada no HA"
-                except Exception as err:  # noqa: BLE001 - aviso nunca derruba o vigia
-                    _LOGGER.warning("Não foi possível avisar no HA sobre %s: %s", change["nome"], err)
-            elif note:
-                sent = " — merece aviso, mas sem acesso ao HA (SUPERVISOR_TOKEN)"
+            sent = await _send(self._notifier, event, note, change["nome"])
             _LOGGER.info("Verificado após %s: %s %s (%s)%s", change["mudanca"], change["tipo"], change["nome"],
                          counts, sent)
+
+
+BUSY_RETRY = 60  # segundos: outra varredura rodando, tenta de novo logo depois
+
+
+class DnsWatcher:
+    """Roda a verificação só de DNS a cada ``interval`` segundos e avisa sobre achados novos."""
+
+    def __init__(self, *, storage: Any, supervisor: Any | None, notifier: Any | None,
+                 run_job: Callable[[], Awaitable[ScanResult | None]], is_busy: Callable[[], bool],
+                 min_level: str, interval: float, retry: float = BUSY_RETRY) -> None:
+        self._storage = storage
+        self._supervisor = supervisor
+        self._notifier = notifier
+        self._run_job = run_job
+        self._is_busy = is_busy
+        self._min_level = min_level
+        self._interval = interval
+        self._retry = min(retry, interval)
+
+    async def run(self) -> None:
+        _LOGGER.info("Verificação de DNS ativa (a cada %s)", _every(self._interval))
+        wait = self._interval
+        while True:
+            await asyncio.sleep(wait)
+            try:
+                done = await self.check()
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - o laço nunca para por causa de uma falha
+                _LOGGER.exception("Falha na verificação de DNS")
+                done = True
+            wait = self._interval if done else self._retry
+
+    async def check(self) -> bool:
+        """Uma rodada. False = não rodou (outra varredura em andamento): tentar de novo em breve."""
+        if self._is_busy():
+            return False
+        if await asyncio.to_thread(self._storage.latest_completed_id) is None:
+            return True  # ainda sem relatório: a primeira varredura completa já traz o DNS
+        result = await self._run_job()
+        if result is None:
+            return False  # outra varredura começou ou o usuário cancelou
+        if result.status != "concluida":
+            _LOGGER.warning("Verificação de DNS terminou como %s", result.status)
+            return True
+        await self.alert(result)
+        return True
+
+    async def alert(self, result: ScanResult) -> None:
+        lang = normalize(await asyncio.to_thread(self._storage.get_setting, "idioma"))
+        event, note = build_dns_alert(result, self._min_level, lang, await _ingress_url(self._supervisor))
+        if event is None:
+            return
+        counts = ", ".join(f"{k}={v}" for k, v in event["achados"].items() if v)
+        sent = await _send(self._notifier, event, note, "DNS")
+        _LOGGER.info("Verificação de DNS: achados novos (%s)%s", counts, sent)

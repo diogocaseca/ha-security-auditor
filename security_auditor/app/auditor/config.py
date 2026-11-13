@@ -99,6 +99,7 @@ class Options:
     dns_servers: tuple[DnsServer, ...] = field(default_factory=tuple)
     dns_client_ips: tuple[str, ...] = field(default_factory=tuple)
     dns_verify_tls: bool = True
+    dns_interval_minutes: int = 120  # verificação só de DNS; 0 = só junto com a varredura completa
     community_blocklist: bool = True  # baixar a lista negra comunitária (assinada)
     watch_installs: bool = True  # varrer logo depois de instalar/atualizar um componente
     watch_interval_minutes: int = 2  # intervalo da conferência do que está instalado
@@ -147,6 +148,7 @@ class Options:
             dns_servers=_dns_servers(raw),
             dns_client_ips=tuple(str(x).strip() for x in (raw.get("dns_client_ips") or []) if str(x).strip()),
             dns_verify_tls=bool(raw.get("dns_verify_tls", True)),
+            dns_interval_minutes=max(0, min(1440, int(raw.get("intervalo_dns_minutos", 120)))),
             community_blocklist=bool(raw.get("lista_comunitaria", True)),
             watch_installs=bool(raw.get("verificar_instalacoes", True)),
             watch_interval_minutes=max(1, min(60, int(raw.get("intervalo_verificacao_minutos", 2)))),

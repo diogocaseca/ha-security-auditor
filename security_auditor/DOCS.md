@@ -243,6 +243,15 @@ WARNING DNS Pi-hole (192.168.1.3): falha na conexão: o Pi-hole recusou a senha 
 Use **Test connection** in the **DNS** tab to run the test again after fixing something (a new
 configuration only applies after restarting the add-on). The add-on log is in Portuguese.
 
+**DNS check between full scans.** Every `intervalo_dns_minutos` (default 120) the auditor reads
+the DNS servers' log again and updates **only the DNS part** of the report (findings and domain
+table), without scanning the components again; it takes a few seconds. It shows in the history as
+"DNS check"; consecutive DNS checks are merged into a single entry (the latest), so they do not push
+full scans out of `report_retention`. When a **new** DNS finding reaches `aviso_nivel_minimo`, the
+auditor creates a notification in HA (`security_auditor_rede_dns`) and fires the
+`security_auditor_alerta` event with `componente: dns` and `mudanca: verificacao_dns`. Ignored
+domains do not alert. With `0`, DNS only runs together with the full scan.
+
 Pi-hole v5 is not supported (old API).
 
 ## Options
@@ -273,8 +282,9 @@ language.
 | `lista_comunitaria` | `true` | Download and use the signed [community blocklist](#blocklist). |
 | `verificar_instalacoes` | `true` | Check installs and updates right away. See [Installs and updates](#installs-and-updates). |
 | `intervalo_verificacao_minutos` | `2` | How often (1 to 60 minutes) the auditor looks at what is installed. It is a light check; it only scans when something changed. |
-| `aviso_nivel_minimo` | `alta` | Minimum level that creates a notification after an install or update: `critica`, `alta`, `media`, `baixa` or `desligado` (no notification). |
+| `aviso_nivel_minimo` | `alta` | Minimum level that creates a notification after an install, an update or a DNS check: `critica`, `alta`, `media`, `baixa` or `desligado` (no notification). |
 | `dns_verify_tls` | `true` | Turn off only if AdGuard or Pi-hole uses HTTPS with a self-signed certificate (applies to both). |
+| `intervalo_dns_minutos` | `120` | How often (0 to 1440 minutes) the auditor runs the [DNS check](#dns-optional-adguard-home-andor-pi-hole-v6) on its own, between full scans. `0` = DNS only runs with the full scan. |
 | `allowlist` | `[]` | Exceptions; see below. |
 
 ## Overload protection
@@ -349,7 +359,9 @@ automation:
 
 Event data: `tipo` (`integracao`, `frontend`, `addon`), `componente`, `mudanca` (`novo` or
 `atualizado`), `versao`, `achados` (count per level: `critical`, `high`, `medium`, `low`, `info`),
-`lista_negra`, `alerta` (whether it reached the notification level) and `scan_id`.
+`lista_negra`, `alerta` (whether it reached the notification level) and `scan_id`. The
+[DNS check](#dns-optional-adguard-home-andor-pi-hole-v6) fires the same event when it finds
+something new, with `tipo: rede`, `componente: dns` and `mudanca: verificacao_dns`.
 
 What to know:
 

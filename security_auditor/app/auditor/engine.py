@@ -26,6 +26,8 @@ from .supervisor import SupervisorClient
 _LOGGER = logging.getLogger(__name__)
 
 _MAX_SNIPPET = 600
+KIND_DNS = "dns"  # verificação só de DNS (intervalo_dns_minutos)
+DNS_KEY = ("rede", "dns")
 
 
 def new_scan_id(now: datetime | None = None) -> str:
@@ -58,22 +60,44 @@ class ScanEngine:
         self.scanners = scanners
         self.progress: dict[str, str] = {}
 
-    async def run(self, changes: list[dict[str, str]] | None = None) -> ScanResult:
+    async def run_dns(self) -> ScanResult | None:
+        """Só a etapa de DNS, juntando o resultado ao relatório mais recente.
+
+        Sem relatório anterior devolve None (a primeira varredura completa já inclui o DNS).
+        """
+        base = await asyncio.to_thread(self.storage.load_latest)
+        if base is None:
+            _LOGGER.info("Verificação de DNS adiada: ainda não há relatório completo")
+            return None
+        return await self.run(dns_base=base)
+
+    async def run(self, changes: list[dict[str, str]] | None = None, *,
+                  dns_base: ScanResult | None = None) -> ScanResult:
         """Varredura completa ou, com ``changes``, só dos componentes instalados/atualizados/removidos.
 
         ``changes``: [{"tipo", "nome", "mudanca": novo|atualizado|removido}]. A parcial junta o
         resultado ao relatório completo mais recente; sem relatório anterior, vira completa.
+        ``dns_base`` (via ``run_dns``): só o DNS, juntando o resto deste relatório.
         """
         scan_id = new_scan_id()
         result = ScanResult(scan_id=scan_id, started_at=utcnow_iso(), version=__version__)
-        base: ScanResult | None = None
+        base: ScanResult | None = dns_base
         if changes is not None:
             base = await asyncio.to_thread(self.storage.load_latest)
             if base is None:
                 _LOGGER.info("Sem relatório anterior: a varredura de instalação vira uma varredura completa")
                 changes = None
         only = None
-        if changes is not None:
+        replaced: str | None = None
+        scanners = self.scanners
+        if dns_base is not None:
+            result.kind = KIND_DNS
+            only = frozenset({DNS_KEY})
+            scanners = [s for s in self.scanners if s.name == "dns"]
+            # Verificações de DNS seguidas viram uma entrada só no histórico (a mais recente):
+            # assim elas não empurram as varreduras completas para fora da retenção.
+            replaced = dns_base.scan_id if dns_base.kind == KIND_DNS else None
+        elif changes is not None:
             result.kind = "parcial"
             result.targets = [dict(c) for c in changes]
             only = frozenset((c["tipo"], c["nome"]) for c in changes if c.get("mudanca") != "removido")
@@ -95,11 +119,13 @@ class ScanEngine:
         )
         if only is None:
             _LOGGER.info("Varredura %s iniciada (%d scanners)", scan_id, len(self.scanners))
+        elif dns_base is not None:
+            _LOGGER.info("Verificação de DNS %s iniciada", scan_id)
         else:
             _LOGGER.info("Varredura %s de instalação/atualização iniciada: %s", scan_id,
                          ", ".join(f"{c['nome']} ({c['mudanca']})" for c in changes or []))
         try:
-            for scanner in self.scanners:
+            for scanner in scanners:
                 ctx.set_progress(scanner.name)
                 try:
                     found = await scanner.scan(ctx)
@@ -112,7 +138,8 @@ class ScanEngine:
                     result.errors.append(message or scanner.name)
                     _LOGGER.exception("Scanner %s falhou", scanner.name)
             if base is not None:
-                self._carry_over(result, ctx, base)
+                changed = {DNS_KEY} if dns_base is not None else {(t["tipo"], t["nome"]) for t in result.targets}
+                self._carry_over(result, ctx, base, changed)
             self._finalize(result, ctx)
             result.status = "concluida"
         except asyncio.CancelledError as err:
@@ -137,7 +164,7 @@ class ScanEngine:
             self.progress.clear()
             shutil.rmtree(workdir, ignore_errors=True)
             self._sanitize(result)
-            await asyncio.to_thread(self._persist, result)
+            await asyncio.to_thread(self._persist, result, replaced if result.status == "concluida" else None)
         _LOGGER.info(
             "Varredura %s %s: %s, %d novos, %d erros",
             scan_id,
@@ -171,12 +198,12 @@ class ScanEngine:
         ]
 
     @staticmethod
-    def _carry_over(result: ScanResult, ctx: ScanContext, base: ScanResult) -> None:
+    def _carry_over(result: ScanResult, ctx: ScanContext, base: ScanResult, changed: set[tuple[str, str]]) -> None:
         """Parcial: o resto do relatório vem da última varredura completa (achados e componentes).
 
-        Componentes que mudaram (ou foram removidos) saem da base e ficam só com o resultado novo.
+        Componentes em ``changed`` (que mudaram, foram removidos ou, na verificação de DNS, o
+        próprio DNS) saem da base e ficam só com o resultado novo.
         """
-        changed = {(t["tipo"], t["nome"]) for t in result.targets}
         for c in base.components:
             if (c.component_type, c.name) not in changed:
                 ctx.components.setdefault((c.component_type, c.name), dict(c.metadata))
@@ -208,9 +235,11 @@ class ScanEngine:
         result.findings.sort(key=lambda f: f.first_seen or "", reverse=True)
         result.components.sort(key=lambda c: c.first_seen or "", reverse=True)
 
-    def _persist(self, result: ScanResult) -> None:
+    def _persist(self, result: ScanResult, replaces: str | None = None) -> None:
         try:
             self.storage.save_scan(result)
+            if replaces and replaces != result.scan_id:
+                self.storage.delete_scan(replaces)
             self.storage.prune(self.options.report_retention)
         except OSError:
             _LOGGER.exception("Não foi possível salvar o relatório %s", result.scan_id)

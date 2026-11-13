@@ -20,7 +20,7 @@
       <h1>Security Auditor</h1>
       <p class="muted small">
         {% if result %}
-          {{ _("Varredura de {data}", data=(result.finished_at | dt)) }}{% if result.kind == 'parcial' %} · {{ _("verificação de instalação/atualização") }}{% endif %}{% if not viewing_latest %} · <strong>{{ _("visualizando relatório antigo") }}</strong> · <a href="./">{{ _("ir para o mais recente") }}</a>{% endif %}
+          {{ _("Varredura de {data}", data=(result.finished_at | dt)) }}{% if result.kind == 'parcial' %} · {{ _("verificação de instalação/atualização") }}{% elif result.kind == 'dns' %} · {{ _("verificação de DNS") }}{% endif %}{% if not viewing_latest %} · <strong>{{ _("visualizando relatório antigo") }}</strong> · <a href="./">{{ _("ir para o mais recente") }}</a>{% endif %}
         {% else %}
           {{ _("Nenhuma varredura concluída ainda") }}
         {% endif %}
@@ -468,7 +468,7 @@
               <tr{% if result and h.scan_id == result.scan_id %} class="current"{% endif %}>
                 <td><a href="./?scan={{ h.scan_id }}">{{ h.finished_at | dt }}</a>
                   {% if h.kind == 'parcial' %}<div class="comp-meta">{{ _("Instalação/atualização:") }}
-                    {% for t in h.targets %}{{ t.nome }} ({{ {'novo': _('novo'), 'atualizado': _('atualizado'), 'removido': _('removido')}.get(t.mudanca, t.mudanca) }}){% if not loop.last %}, {% endif %}{% endfor %}</div>{% endif %}</td>
+                    {% for t in h.targets %}{{ t.nome }} ({{ {'novo': _('novo'), 'atualizado': _('atualizado'), 'removido': _('removido')}.get(t.mudanca, t.mudanca) }}){% if not loop.last %}, {% endif %}{% endfor %}</div>{% elif h.kind == 'dns' %}<div class="comp-meta">{{ _("Verificação de DNS (só a parte de DNS foi atualizada)") }}</div>{% endif %}</td>
                 <td>{{ {'concluida': _('Concluída'), 'falhou': _('Falhou'), 'cancelada': _('Cancelada'), 'em_andamento': _('Em andamento')}.get(h.status, h.status) }}</td>
                 <td class="num">{{ duration(h.started_at, h.finished_at) }}</td>
                 {% for sev in severities %}<td class="num">{{ h.counts.get(sev.key, 0) or '' }}</td>{% endfor %}

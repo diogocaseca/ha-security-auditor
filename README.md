@@ -26,7 +26,7 @@ selector in the interface), for **human review**.
 | **Traffic** | CPU, memory and network history; alert on upload spikes compared with the add-on's own average |
 | **Blocklist** | Badge and warning for reported components (personal list and the signed [community list](https://github.com/diogocaseca/ha-security-blocklist)), matching GitHub, image and version locally |
 | **Installs and updates** | Every few minutes (configurable), notices a new or updated integration, card or add-on, scans only that component and warns in HA (notification and event) when there are serious findings or a blocklist match |
-| **DNS (optional)** | AdGuard Home and/or Pi-hole v6 (both together, if you have them): exfiltration, mining, random, blocked and new domains |
+| **DNS (optional)** | AdGuard Home and/or Pi-hole v6 (both together, if you have them): exfiltration, mining, random, blocked and new domains; checked on its own every 2 hours (configurable), with a warning in HA when something new shows up |
 
 The result shows in the sidebar (Ingress), can be exported as JSON, highlights what is new since the
 previous scan and is published as sensors (`sensor.security_auditor_alertas_altos`,

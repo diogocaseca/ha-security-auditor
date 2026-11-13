@@ -106,7 +106,9 @@ class Finding:
         Não usa o número da linha: se o código só mudar de lugar, o achado
         continua sendo o mesmo. Usa o trecho normalizado (sem espaços).
         """
-        snippet_norm = _WS.sub("", self.snippet or "")
+        # "chave_estavel": a chave já identifica o achado e o trecho muda sozinho (ex.: DNS, com o
+        # horário da última consulta); usar o trecho faria o mesmo achado parecer novo a cada rodada.
+        snippet_norm = "" if self.extra.get("chave_estavel") else _WS.sub("", self.snippet or "")
         raw = "\x1f".join(
             [
                 self.component_type,

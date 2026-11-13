@@ -12,7 +12,8 @@ Audits the security of your installation and shows a report in the sidebar:
   list, which includes the HACS and Home Assistant lists);
 - **installs and updates**: a new or updated integration, card or add-on is scanned within minutes,
   and HA shows a notification when something serious turns up (it warns, it does not block);
-- **DNS (optional)**: domains queried by the host, through AdGuard Home and/or Pi-hole v6.
+- **DNS (optional)**: domains queried by the host, through AdGuard Home and/or Pi-hole v6, checked
+  on its own every 2 hours (configurable) between full scans.
 
 Findings are ranked by severity, with an explanation (in English or Portuguese) and a suggested
 action. The auditor points out what deserves human review; **it does not decide on its own that

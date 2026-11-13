@@ -25,7 +25,7 @@ em inglês ou português (seletor EN | PT na interface), para **revisão humana*
 | **Tráfego** | Histórico de CPU, memória e rede; alerta de picos de envio comparados à média do próprio add-on |
 | **Lista negra** | Selo e aviso para componentes reportados (lista pessoal e a [comunitária](https://github.com/diogocaseca/ha-security-blocklist), assinada), comparando GitHub, imagem e versão localmente |
 | **Instalações e atualizações** | A cada poucos minutos (configurável), percebe integração, card ou add-on novo ou atualizado, varre só esse componente e avisa no HA (notificação e evento) quando há achados graves ou correspondência na lista negra |
-| **DNS (opcional)** | AdGuard Home e/ou Pi-hole v6 (os dois juntos, se você tiver): exfiltração, mineração, domínios aleatórios, bloqueados e novos |
+| **DNS (opcional)** | AdGuard Home e/ou Pi-hole v6 (os dois juntos, se você tiver): exfiltração, mineração, domínios aleatórios, bloqueados e novos; verificado sozinho a cada 2 horas (configurável), com aviso no HA quando aparece algo novo |
 
 O resultado aparece na barra lateral (Ingress), pode ser exportado em JSON, destaca o que é
 novo desde a varredura anterior e é publicado como sensores

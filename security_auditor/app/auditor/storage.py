@@ -315,6 +315,13 @@ class Storage:
             return None
         return path if path.is_file() else None
 
+    def delete_scan(self, scan_id: str) -> None:
+        """Remove um relatório (usado quando uma verificação de DNS substitui a anterior)."""
+        path = self._report_path(scan_id)
+        with self._conn() as conn:
+            conn.execute("DELETE FROM scans WHERE scan_id = ?", (scan_id,))
+        path.unlink(missing_ok=True)
+
     def prune(self, keep: int) -> int:
         """Mantém só os ``keep`` relatórios mais recentes."""
         with self._conn() as conn:

@@ -70,6 +70,13 @@ configuration:
   dns_verify_tls:
     name: Verificar certificado TLS
     description: Desative só se o AdGuard ou o Pi-hole usar certificado próprio em HTTPS (vale para os dois).
+  intervalo_dns_minutos:
+    name: Intervalo da verificação de DNS (minutos)
+    description: >-
+      De quanto em quanto tempo o auditor relê o log do AdGuard/Pi-hole e atualiza só a parte de DNS
+      do relatório, sem varrer os componentes de novo. Achados de DNS novos geram aviso no HA conforme
+      o nível mínimo para avisos. De 0 a 1440 minutos; padrão 120. Com 0, o DNS só roda junto com a
+      varredura completa.
   lista_comunitaria:
     name: Lista negra comunitária
     description: >-

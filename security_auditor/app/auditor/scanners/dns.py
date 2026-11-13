@@ -413,7 +413,8 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
             rule_id=f"auditor.dns.{rule}", severity=sev, title=title,
             explanation=f"{why} {AVISO}", recommendation=todo, snippet=snippet, source="dns",
             en=en_text(en[0], f"{en[1]} {AVISO_EN}", en[2], snippet_en),
-            extra={"fingerprint_key": key},
+            # O trecho traz contagens e horários, que mudam a cada rodada: a identidade é só a chave.
+            extra={"fingerprint_key": key, "chave_estavel": True},
         ))
 
     def line(s: DomainStats) -> str:
@@ -525,8 +526,8 @@ class DnsScanner:
 
     async def scan(self, ctx: ScanContext) -> list[Finding]:
         servers = ctx.options.dns_servers
-        if ctx.partial:
-            return []  # varredura de instalação: o DNS fica para a varredura completa
+        if not ctx.wants(ComponentType.NETWORK, "dns"):
+            return []  # varredura de instalação: o DNS fica para a completa ou para a verificação de DNS
         if not servers or ctx.skipped(ComponentType.NETWORK, "dns", nome="Domínios consultados"):
             return []
         findings: list[Finding] = []

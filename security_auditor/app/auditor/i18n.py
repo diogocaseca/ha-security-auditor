@@ -395,6 +395,8 @@ EN: dict[str, str] = {
     "atualizado": "updated",
     "removido": "removed",
     "verificação de instalação/atualização": "install/update check",
+    "verificação de DNS": "DNS check",
+    "Verificação de DNS (só a parte de DNS foi atualizada)": "DNS check (only the DNS part was updated)",
     "descoberto em {data}": "discovered {data}",
     "qualquer tipo": "any type",
     "todas": "all",

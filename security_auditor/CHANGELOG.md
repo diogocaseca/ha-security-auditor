@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.18.0
+
+- **Verificação de DNS separada:** a cada `intervalo_dns_minutos` (0 a 1440, padrão 120) o auditor
+  relê o log do AdGuard/Pi-hole e atualiza só a parte de DNS do relatório, sem varrer os
+  componentes de novo. Verificações de DNS seguidas viram uma entrada só no histórico ("Verificação
+  de DNS"), para não empurrar as varreduras completas para fora da retenção. Com `0`, o DNS roda só
+  junto com a varredura completa, como antes.
+- **Aviso de DNS no HA:** achado de DNS novo a partir de `aviso_nivel_minimo` cria a notificação
+  `security_auditor_rede_dns` e dispara o evento `security_auditor_alerta` (`componente: dns`,
+  `mudanca: verificacao_dns`).
+- **Correção:** achados de DNS não aparecem mais como "novos" só porque mudou o horário da última
+  consulta ou a contagem; a identidade deles agora é só o domínio (ou a lista de domínios). Na
+  primeira varredura depois de atualizar, os achados de DNS existentes aparecem como novos uma vez.
+
 ## 0.17.2
 
 - Nova opção `intervalo_verificacao_minutos` (1 a 60, padrão 2), logo abaixo de

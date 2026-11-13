@@ -27,7 +27,7 @@ from .scanners.traffic import TrafficCollector
 from .scheduler import SENSOR_REFRESH, Scheduler
 from .storage import Storage
 from .supervisor import CoreNotifier, CoreStatesPublisher, SupervisorClient
-from .watcher import InstallWatcher
+from .watcher import DnsWatcher, InstallWatcher
 from .web import create_app
 
 _LOGGER = logging.getLogger("auditor")
@@ -167,6 +167,19 @@ async def main() -> None:
             background.append(asyncio.create_task(watcher.run(), name="auditor-instalacoes"))
         else:
             _LOGGER.info("Verificação de instalações desligada (verificar_instalacoes: false)")
+        if options.dns_servers and options.dns_interval_minutes:
+            dns_watcher = DnsWatcher(
+                storage=storage, supervisor=supervisor if supervisor.available else None,
+                notifier=CoreNotifier(internal_session),
+                run_job=lambda: scheduler.run_job(engine.run_dns),
+                is_busy=lambda: scheduler.running, min_level=options.alert_min_level,
+                # AUDITOR_DEV_DNS_SECONDS: só para desenvolvimento (intervalo em segundos).
+                interval=float(os.environ.get("AUDITOR_DEV_DNS_SECONDS") or options.dns_interval_minutes * 60),
+            )
+            background.append(asyncio.create_task(dns_watcher.run(), name="auditor-dns"))
+        elif options.dns_servers:
+            _LOGGER.info("Verificação de DNS separada desligada (intervalo_dns_minutos: 0): o DNS roda só "
+                         "junto com a varredura completa")
         if supervisor.available and options.addons_scan:
             collector = TrafficCollector(storage, supervisor, options.stats_interval_minutes)
             background.append(asyncio.create_task(collector.run(), name="auditor-estatisticas"))
