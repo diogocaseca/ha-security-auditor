@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.8.2
+
+- Espaço entre a linha "Servidores DNS" e o aviso de revisão humana na tela inicial.
+
 ## 0.8.1
 
 - **Teste de conexão com o AdGuard Home e o Pi-hole** ao iniciar o add-on: faz login e lê a
