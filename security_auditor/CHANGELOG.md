@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.0
+
+- **Lista negra (fase 1):** componentes reportados ganham o selo **Lista negra** na tabela e um
+  achado com motivo, versões afetadas e links de evidência. Compara pelo repositório do GitHub,
+  pela imagem do add-on (forte) ou só pelo nome ("possível correspondência", um nível abaixo),
+  respeitando a faixa de versões. A lista só acrescenta avisos e a comparação é toda local.
+- Lista pessoal em `/config/security_auditor/lista_negra.json`. A lista comunitária
+  (`diogocaseca/ha-security-blocklist`) já é lida do cache; o download automático vem na fase 2.
+
 ## 0.8.2
 
 - Espaço entre a linha "Servidores DNS" e o aviso de revisão humana na tela inicial.

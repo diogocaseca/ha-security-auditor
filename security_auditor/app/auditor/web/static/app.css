@@ -297,3 +297,6 @@ body.view-history main > :not(#history):not(.tabs) { display: none; }
   padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2);
   color: var(--text); font: inherit;
 }
+
+/* Selo de lista negra na tabela de componentes */
+.badge-blocklist { margin-left: 6px; vertical-align: middle; }

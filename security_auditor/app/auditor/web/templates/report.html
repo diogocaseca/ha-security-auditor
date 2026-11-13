@@ -141,6 +141,12 @@
                 <tr class="comp-row" data-type="{{ c.component_type }}" data-sevs="{% for sev in severities if c.counts.get(sev.key, 0) %}{{ sev.key }} {% endfor %}">
                   <td>
                     <button type="button" class="link" data-filter-component="{{ c.name }}">{{ c.name }}</button>
+                    {% set bl = c.metadata.lista_negra %}
+                    {% if bl %}
+                      <span class="badge {{ 'sev-critical' if bl.forte else 'sev-medium' }} badge-blocklist"
+                            title="Item {{ bl.id }} da lista {{ bl.origem }} · {{ bl.categoria }}{% if bl.total > 1 %} · {{ bl.total }} itens{% endif %}">
+                        {{ 'Lista negra' if bl.forte else 'Lista negra?' }}</span>
+                    {% endif %}
                     {% set details = component_details(c.metadata) %}
                     {% if details %}<div class="comp-meta">{{ details | join(' · ') }}</div>{% endif %}
                   </td>
@@ -212,6 +218,10 @@
             {% if f.snippet %}<pre class="snippet"><code>{{ f.snippet }}</code></pre>{% endif %}
             <p class="why"><strong>Por que é suspeito:</strong> {{ f.explanation }}</p>
             <p class="todo"><strong>O que fazer:</strong> {{ f.recommendation }}</p>
+            {% if f.extra.evidencias %}
+              <p class="small"><strong>Evidências:</strong>
+                {% for url in f.extra.evidencias if url.startswith('https://') %}<a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ url }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>
+            {% endif %}
             {% if f.suppressed %}<p class="muted small">Ignorado: {{ f.suppression_reason }}</p>{% endif %}
           </article>
         {% endfor %}

@@ -18,6 +18,7 @@ tráfego e domínios suspeitos.
 - [Opções](#opções)
 - [Proteções contra sobrecarga](#proteções-contra-sobrecarga)
 - [Lista de ignorados e allowlist](#lista-de-ignorados-e-allowlist)
+- [Lista negra](#lista-negra)
 - [Sensores](#sensores)
 - [Severidades e nota de risco](#severidades-e-nota-de-risco)
 - [Permissões pedidas e por quê](#permissões-pedidas-e-por-quê)
@@ -354,6 +355,66 @@ allowlist:
     rule: auditor.py.url-fixa
     reason: Não quero ver URLs fixas
 ```
+
+## Lista negra
+
+Componentes **reportados** como maliciosos, comprometidos, vulneráveis, abandonados ou com
+telemetria não declarada ganham o selo **Lista negra** na tabela de componentes e um achado com
+o motivo, as versões afetadas e os links de evidência. É um relato, não um veredito: confira as
+evidências antes de decidir.
+
+- **Lista pessoal:** crie `/config/security_auditor/lista_negra.json` (pelo File editor, Studio
+  Code Server ou Samba) para marcar o que você mesmo quiser. Ela vale na próxima varredura.
+- **Lista comunitária:** mantida em
+  [diogocaseca/ha-security-blocklist](https://github.com/diogocaseca/ha-security-blocklist). O
+  download automático chega numa próxima versão; quando chegar, ela é somada à pessoal.
+
+Exemplo de lista pessoal:
+
+```json
+{
+  "versao": 1,
+  "itens": [
+    {
+      "id": "meu-001",
+      "github": "dono/repositorio",
+      "versoes": "<1.4.2",
+      "nivel": "critica",
+      "categoria": "comprometido",
+      "motivo": "A 1.4.1 foi publicada por uma conta invadida.",
+      "evidencias": ["https://github.com/dono/repositorio/issues/123"]
+    },
+    {
+      "id": "meu-002",
+      "tipo": "addon",
+      "imagem": "ghcr.io/alguem/{arch}-addon-exemplo",
+      "nivel": "aviso",
+      "categoria": "telemetria",
+      "motivo": "Envia estatísticas de uso sem opção para desligar."
+    }
+  ]
+}
+```
+
+Campos: `id` (único), `tipo` (`integracao`, `frontend`, `addon`; vazio = qualquer), `github`
+(`dono/repo`), `nome` (domínio, pasta do card ou slug; aceita `*`), `imagem` (`{arch}` vale
+qualquer arquitetura), `versoes` (faixa no formato do pip, vazio = todas), `nivel` (`critica`,
+`alta`, `media`, `aviso`), `categoria` (`malicioso`, `comprometido`, `vulneravel`,
+`abandonado`, `telemetria`), `motivo` e `evidencias` (links `https://`). É preciso informar
+`github`, `nome` ou `imagem`.
+
+Como a correspondência é feita:
+
+| Correspondência | Selo | Severidade |
+|---|---|---|
+| Mesmo repositório do GitHub (HACS, manifest ou loja de add-ons) ou mesma imagem | **Lista negra** (vermelho) | a do item |
+| Só pelo nome | **Lista negra?** (amarelo), "possível correspondência" | um nível abaixo |
+| Nome igual, mas o componente tem outro repositório | nenhum (é outro projeto) | — |
+| Versão instalada fora da faixa `versoes` | nenhum (já corrigido) | — |
+
+Itens com erro são ignorados e geram o achado "Lista negra com erro", dizendo qual item e por
+quê; o resto da lista continua valendo. A lista só **acrescenta** avisos: ela não libera nem
+esconde nada, e a comparação é toda local.
 
 ## Sensores
 
