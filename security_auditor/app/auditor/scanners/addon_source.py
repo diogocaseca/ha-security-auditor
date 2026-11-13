@@ -28,7 +28,7 @@ import yaml
 
 from ..addons import AddonInfo
 from ..inventory import walk_files
-from ..models import ComponentType, Finding, Severity
+from ..models import ComponentType, Finding, Severity, en_text
 from ..net import DownloadTooLargeError, EgressDeniedError, HttpError
 from ..resources import postponed
 from ..safe_archive import UnsafeArchiveError, extract
@@ -51,21 +51,25 @@ _CONFIG_NAMES = ("config.yaml", "config.yml", "config.json")
 _RULE_DIRS = ("addon", "python", "javascript")
 
 # (tipo de pasta) -> (severidade se rw, severidade se ro, explicação)
-_MAP_RISK: dict[str, tuple[Severity, Severity | None, str]] = {
-    "homeassistant_config": (
-        Severity.HIGH, Severity.MEDIUM,
-        "a configuração do Home Assistant, incluindo o secrets.yaml e .storage (tokens). Com escrita, o "
-        "add-on pode instalar uma integração customizada e executar código dentro do Home Assistant Core",
-    ),
-    "config": (
-        Severity.HIGH, Severity.MEDIUM,
-        "a configuração do Home Assistant, incluindo o secrets.yaml e .storage (tokens). Com escrita, o "
-        "add-on pode instalar uma integração customizada e executar código dentro do Home Assistant Core",
-    ),
-    "backup": (Severity.MEDIUM, Severity.MEDIUM, "os backups, que contêm todas as senhas e tokens da instalação"),
-    "all_addon_configs": (Severity.MEDIUM, Severity.LOW, "as configurações de todos os outros add-ons"),
-    "addons": (Severity.MEDIUM, Severity.LOW, "a pasta de add-ons locais (pode alterar o código deles)"),
-    "ssl": (Severity.LOW, Severity.INFO, "os certificados e chaves privadas TLS"),
+_HA_CONFIG_PT = (
+    "a configuração do Home Assistant, incluindo o secrets.yaml e .storage (tokens). Com escrita, o "
+    "add-on pode instalar uma integração customizada e executar código dentro do Home Assistant Core"
+)
+_HA_CONFIG_EN = (
+    "the Home Assistant configuration, including secrets.yaml and .storage (tokens). With write access, the "
+    "add-on can install a custom integration and run code inside Home Assistant Core"
+)
+# pasta -> (severidade com escrita, severidade só leitura, o que é em português, em inglês)
+_MAP_RISK: dict[str, tuple[Severity, Severity | None, str, str]] = {
+    "homeassistant_config": (Severity.HIGH, Severity.MEDIUM, _HA_CONFIG_PT, _HA_CONFIG_EN),
+    "config": (Severity.HIGH, Severity.MEDIUM, _HA_CONFIG_PT, _HA_CONFIG_EN),
+    "backup": (Severity.MEDIUM, Severity.MEDIUM, "os backups, que contêm todas as senhas e tokens da instalação",
+               "the backups, which contain every password and token of the installation"),
+    "all_addon_configs": (Severity.MEDIUM, Severity.LOW, "as configurações de todos os outros add-ons",
+                          "the configuration of every other add-on"),
+    "addons": (Severity.MEDIUM, Severity.LOW, "a pasta de add-ons locais (pode alterar o código deles)",
+               "the local add-ons folder (it can change their code)"),
+    "ssl": (Severity.LOW, Severity.INFO, "os certificados e chaves privadas TLS", "the TLS certificates and private keys"),
 }
 
 
@@ -109,13 +113,17 @@ class AddonSourceScanner:
             except SourceNotFoundError as err:
                 findings.append(_info(addon, "auditor.addon.codigo-nao-encontrado", "Código-fonte não encontrado",
                                       f"Não foi possível localizar o código do add-on no GitHub: {err}.",
-                                      str(err)[:60]))
+                                      str(err)[:60],
+                                      ("Source code not found",
+                                       f"The add-on's code could not be located on GitHub: {err}.")))
                 continue
             except (HttpError, EgressDeniedError, DownloadTooLargeError, UnsafeArchiveError,
                     aiohttp.ClientError, TimeoutError, OSError) as err:
                 findings.append(_info(addon, "auditor.addon.codigo-nao-encontrado", "Código-fonte não analisado",
                                       f"Falha ao baixar o código do add-on: {type(err).__name__}: {err}.",
-                                      type(err).__name__))
+                                      type(err).__name__,
+                                      ("Source code not analysed",
+                                       f"Failed to download the add-on's code: {type(err).__name__}: {err}.")))
                 continue
             ctx.register_component(ComponentType.ADDON, addon.slug, codigo_fonte=src.label)
             findings.extend(_version_note(addon, src))
@@ -264,6 +272,7 @@ def evaluate_map(addon: AddonInfo, src: AddonSource) -> list[Finding]:
         if sev is None:
             continue
         mode = "somente leitura" if read_only else "leitura e escrita"
+        mode_en = "read-only" if read_only else "read-write"
         out.append(Finding(
             component=addon.slug,
             component_type=ComponentType.ADDON,
@@ -275,6 +284,8 @@ def evaluate_map(addon: AddonInfo, src: AddonSource) -> list[Finding]:
             recommendation=(
                 "Confirme que a função do add-on justifica esse acesso (ex.: editor de arquivos, backup)."
             ),
+            en=en_text(f"Access to '{kind}' ({mode_en})", f"The add-on mounts {risk[3]}, {mode_en}.",
+                       "Confirm that what the add-on does justifies this access (e.g. file editor, backup)."),
             file=f"{src.label}:{src.rel}/config.yaml",
             snippet=f"map: {kind}:{'ro' if read_only else 'rw'}",
             source="codigo-fonte",
@@ -299,6 +310,13 @@ def _version_note(addon: AddonInfo, src: AddonSource) -> list[Finding]:
             "corresponder exatamente ao que está instalado."
         ),
         recommendation="Nenhuma ação obrigatória; atualize o add-on para alinhar as versões.",
+        en=en_text(
+            "Analysed code is from another version",
+            f"The repository has no tag for the installed version ({addon.version}); {src.label} was analysed, "
+            f"which declares version {declared or 'unknown'}. The code findings may not match exactly what is "
+            "installed.",
+            "No action required; update the add-on to align the versions.",
+        ),
         file=f"{src.label}:{src.rel}/config.yaml",
         source="codigo-fonte",
         extra={"fingerprint_key": f"{addon.version}|{declared}"},
@@ -325,6 +343,11 @@ def _from_semgrep(r: dict[str, Any], roots: list[tuple[Path, AddonInfo, AddonSou
         title=str(meta.get("titulo") or rule_id),
         explanation=" ".join(str(meta.get("explicacao", "")).split()),
         recommendation=" ".join(str(meta.get("recomendacao", "Revise o trecho.")).split()),
+        en=en_text(
+            str(meta.get("titulo_en") or rule_id),
+            " ".join(str(meta.get("explicacao_en", "")).split()),
+            " ".join(str(meta.get("recomendacao_en", "Review the snippet.")).split()),
+        ) if meta.get("titulo_en") else None,
         file=f"{src.label}:{src.rel}/{rel}",
         line=start.get("line"),
         snippet=read_snippet(path, start.get("line"), end.get("line"), start.get("col"), end.get("col")),
@@ -334,11 +357,12 @@ def _from_semgrep(r: dict[str, Any], roots: list[tuple[Path, AddonInfo, AddonSou
     )
 
 
-def _info(addon: AddonInfo, rule: str, title: str, why: str, key: str) -> Finding:
+def _info(addon: AddonInfo, rule: str, title: str, why: str, key: str, en: tuple[str, str]) -> Finding:
     return Finding(
         component=addon.slug, component_type=ComponentType.ADDON, category="analise_incompleta",
         rule_id=rule, severity=Severity.INFO, title=title, explanation=why,
         recommendation="Nenhuma ação obrigatória; a imagem continua coberta pelo Trivy.",
+        en=en_text(en[0], en[1], "No action required; the image is still covered by Trivy."),
         source="codigo-fonte", extra={"fingerprint_key": key},
     )
 

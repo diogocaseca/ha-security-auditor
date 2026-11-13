@@ -28,7 +28,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from .config import MODE_LIGHT, MODE_LOW_PRIORITY, MODE_WAIT_IDLE, Options
-from .models import Finding, Severity
+from .models import Finding, Severity, en_text
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,6 +101,17 @@ def _cpu_count() -> int:
         return max(1, os.cpu_count() or 1)
 
 
+class Reason(str):
+    """Motivo em português (o próprio texto) com a versão em inglês em ``en``."""
+
+    en: str
+
+    def __new__(cls, pt: str, en: str) -> Reason:
+        obj = super().__new__(cls, pt)
+        obj.en = en
+        return obj
+
+
 @dataclass
 class ResourceGuard:
     """Espera o host desocupar antes das etapas pesadas (modo aguardar_folga)."""
@@ -116,16 +127,18 @@ class ResourceGuard:
     sleep: Callable[[float], object] = asyncio.sleep
     clock: Callable[[], float] = time.monotonic
 
-    def busy_reason(self, need_mb: float) -> str | None:
+    def busy_reason(self, need_mb: float) -> Reason | None:
         try:
             load = self.read_load() / self.cpus
             free = self.read_free_mb()
         except (OSError, ValueError):
             return None  # sem leitura, não bloqueia
         if load > self.max_load_per_cpu:
-            return f"carga do sistema alta ({load:.1f} por núcleo; limite {self.max_load_per_cpu:g})"
+            return Reason(f"carga do sistema alta ({load:.1f} por núcleo; limite {self.max_load_per_cpu:g})",
+                          f"high system load ({load:.1f} per core; limit {self.max_load_per_cpu:g})")
         if free < need_mb:
-            return f"pouca memória livre ({free:.0f} MB; precisa de {need_mb:.0f} MB)"
+            return Reason(f"pouca memória livre ({free:.0f} MB; precisa de {need_mb:.0f} MB)",
+                          f"low free memory ({free:.0f} MB; needs {need_mb:.0f} MB)")
         return None
 
     async def wait(self, label: str, need_mb: float | None = None) -> str | None:
@@ -164,7 +177,17 @@ def wants_low_priority(options: Options) -> bool:
     return options.has_mode(MODE_LOW_PRIORITY)
 
 
+# Nomes das etapas que podem ser adiadas, em inglês.
+_STEPS_EN = {
+    "análise estática (Semgrep/Bandit)": "static analysis (Semgrep/Bandit)",
+    "análise do código dos add-ons": "add-on code analysis",
+    "varredura da imagem (Trivy)": "image scan (Trivy)",
+}
+
+
 def postponed(component: str, component_type: str, step: str, reason: str) -> Finding:
+    step_en = _STEPS_EN.get(step, step)
+    reason_en = getattr(reason, "en", reason)
     return Finding(
         component=component,
         component_type=component_type,
@@ -179,6 +202,13 @@ def postponed(component: str, component_type: str, step: str, reason: str) -> Fi
         recommendation=(
             "Nenhuma ação obrigatória. Se acontecer sempre, agende com 'horario_fixo' para um horário "
             "calmo ou ajuste carga_maxima_por_cpu / memoria_minima_mb."
+        ),
+        en=en_text(
+            f"Step postponed: {step_en}",
+            f"The 'aguardar_folga' mode postponed this step because the system stayed busy: {reason_en}. "
+            "It runs again on the next scan.",
+            "No action required. If it always happens, schedule it with 'horario_fixo' at a quiet time or adjust "
+            "carga_maxima_por_cpu / memoria_minima_mb.",
         ),
         source="auditor",
         extra={"fingerprint_key": step},

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.0
+
+- **Achados em inglês:** título, explicação e recomendação de todos os achados (33 regras do
+  Semgrep, Bandit, integridade, dependências, permissões, código e imagem dos add-ons, tráfego,
+  DNS, lista negra e avisos do auditor) são gerados nas duas línguas e exibidos no idioma
+  escolhido. O mascaramento de segredos também vale para o texto em inglês.
+- Relatórios gerados antes desta versão continuam em português até a próxima varredura.
+- Ainda em português: detalhes dos componentes na tabela, título e aviso da tabela de domínios,
+  mensagens de erro da API, sensores e documentação.
+
 ## 0.13.2
 
 - A aba **DNS** fica logo depois de **Componentes**.

@@ -13,7 +13,7 @@ import logging
 from typing import Any
 
 from ..addons import AddonInfo
-from ..models import ComponentType, Finding, Severity
+from ..models import ComponentType, Finding, Severity, en_text
 from ..resources import postponed
 from ..tools import ToolTimeoutError, run_tool
 from .base import ScanContext
@@ -37,7 +37,8 @@ class AddonImageScanner:
                 continue
             ref = image_ref(addon)
             if ref is None:
-                findings.append(_not_scanned(addon, "add-on construído localmente (sem imagem no registro)"))
+                findings.append(_not_scanned(addon, "add-on construído localmente (sem imagem no registro)",
+                                             "add-on built locally (no image in a registry)"))
                 continue
             if (reason := await ctx.wait_resources(self.name)) is not None:
                 findings.append(postponed(addon.slug, ComponentType.ADDON, "varredura da imagem (Trivy)", reason))
@@ -136,6 +137,13 @@ def findings_from_trivy(addon: AddonInfo, ref: str, data: dict[str, Any]) -> tup
                     "do autor, pode ser usada para adulterar futuras versões."
                 ),
                 recommendation="Avise o autor do add-on para revogar o segredo e removê-lo da imagem.",
+                en=en_text(
+                    f"Secret embedded in the image: {s.get('Title') or s.get('Category') or 'secret'}",
+                    "Trivy found what looks like a secret (key, token, password) stored inside the add-on image. "
+                    "Anyone who downloads the image also gets it; if it is an author credential, it can be used "
+                    "to tamper with future versions.",
+                    "Tell the add-on author to revoke the secret and remove it from the image.",
+                ),
                 file=f"{ref}:{target}",
                 line=s.get("StartLine"),
                 snippet=str(s.get("Match") or "")[:300] or None,
@@ -172,6 +180,13 @@ def findings_from_trivy(addon: AddonInfo, ref: str, data: dict[str, Any]) -> tup
                 "Atualize o add-on se houver versão nova; se não houver, avise o autor que a imagem base "
                 "está desatualizada."
             ),
+            en=en_text(
+                f"{counts['CRITICAL']} critical and {counts['HIGH']} high CVE(s) in the image",
+                f"The image {ref} has {total} known vulnerabilities in system packages or libraries "
+                f"({fixable['CRITICAL']} critical and {fixable['HIGH']} high ones already have a fix). Not every "
+                "CVE is exploitable in the add-on's use, but the fixable ones point to an outdated image.",
+                "Update the add-on if a new version exists; if not, tell the author the base image is outdated.",
+            ),
             file=ref,
             snippet="\n".join(lines),
             source="trivy",
@@ -180,7 +195,16 @@ def findings_from_trivy(addon: AddonInfo, ref: str, data: dict[str, Any]) -> tup
     return findings, {k.lower(): v for k, v in counts.items()}
 
 
-def _not_scanned(addon: AddonInfo, reason: str) -> Finding:
+_REASONS_EN = {
+    "o registro exige autenticação (imagem privada?)": "the registry requires authentication (private image?)",
+    "imagem/versão não encontrada no registro": "image/version not found in the registry",
+}
+
+
+def _not_scanned(addon: AddonInfo, reason: str, reason_en: str | None = None) -> Finding:
+    if reason_en is None:
+        reason_en = _REASONS_EN.get(reason) or reason.replace("falha do Trivy:", "Trivy failure:").replace(
+            " excedeu ", " exceeded ")
     return Finding(
         component=addon.slug,
         component_type=ComponentType.ADDON,
@@ -190,6 +214,8 @@ def _not_scanned(addon: AddonInfo, reason: str) -> Finding:
         title="Imagem não analisada",
         explanation=f"A imagem do add-on não pôde ser varrida: {reason}.",
         recommendation="Nenhuma ação obrigatória. Add-ons locais são cobertos só pela análise do código-fonte.",
+        en=en_text("Image not analysed", f"The add-on image could not be scanned: {reason_en}.",
+                   "No action required. Local add-ons are covered only by the source code analysis."),
         source="trivy",
         extra={"fingerprint_key": reason[:60]},
     )

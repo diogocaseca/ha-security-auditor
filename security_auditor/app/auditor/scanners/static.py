@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from ..inventory import MAX_ANALYZED_FILE, Component, Inventory
-from ..models import ComponentType, Finding, Severity
+from ..models import ComponentType, Finding, Severity, en_text
 from ..resources import postponed
 from ..tools import run_tool
 from .base import ScanContext
@@ -82,6 +82,35 @@ _BANDIT_INFO: dict[str, tuple[str, str, str]] = {
     "B303": ("criptografia_fraca", "Hash fraco (MD5/SHA1)", "MD5/SHA1 não são seguros para fins de segurança."),
     "B413": ("criptografia_fraca", "Biblioteca pyCrypto", "pyCrypto não é mantida e tem vulnerabilidades conhecidas."),
 }
+
+# Mesmos testes, em inglês: test_id -> (título, explicação).
+_BANDIT_EN: dict[str, tuple[str, str]] = {
+    "B102": ("Use of exec", "exec runs text as Python code."),
+    "B307": ("Use of eval", "eval runs text as Python code."),
+    "B301": ("Deserialization with pickle",
+             "pickle can execute arbitrary code when loading data; it must never read untrusted data."),
+    "B302": ("Deserialization with marshal", "marshal loads Python code objects."),
+    "B403": ("pickle import", "The pickle module allows code execution when loading data."),
+    "B602": ("subprocess with shell=True", "The command goes through the shell, which allows command injection."),
+    "B605": ("Command executed through a shell", "os.system/os.popen run the text in a shell."),
+    "B606": ("Process started without a shell", "The integration starts another program."),
+    "B607": ("Program called by a partial path",
+             "The program is looked up in PATH; another executable with the same name could be called."),
+    "B609": ("Wildcard in a command", "Wildcards in commands can turn into argument injection."),
+    "B310": ("urlopen with any scheme", "urlopen accepts file:// and other schemes, allowing local files to be read."),
+    "B501": ("Certificate verification disabled",
+             "Without verifying the TLS certificate, the connection can be intercepted (man in the middle)."),
+    "B104": ("Listening on all interfaces", "The integration opens a server reachable from the whole network."),
+    "B105": ("Possible hard-coded password", "There is a value that looks like a password embedded in the code."),
+    "B106": ("Possible hard-coded password", "There is a value that looks like a password embedded in the code."),
+    "B107": ("Possible hard-coded password", "There is a value that looks like a password embedded in the code."),
+    "B108": ("Predictable temporary file", "Fixed paths in /tmp can be exploited by another process."),
+    "B324": ("Weak hash (MD5/SHA1)", "MD5/SHA1 are not safe for security purposes; for identifiers they are fine."),
+    "B303": ("Weak hash (MD5/SHA1)", "MD5/SHA1 are not safe for security purposes."),
+    "B413": ("pyCrypto library", "pyCrypto is unmaintained and has known vulnerabilities."),
+}
+_BANDIT_RECOMMENDATION_EN = "Read the snippet and confirm the use is safe in this context."
+_MANUAL_REVIEW_EN = "If the component is not well known, review this file manually."
 
 
 PHASE1_RULE_DIRS = ("python", "javascript")
@@ -194,6 +223,12 @@ class StaticAnalysisScanner:
                             "scripts minificados, mas também pode ser proposital para fugir da análise."
                         ),
                         recommendation="Se o componente for pouco conhecido, revise este arquivo manualmente.",
+                        en=en_text(
+                            "File only partially analysed",
+                            f"Semgrep could not analyse the whole file ({kind}). This is common in minified "
+                            "scripts, but it can also be deliberate to evade analysis.",
+                            _MANUAL_REVIEW_EN,
+                        ),
                         file=inv.rel(p),
                         source="semgrep",
                         extra={"fingerprint_key": kind},
@@ -244,6 +279,11 @@ def _from_semgrep(r: dict[str, Any], inv: Inventory) -> Finding | None:
         title=str(meta.get("titulo") or (r.get("extra") or {}).get("message") or rule_id),
         explanation=" ".join(str(meta.get("explicacao", "")).split()),
         recommendation=" ".join(str(meta.get("recomendacao", "Revise o trecho.")).split()),
+        en=en_text(
+            str(meta.get("titulo_en") or (r.get("extra") or {}).get("message") or rule_id),
+            " ".join(str(meta.get("explicacao_en", "")).split()),
+            " ".join(str(meta.get("recomendacao_en", "Review the snippet.")).split()),
+        ) if meta.get("titulo_en") else None,
         file=inv.rel(path),
         line=start.get("line"),
         snippet=read_snippet(path, start.get("line"), end.get("line"), start.get("col"), end.get("col")),
@@ -271,6 +311,10 @@ def _from_bandit(r: dict[str, Any], inv: Inventory) -> Finding | None:
         ("bandit", str(r.get("test_name", test_id)).replace("_", " "),
          f"O Bandit sinalizou: {r.get('issue_text', '')} (texto original em inglês)."),
     )
+    title_en, explanation_en = _BANDIT_EN.get(
+        test_id,
+        (str(r.get("test_name", test_id)).replace("_", " "), f"Bandit reported: {r.get('issue_text', '')}"),
+    )
     line = r.get("line_number")
     line_range = r.get("line_range") or [line]
     return Finding(
@@ -282,6 +326,7 @@ def _from_bandit(r: dict[str, Any], inv: Inventory) -> Finding | None:
         title=title,
         explanation=explanation,
         recommendation="Leia o trecho e confirme se o uso é seguro neste contexto.",
+        en=en_text(title_en, explanation_en, _BANDIT_RECOMMENDATION_EN),
         file=inv.rel(path),
         line=line,
         snippet=read_snippet(path, line, max(line_range) if line_range else line),
@@ -336,6 +381,12 @@ def _symlink_findings(comp: Component, inv: Inventory) -> list[Finding]:
                 "arquivos sensíveis (como o secrets.yaml) ou para código fora do componente."
             ),
             recommendation="Confira para onde o link aponta.",
+            en=en_text(
+                "Symbolic link inside the component",
+                "Symbolic links are not followed by the analysis. A link can point to sensitive files (such as "
+                "secrets.yaml) or to code outside the component.",
+                "Check where the link points to.",
+            ),
             file=f"{comp.rel_path}/{link}",
             source="auditor",
         )
@@ -353,6 +404,8 @@ def _big_file_finding(comp: Component, inv: Inventory, path: Path, size: int) ->
         title="Arquivo grande não analisado",
         explanation=f"O arquivo tem {size // 1024} KiB, acima do limite de análise estática.",
         recommendation="Se o componente for pouco conhecido, revise este arquivo manualmente.",
+        en=en_text("Large file not analysed",
+                   f"The file is {size // 1024} KiB, above the static analysis limit.", _MANUAL_REVIEW_EN),
         file=inv.rel(path),
         source="auditor",
     )

@@ -27,7 +27,7 @@ from typing import Any
 import aiohttp
 
 from ..inventory import Component, Inventory, walk_files
-from ..models import ComponentType, Finding, Severity
+from ..models import ComponentType, Finding, Severity, en_text
 from ..net import DownloadTooLargeError, EgressDeniedError, HttpError
 from ..safe_archive import UnsafeArchiveError, extract
 from .base import ScanContext
@@ -42,7 +42,11 @@ _MAX_DIFF_LINES = 30
 
 
 class NotVerifiableError(Exception):
-    """A integridade não pôde ser verificada (motivo em português na mensagem)."""
+    """A integridade não pôde ser verificada (motivo em português na mensagem; ``en`` em inglês)."""
+
+    def __init__(self, message: str, en: str | None = None) -> None:
+        super().__init__(message)
+        self.en = en or message
 
 
 @dataclass
@@ -110,12 +114,12 @@ class IntegrityScanner:
                 findings.extend(found)
             except NotVerifiableError as err:
                 status = f"não verificada: {err}"
-                findings.append(_not_verified(comp, str(err)))
+                findings.append(_not_verified(comp, str(err), err.en))
             except (HttpError, EgressDeniedError, DownloadTooLargeError, UnsafeArchiveError,
                     aiohttp.ClientError, TimeoutError, OSError, json.JSONDecodeError) as err:
-                reason = _describe_error(err)
+                reason, reason_en = _describe_error(err)
                 status = f"não verificada: {reason}"
-                findings.append(_not_verified(comp, reason))
+                findings.append(_not_verified(comp, reason, reason_en))
             ctx.register_component(comp.component_type, comp.name, integridade=status)
         return findings
 
@@ -125,7 +129,8 @@ class IntegrityScanner:
             return [_unknown_origin(comp)], "sem repositório identificável"
         refs = candidate_refs(comp)
         if not refs:
-            raise NotVerifiableError("versão instalada desconhecida (sem HACS e sem 'version' no manifest)")
+            raise NotVerifiableError("versão instalada desconhecida (sem HACS e sem 'version' no manifest)",
+                                     "installed version unknown (no HACS and no 'version' in the manifest)")
         upstream = await self._fetch_upstream(ctx, repo, refs, comp.name)
 
         local = hash_tree(comp.path, upstream.persistent_directory)
@@ -193,7 +198,8 @@ class IntegrityScanner:
             return Upstream(ref=ref, root=cached / "files", persistent_directory=up.persistent_directory,
                             source=up.source)
         raise NotVerifiableError(
-            f"nenhuma versão correspondente em {owner}/{name} ({last_error or 'sem refs'}; tentado: {', '.join(refs)})"
+            f"nenhuma versão correspondente em {owner}/{name} ({last_error or 'sem refs'}; tentado: {', '.join(refs)})",
+            f"no matching version in {owner}/{name} (tried: {', '.join(refs)})",
         )
 
     async def _download(self, ctx: ScanContext, owner: str, name: str, ref: str, domain: str) -> Upstream:
@@ -206,7 +212,7 @@ class IntegrityScanner:
         await asyncio.to_thread(extract, tarball, src)
         tops = [p for p in src.iterdir() if p.is_dir()]
         if len(tops) != 1:
-            raise NotVerifiableError("estrutura inesperada no tarball do GitHub")
+            raise NotVerifiableError("estrutura inesperada no tarball do GitHub", "unexpected GitHub tarball layout")
         repo_root = tops[0]
         hacs = _read_json(repo_root / "hacs.json")
         persistent = str(hacs.get("persistent_directory")) if hacs.get("persistent_directory") else None
@@ -221,7 +227,8 @@ class IntegrityScanner:
         if not root.is_dir():
             root = _find_by_domain(repo_root / "custom_components", domain)
         if root is None:
-            raise NotVerifiableError(f"o repositório não contém custom_components/{domain} nesta versão")
+            raise NotVerifiableError(f"o repositório não contém custom_components/{domain} nesta versão",
+                                     f"the repository does not contain custom_components/{domain} in this version")
         return Upstream(ref=ref, root=root, persistent_directory=persistent)
 
     async def _zip_release(self, ctx: ScanContext, owner: str, name: str, ref: str, filename: str,
@@ -229,7 +236,8 @@ class IntegrityScanner:
         release = await ctx.http.get_json(f"https://api.github.com/repos/{owner}/{name}/releases/tags/{ref}")
         asset = next((a for a in release.get("assets", []) if a.get("name") == filename), None)
         if not asset:
-            raise NotVerifiableError(f"release {ref} não tem o arquivo {filename} indicado no hacs.json")
+            raise NotVerifiableError(f"release {ref} não tem o arquivo {filename} indicado no hacs.json",
+                                     f"release {ref} does not have the file {filename} named in hacs.json")
         archive = work / "release.zip"
         await ctx.http.download(str(asset["browser_download_url"]), archive)
         out = work / "release"
@@ -257,6 +265,14 @@ class IntegrityScanner:
                 "Compare as diferenças abaixo. Se você não editou o arquivo, reinstale a integração pelo HACS "
                 "e investigue como ele foi alterado."
             ),
+            en=en_text(
+                "File differs from the official release",
+                f"The installed file is not the same as in version {up.ref} published at {repo[0]}/{repo[1]}. "
+                "It may be your own edit, but it can also point to tampering after installation or to a package "
+                "from a different source than advertised.",
+                "Compare the differences below. If you did not edit the file, reinstall the integration from HACS "
+                "and investigate how it was changed.",
+            ),
             file=f"{comp.rel_path}/{rel}",
             snippet=diff,
             source="integridade",
@@ -277,6 +293,13 @@ class IntegrityScanner:
                 "própria pasta; nesse caso, adicione uma exceção."
             ),
             recommendation="Abra o arquivo e veja o que ele contém e se algo o importa.",
+            en=en_text(
+                "File not present in the official release",
+                f"This file is not part of version {up.ref} of {repo[0]}/{repo[1]}. Extra files may be code "
+                "injected after installation. Some integrations write data into their own folder; in that case, "
+                "add an exception.",
+                "Open the file to see what it contains and whether anything imports it.",
+            ),
             file=f"{comp.rel_path}/{rel}",
             snippet=_head(comp.path / rel),
             source="integridade",
@@ -293,12 +316,15 @@ class IntegrityScanner:
             title="Arquivo da release oficial ausente",
             explanation=f"O arquivo existe na versão {up.ref} de {repo[0]}/{repo[1]}, mas não está instalado.",
             recommendation="Normalmente inofensivo; se a integração falhar, reinstale pelo HACS.",
+            en=en_text("File from the official release is missing",
+                       f"The file exists in version {up.ref} of {repo[0]}/{repo[1]} but is not installed.",
+                       "Usually harmless; if the integration fails, reinstall it from HACS."),
             file=f"{comp.rel_path}/{rel}",
             source="integridade",
         )
 
 
-def _not_verified(comp: Component, reason: str) -> Finding:
+def _not_verified(comp: Component, reason: str, reason_en: str | None = None) -> Finding:
     return Finding(
         component=comp.name,
         component_type=ComponentType.INTEGRATION,
@@ -310,6 +336,12 @@ def _not_verified(comp: Component, reason: str) -> Finding:
         recommendation=(
             "Se a integração foi instalada de um branch (sem release), isso é esperado. Caso contrário, "
             "confira se a versão instalada existe no repositório."
+        ),
+        en=en_text(
+            "Integrity not verified",
+            f"It was not possible to compare with the official release: {reason_en or reason}.",
+            "If the integration was installed from a branch (no release), this is expected. Otherwise, check "
+            "that the installed version exists in the repository.",
         ),
         file=comp.rel_path,
         source="integridade",
@@ -330,25 +362,33 @@ def _unknown_origin(comp: Component) -> Finding:
             "GitHub, então não há uma versão oficial para comparar."
         ),
         recommendation="Confirme de onde a integração veio. Se possível, instale pelo HACS.",
+        en=en_text(
+            "Integration with no identifiable source",
+            "The integration was not installed through HACS and its manifest.json does not point to a GitHub "
+            "repository, so there is no official version to compare with.",
+            "Confirm where the integration came from. If possible, install it through HACS.",
+        ),
         file=comp.rel_path,
         source="integridade",
     )
 
 
-def _describe_error(err: Exception) -> str:
+def _describe_error(err: Exception) -> tuple[str, str]:
+    """Motivo da falha em (português, inglês)."""
     if isinstance(err, HttpError) and err.status in (403, 429):
-        return "limite de requisições do GitHub atingido (configure github_token nas opções)"
+        return ("limite de requisições do GitHub atingido (configure github_token nas opções)",
+                "GitHub rate limit reached (set github_token in the options)")
     if isinstance(err, HttpError):
-        return f"GitHub respondeu HTTP {err.status}"
+        return f"GitHub respondeu HTTP {err.status}", f"GitHub answered HTTP {err.status}"
     if isinstance(err, EgressDeniedError):
-        return f"destino bloqueado pela allowlist de rede ({err})"
+        return f"destino bloqueado pela allowlist de rede ({err})", f"destination blocked by the network allowlist ({err})"
     if isinstance(err, UnsafeArchiveError):
-        return f"arquivo baixado rejeitado por segurança ({err})"
+        return f"arquivo baixado rejeitado por segurança ({err})", f"downloaded archive rejected for safety ({err})"
     if isinstance(err, DownloadTooLargeError):
-        return "download grande demais"
+        return "download grande demais", "download too large"
     if isinstance(err, TimeoutError):
-        return "tempo esgotado no download"
-    return f"{type(err).__name__}"
+        return "tempo esgotado no download", "download timed out"
+    return type(err).__name__, type(err).__name__
 
 
 def _read_json(path: Path) -> dict[str, Any]:

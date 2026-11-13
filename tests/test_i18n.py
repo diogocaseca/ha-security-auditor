@@ -90,3 +90,55 @@ async def test_language_default_and_saved(client):
     html = await (await c.get("/")).text()
     assert '<html lang="pt-BR">' in html and "Varrer agora" in html and "Scan now" not in html
     assert '<script type="application/json" id="i18n-js">{}</script>' in html
+
+
+# --- Achados em inglês -------------------------------------------------------------------------
+
+
+def test_every_finding_construction_has_english():
+    import ast
+
+    root = Path(i18n.__file__).resolve().parent
+    missing = []
+    for path in sorted(root.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "Finding":
+                if not any(k.arg == "en" for k in node.keywords):
+                    missing.append(f"{path.relative_to(root)}:{node.lineno}")
+    assert missing == [], f"Finding sem en=: {missing}"
+
+
+def test_every_semgrep_rule_has_english():
+    import yaml
+
+    rules_dir = Path(i18n.__file__).resolve().parent.parent / "rules" / "semgrep"
+    missing = []
+    for path in sorted(rules_dir.rglob("*.yaml")):
+        for rule in yaml.safe_load(path.read_text(encoding="utf-8"))["rules"]:
+            meta = rule.get("metadata") or {}
+            if not all(meta.get(k) for k in ("titulo_en", "explicacao_en", "recomendacao_en")):
+                missing.append(rule["id"])
+    assert missing == []
+
+
+async def test_english_finding_text_is_shown_and_masked(paths, storage, masker):
+    from auditor.models import en_text
+    from auditor.report import render_html
+
+    from .conftest import make_finding
+    from .test_engine_web import FakeScanner, _engine
+
+    secret = "token-ultra-secreto-999"
+    masker.add_known(secret)
+    finding = make_finding(en=en_text("English title", f"Leaks {secret} here", "Do this"))
+    result = await _engine(paths, storage, masker, __import__("auditor.config").config.Options(),
+                           [FakeScanner([finding])]).run()
+    (f,) = result.findings
+    assert secret not in f.en["explanation"] and "****" in f.en["explanation"]
+    html_en = render_html(result, status={}, history=[], csrf_token="t", lang="en")
+    html_pt = render_html(result, status={}, history=[], csrf_token="t", lang="pt")
+    assert "English title" in html_en and "Do this" in html_en
+    assert "English title" not in html_pt and f.title in html_pt
+    saved = storage.load_scan(result.scan_id)
+    assert saved.findings[0].en["title"] == "English title"  # sobrevive ao JSON salvo

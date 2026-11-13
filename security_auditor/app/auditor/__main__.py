@@ -21,8 +21,8 @@ from .net import SafeHttpClient
 from .publisher import SensorPublisher
 from .resources import apply_low_priority, wants_low_priority
 from .scanners import default_scanners
-from .scanners.traffic import TrafficCollector
 from .scanners.dns import check_servers
+from .scanners.traffic import TrafficCollector
 from .scheduler import SENSOR_REFRESH, Scheduler
 from .storage import Storage
 from .supervisor import CoreStatesPublisher, SupervisorClient

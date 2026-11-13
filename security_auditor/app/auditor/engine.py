@@ -137,6 +137,9 @@ class ScanEngine:
             f.explanation = self.masker.mask(f.explanation) or ""
             f.title = self.masker.mask(f.title) or ""
             f.recommendation = self.masker.mask(f.recommendation) or ""
+            if f.en:
+                f.en = {k: self.masker.mask(str(v)) or "" for k, v in f.en.items()
+                        if k in ("title", "explanation", "recommendation")}
             if f.file:
                 f.file = self.masker.mask(f.file)
         result.errors = [self.masker.mask(e) or "" for e in result.errors]

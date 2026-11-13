@@ -37,6 +37,9 @@ rules:
       recomendacao: >-
         Decodifique o conteúdo num ambiente isolado (sem executar) e leia o que
         ele faz. Até lá, considere desativar a integração.
+      titulo_en: "Obfuscated code being executed"
+      explicacao_en: "The code decodes or decompresses data (base64, zlib, marshal, hex...) and executes the result. Legitimate integrations almost never do this: it is the typical technique to hide malicious code from human review and analysis tools."
+      recomendacao_en: "Decode the content in an isolated environment (without running it) and read what it does. Until then, consider disabling the integration."
 
   - id: auditor.py.marshal-loads
     languages: [python]
@@ -51,6 +54,9 @@ rules:
         marshal.loads transforma bytes em objetos de código Python. É usado para
         distribuir código já compilado, que não pode ser lido no arquivo-fonte.
       recomendacao: Descubra de onde vêm os bytes e o que o código carregado faz.
+      titulo_en: "Bytecode loaded with marshal"
+      explicacao_en: "marshal.loads turns bytes into Python code objects. It is used to ship precompiled code that cannot be read in the source file."
+      recomendacao_en: "Find out where the bytes come from and what the loaded code does."
 
   - id: auditor.py.builtins-indireto
     languages: [python]
@@ -70,6 +76,9 @@ rules:
         Buscar funções internas pelo nome (ex.: getattr(__builtins__, "ev"+"al"))
         é uma forma de chamar eval/exec sem que o nome apareça no código.
       recomendacao: Verifique qual função está sendo obtida e com quais dados ela é chamada.
+      titulo_en: "Indirect access to built-in functions"
+      explicacao_en: "Looking up built-in functions by name (e.g. getattr(__builtins__, \"ev\"+\"al\")) is a way to call eval/exec without the name appearing in the code."
+      recomendacao_en: "Check which function is obtained and with what data it is called."
 
   - id: auditor.py.blob-codificado
     languages: [python]
@@ -88,6 +97,9 @@ rules:
         Uma string longa em base64/hex embutida no código pode ser um ícone ou um
         certificado, mas também pode esconder código.
       recomendacao: Decodifique a string (sem executar) e confirme do que se trata.
+      titulo_en: "Long block of encoded data"
+      explicacao_en: "A long base64/hex string embedded in the code may be an icon or a certificate, but it may also hide code."
+      recomendacao_en: "Decode the string (without running it) and confirm what it is."
 
   - id: auditor.py.eval-dinamico
     languages: [python]
@@ -115,6 +127,9 @@ rules:
       recomendacao: >-
         Confira de onde vem o argumento. Se for de uma fonte externa, trate como
         execução remota de código.
+      titulo_en: "Dynamic code execution (eval/exec/compile)"
+      explicacao_en: "eval, exec and compile run text as Python code. If that text comes from outside (network, file, configuration), whoever controls the source controls your installation."
+      recomendacao_en: "Check where the argument comes from. If it is an external source, treat it as remote code execution."
 
   - id: auditor.py.execucao-de-comandos
     languages: [python]
@@ -141,6 +156,9 @@ rules:
         ffmpeg), mas é também o caminho para baixar e rodar ferramentas, abrir
         shells reversos ou alterar o sistema.
       recomendacao: Leia quais comandos são executados e com quais argumentos.
+      titulo_en: "System command execution"
+      explicacao_en: "The integration runs system programs. Some need this (ping, ffmpeg), but it is also the way to download and run tools, open reverse shells or change the system."
+      recomendacao_en: "Read which commands are run and with which arguments."
 
   - id: auditor.py.shell-true
     languages: [python]
@@ -159,6 +177,9 @@ rules:
         Executar pelo shell permite encadear comandos (;, |, &&) e, se parte do
         texto vier de fora, injetar comandos arbitrários.
       recomendacao: Verifique a montagem do comando; prefira lista de argumentos sem shell.
+      titulo_en: "Command executed through a shell"
+      explicacao_en: "Running through the shell allows chaining commands (;, |, &&) and, if part of the text comes from outside, injecting arbitrary commands."
+      recomendacao_en: "Check how the command is built; prefer an argument list without a shell."
 
   - id: auditor.py.shell-reverso
     languages: [python]
@@ -176,3 +197,6 @@ rules:
         Redirecionar a entrada/saída de um socket para um shell é a assinatura de
         um shell reverso: dá a alguém de fora um terminal na sua instalação.
       recomendacao: Desative a integração imediatamente e investigue a origem do código.
+      titulo_en: "Reverse shell pattern"
+      explicacao_en: "Redirecting a socket's input/output to a shell is the signature of a reverse shell: it gives an outsider a terminal on your installation."
+      recomendacao_en: "Disable the integration immediately and investigate where the code came from."

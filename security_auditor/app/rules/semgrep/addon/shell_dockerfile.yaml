@@ -16,6 +16,9 @@ rules:
         o servidor (ou interceptar a conexão) decide o que roda dentro do add-on,
         e o código pode mudar a cada build ou inicialização.
       recomendacao: Veja a URL; o ideal é baixar uma versão fixa e conferir o hash antes de executar.
+      titulo_en: "Script from the internet executed directly (curl | sh)"
+      explicacao_en: "The downloaded content is executed without being saved or verified. Whoever controls the server (or intercepts the connection) decides what runs inside the add-on, and the code can change on every build or start."
+      recomendacao_en: "Check the URL; ideally download a pinned version and verify its hash before running it."
 
   - id: auditor.sh.decodifica-e-executa
     languages: [regex]
@@ -34,6 +37,9 @@ rules:
         há motivo legítimo comum para isso em scripts de add-on; é a forma de
         esconder o que está sendo executado.
       recomendacao: Decodifique o texto sem executar e leia o comando.
+      titulo_en: "Base64-obfuscated command"
+      explicacao_en: "A command is stored encoded and decoded right before running. There is no common legitimate reason for this in add-on scripts; it is a way to hide what is being executed."
+      recomendacao_en: "Decode the text without running it and read the command."
 
   - id: auditor.sh.shell-reverso
     languages: [regex]
@@ -52,6 +58,9 @@ rules:
         Conectar um shell a um socket remoto dá a alguém de fora um terminal
         dentro do add-on, com as permissões dele.
       recomendacao: Desinstale o add-on e investigue a origem.
+      titulo_en: "Reverse shell pattern"
+      explicacao_en: "Connecting a shell to a remote socket gives an outsider a terminal inside the add-on, with its permissions."
+      recomendacao_en: "Uninstall the add-on and investigate its origin."
 
   - id: auditor.sh.token-supervisor-externo
     languages: [regex]
@@ -69,6 +78,9 @@ rules:
         add-on. Ele só deveria ser enviado para http://supervisor; aparecer na
         mesma linha que outro endereço pode significar vazamento.
       recomendacao: Confira o comando e para onde a requisição vai.
+      titulo_en: "Supervisor token sent elsewhere"
+      explicacao_en: "SUPERVISOR_TOKEN grants access to the Supervisor API with the add-on's permissions. It should only be sent to http://supervisor; appearing on the same line as another address may mean a leak."
+      recomendacao_en: "Check the command and where the request goes."
 
   - id: auditor.sh.acesso-sensivel
     languages: [regex]
@@ -84,6 +96,9 @@ rules:
         Poucos add-ons precisam disso (ex.: editores de arquivos acessam por
         ação do usuário).
       recomendacao: Verifique o que é lido e para onde vai.
+      titulo_en: "Access to secrets.yaml or .storage/auth"
+      explicacao_en: "The script reads Home Assistant secrets or authentication data. Few add-ons need this (e.g. file editors access them on user action)."
+      recomendacao_en: "Check what is read and where it goes."
 
   - id: auditor.sh.destino-suspeito
     languages: [regex]
@@ -98,6 +113,9 @@ rules:
         O código referencia um serviço frequentemente usado para receber dados
         roubados (webhooks, bots, túneis) ou hospedar payloads.
       recomendacao: Veja o que é enviado a esse endereço.
+      titulo_en: "Suspicious network destination"
+      explicacao_en: "The code references a service often used to receive stolen data (webhooks, bots, tunnels) or to host payloads."
+      recomendacao_en: "Check what is sent to this address."
 
   - id: auditor.sh.tls-desativado
     languages: [regex]
@@ -114,6 +132,9 @@ rules:
         Sem verificar o certificado, qualquer um no caminho da conexão pode trocar
         o arquivo baixado.
       recomendacao: Remova -k/--insecure e use uma URL com certificado válido.
+      titulo_en: "Download without certificate verification"
+      explicacao_en: "Without verifying the certificate, anyone on the connection path can swap the downloaded file."
+      recomendacao_en: "Remove -k/--insecure and use a URL with a valid certificate."
 
   - id: auditor.docker.add-de-url
     languages: [regex]
@@ -128,6 +149,9 @@ rules:
         ADD com URL baixa o arquivo no build sem conferir hash; se o servidor
         mudar o conteúdo, a imagem muda junto.
       recomendacao: Prefira baixar com curl e conferir o SHA-256 (ou ADD --checksum=).
+      titulo_en: "Dockerfile downloads a file with ADD without verification"
+      explicacao_en: "ADD with a URL downloads the file at build time without checking its hash; if the server changes the content, the image changes too."
+      recomendacao_en: "Prefer downloading with curl and checking the SHA-256 (or ADD --checksum=)."
 
   - id: auditor.sh.permissao-777
     languages: [regex]
@@ -140,3 +164,6 @@ rules:
       severidade: baixa
       explicacao: Qualquer processo do container pode alterar esses arquivos.
       recomendacao: "Use permissões mínimas, por exemplo 755 para executáveis e 644 para arquivos."
+      titulo_en: "Files with 777 permissions"
+      explicacao_en: "Any process in the container can modify these files."
+      recomendacao_en: "Use minimal permissions, e.g. 755 for executables and 644 for files."

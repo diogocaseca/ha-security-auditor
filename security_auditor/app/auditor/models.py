@@ -62,6 +62,11 @@ class ComponentType:
 _WS = re.compile(r"\s+")
 
 
+def en_text(title: str, explanation: str, recommendation: str) -> dict[str, str]:
+    """Texto do achado em inglês (o português vai nos campos normais do Finding)."""
+    return {"title": title, "explanation": explanation, "recommendation": recommendation}
+
+
 @dataclass
 class Finding:
     """Um achado que merece revisão humana. Não é um veredito de malícia."""
@@ -79,6 +84,8 @@ class Finding:
     snippet: str | None = None
     source: str = "auditor"  # ferramenta que gerou o achado
     extra: dict[str, Any] = field(default_factory=dict)
+    # Texto em inglês (title, explanation, recommendation); o português fica nos campos acima.
+    en: dict[str, str] | None = None
     # Preenchidos depois da varredura:
     suppressed: bool = False
     suppression_reason: str | None = None

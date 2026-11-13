@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from packaging.requirements import InvalidRequirement, Requirement
 
 from ..inventory import Component, Inventory
-from ..models import ComponentType, Finding, Severity
+from ..models import ComponentType, Finding, Severity, en_text
 from ..tools import run_tool
 from .base import ScanContext
 
@@ -72,6 +72,13 @@ class DependencyScanner:
                         "O pacote é instalado direto de uma URL ou repositório, não do PyPI. Ele não tem "
                         "versão verificável e o conteúdo pode mudar a qualquer momento sem mudar a integração.",
                         "Veja o que a URL aponta e prefira uma versão publicada no PyPI.",
+                        en=en_text(
+                            "Dependency installed from a URL/repository",
+                            "The package is installed straight from a URL or repository, not from PyPI. It has no "
+                            "verifiable version and its content can change at any time without the integration "
+                            "changing.",
+                            "Check what the URL points to and prefer a version published on PyPI.",
+                        ),
                     ))
                 elif kind == "sem_versao":
                     findings.append(_finding(
@@ -80,6 +87,12 @@ class DependencyScanner:
                         "Sem versão exata (==) não dá para saber qual versão está instalada, então ela "
                         "não pôde ser auditada contra vulnerabilidades conhecidas.",
                         "Nenhuma ação obrigatória; o autor pode fixar a versão no manifest.json.",
+                        en=en_text(
+                            "Dependency without an exact version",
+                            "Without an exact version (==) it is not possible to know which version is installed, "
+                            "so it could not be audited against known vulnerabilities.",
+                            "No action required; the author can pin the version in manifest.json.",
+                        ),
                     ))
                 else:
                     findings.append(_finding(
@@ -87,6 +100,9 @@ class DependencyScanner:
                         "Requisito inválido no manifest.json",
                         "O texto do requisito não segue o formato do pip.",
                         "Confira o manifest.json da integração.",
+                        en=en_text("Invalid requirement in manifest.json",
+                                   "The requirement text does not follow the pip format.",
+                                   "Check the integration's manifest.json."),
                     ))
 
         if not pinned:
@@ -129,6 +145,7 @@ def findings_from_pip_audit(data: dict, pinned: dict[PinnedReq, list[Component]]
             ids.append(f"{v['id']}" + (f" ({', '.join(aliases)})" if aliases else ""))
             fixes.update(v.get("fix_versions") or [])
         fix_text = f" Versões com correção: {', '.join(sorted(fixes))}." if fixes else " Ainda não há versão corrigida."
+        fix_en = f" Fixed versions: {', '.join(sorted(fixes))}." if fixes else " No fixed version yet."
         for comp in comps:
             out.append(_finding(
                 comp, req.raw, Severity.HIGH if len(vulns) >= 5 else Severity.MEDIUM,
@@ -139,6 +156,13 @@ def findings_from_pip_audit(data: dict, pinned: dict[PinnedReq, list[Component]]
                 "Atualize a integração; se o autor não corrigir, abra uma issue pedindo a atualização da dependência.",
                 fingerprint_key=",".join(sorted(v["id"] for v in vulns)),
                 category="dependencia_vulneravel",
+                en=en_text(
+                    f"{req.name} {req.version}: {len(vulns)} known vulnerability(ies)",
+                    f"The version required in manifest.json has published vulnerabilities: {'; '.join(ids)}."
+                    f"{fix_en} Home Assistant may have installed another version if another integration requires it.",
+                    "Update the integration; if the author does not fix it, open an issue asking to update the "
+                    "dependency.",
+                ),
             ))
     return out
 
@@ -153,6 +177,7 @@ def _finding(
     recommendation: str,
     fingerprint_key: str = "",
     category: str = "dependencia",
+    en: dict[str, str] | None = None,
 ) -> Finding:
     return Finding(
         component=comp.name,
@@ -165,6 +190,7 @@ def _finding(
         recommendation=recommendation,
         file=f"{comp.rel_path}/manifest.json",
         snippet=requirement,
+        en=en,
         source="pip-audit" if category == "dependencia_vulneravel" else "auditor",
         extra={"fingerprint_key": f"{requirement}|{fingerprint_key}"},
     )

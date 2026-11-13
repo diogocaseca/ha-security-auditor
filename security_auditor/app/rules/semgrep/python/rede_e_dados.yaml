@@ -36,6 +36,9 @@ rules:
       recomendacao: >-
         Identifique a URL de origem e o conteúdo servido. Trate como execução
         remota de código até prova em contrário.
+      titulo_en: "Code downloaded from the internet and executed"
+      explicacao_en: "Data received over the network reaches a function that runs code or commands. This lets the remote server swap the integration's real code at any time without any review; static analysis cannot see what will be executed."
+      recomendacao_en: "Identify the source URL and the content it serves. Treat it as remote code execution until proven otherwise."
 
   - id: auditor.py.carregamento-dinamico-de-modulo
     languages: [python]
@@ -54,6 +57,9 @@ rules:
         Carregar módulos de caminhos arbitrários permite executar código que não
         está no pacote da integração (por exemplo, um arquivo baixado depois).
       recomendacao: Verifique qual arquivo é carregado e de onde ele vem.
+      titulo_en: "Dynamic module loading"
+      explicacao_en: "Loading modules from arbitrary paths allows running code that is not in the integration's package (for example, a file downloaded later)."
+      recomendacao_en: "Check which file is loaded and where it comes from."
 
   - id: auditor.py.instalacao-de-pacote-em-tempo-de-execucao
     languages: [python]
@@ -74,6 +80,9 @@ rules:
         requirements do manifest.json. Esses pacotes não aparecem no manifest e
         não passam pela auditoria de dependências.
       recomendacao: Confira quais pacotes e de qual índice/URL são instalados.
+      titulo_en: "Package installation at runtime"
+      explicacao_en: "The integration installs packages on its own, outside the manifest.json requirements mechanism. These packages do not appear in the manifest and are not covered by the dependency audit."
+      recomendacao_en: "Check which packages are installed and from which index/URL."
 
   - id: auditor.py.destino-suspeito
     languages: [python]
@@ -93,6 +102,9 @@ rules:
         roubados (webhooks, bots, túneis) ou para hospedar código baixado depois
         (pastebins, arquivos "raw").
       recomendacao: Veja o que é enviado ou baixado desse endereço e por quê.
+      titulo_en: "Suspicious network destination"
+      explicacao_en: "The code references a service often used to send stolen data (webhooks, bots, tunnels) or to host code downloaded later (pastebins, \"raw\" files)."
+      recomendacao_en: "Check what is sent to or downloaded from this address and why."
 
   - id: auditor.py.ip-fixo-publico
     languages: [python]
@@ -112,6 +124,9 @@ rules:
         (sem DNS, mais difícil de rastrear). Pode ser um DNS público ou um
         dispositivo do fabricante, mas merece verificação.
       recomendacao: Descubra a quem pertence o IP e o que a integração troca com ele.
+      titulo_en: "Hard-coded public IP in the code"
+      explicacao_en: "A hard-coded public IP usually points to a server controlled by the author (no DNS, harder to trace). It may be a public DNS or a vendor device, but it deserves a check."
+      recomendacao_en: "Find out who owns the IP and what the integration exchanges with it."
 
   - id: auditor.py.url-fixa
     languages: [python]
@@ -133,6 +148,9 @@ rules:
         fabricante; serve para conferir se os destinos fazem sentido para o que a
         integração diz fazer.
       recomendacao: Confira se o domínio pertence ao serviço que a integração controla.
+      titulo_en: "Hard-coded URL in the code"
+      explicacao_en: "Lists the addresses the integration talks to. Usually it is the vendor's API; use it to check whether the destinations make sense for what the integration claims to do."
+      recomendacao_en: "Check that the domain belongs to the service the integration controls."
 
   - id: auditor.py.acesso-secrets-yaml
     languages: [python]
@@ -152,6 +170,9 @@ rules:
         o secrets.yaml diretamente dá acesso a TODAS as senhas e tokens da
         instalação, não só aos da integração.
       recomendacao: Verifique o que é lido e para onde esses dados vão.
+      titulo_en: "Direct read of secrets.yaml"
+      explicacao_en: "Home Assistant already gives the integration the values it needs. Reading secrets.yaml directly gives access to ALL passwords and tokens of the installation, not only the integration's."
+      recomendacao_en: "Check what is read and where that data goes."
 
   - id: auditor.py.acesso-storage-auth
     languages: [python]
@@ -175,6 +196,9 @@ rules:
         atualização. Com eles é possível entrar na instalação como qualquer
         usuário. Nenhuma integração comum precisa lê-los.
       recomendacao: Desative a integração e investigue; considere revogar os tokens de acesso.
+      titulo_en: "Access to the authentication files (.storage/auth)"
+      explicacao_en: "The .storage/auth* files hold users, password hashes and refresh tokens. With them it is possible to log in to the installation as any user. No regular integration needs to read them."
+      recomendacao_en: "Disable the integration and investigate; consider revoking the access tokens."
 
   - id: auditor.py.acesso-storage
     languages: [python]
@@ -194,6 +218,9 @@ rules:
         credenciais de outras integrações (config_entries). Integrações devem
         usar as APIs do HA em vez de ler esses arquivos.
       recomendacao: Veja qual arquivo é acessado e se a integração realmente precisa dele.
+      titulo_en: "Direct access to the .storage folder"
+      explicacao_en: "The .storage folder holds Home Assistant's internal state, including other integrations' credentials (config_entries). Integrations should use the HA APIs instead of reading these files."
+      recomendacao_en: "Check which file is accessed and whether the integration really needs it."
 
   - id: auditor.py.tokens-de-acesso
     languages: [python]
@@ -215,3 +242,6 @@ rules:
         fazem isso para expor uma API, mas um token criado em segredo dá acesso
         total à instalação a quem o receber.
       recomendacao: Confirme para que o token é criado e se ele sai da instalação.
+      titulo_en: "Creation of users or access tokens"
+      explicacao_en: "The integration creates Home Assistant users or access tokens. Some do this to expose an API, but a token created in secret gives full access to the installation to whoever receives it."
+      recomendacao_en: "Confirm what the token is created for and whether it leaves the installation."

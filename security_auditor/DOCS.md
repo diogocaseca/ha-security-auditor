@@ -83,7 +83,8 @@ frontend, add-ons etc.;
 - o botão **Exportar JSON**;
 - o seletor de tema **Sistema / Claro / Escuro**;
 - o seletor de idioma **EN | PT** (inglês é o padrão). A escolha fica guardada no add-on e
-  vale em qualquer navegador. O texto dos achados ainda é gerado em português.
+  vale em qualquer navegador. Os achados também aparecem no idioma escolhido (relatórios
+  anteriores à versão 0.14.0 ficam em português até a próxima varredura).
 
 ## O que é verificado
 

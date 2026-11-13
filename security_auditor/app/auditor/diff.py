@@ -33,6 +33,7 @@ def compare(current: ScanResult, previous: ScanResult | None) -> None:
             "component_type": f.component_type,
             "rule_id": f.rule_id,
             "title": f.title,
+            "title_en": (f.en or {}).get("title"),
             "severity": f.severity.key,
             "severity_label": f.severity.label,
             "file": f.file,

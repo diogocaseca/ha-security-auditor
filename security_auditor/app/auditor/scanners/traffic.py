@@ -23,7 +23,7 @@ import statistics
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from ..models import ComponentType, Finding, Severity
+from ..models import ComponentType, Finding, Severity, en_text
 from ..storage import Storage
 from ..supervisor import SupervisorClient, SupervisorError
 from .base import ScanContext
@@ -211,6 +211,14 @@ def findings_from_events(events: list[dict[str, Any]]) -> list[Finding]:
             recommendation=(
                 "Compare os horários com o que o add-on deveria estar fazendo (backups, envios agendados). "
                 "Se não houver explicação, verifique o log do add-on e considere pará-lo."
+            ),
+            en=en_text(
+                f"{len(evs)} outbound traffic spike(s) since the last scan",
+                f"The add-on sent data well above its own pattern (peak of {human_rate(worst['rate'])}, "
+                f"{ratio:.0f}x the average). It may be a legitimate backup, upload or update, but it is also "
+                "the typical sign of data exfiltration.",
+                "Compare the times with what the add-on should be doing (backups, scheduled uploads). If there is "
+                "no explanation, check the add-on log and consider stopping it.",
             ),
             snippet="\n".join(lines),
             source="estatisticas",

@@ -126,6 +126,9 @@ def render_html(
         _h=tr.h,
         js_catalog=tr.js_catalog(),
         component_details=lambda meta: component_details(meta, tr),
+        # Texto do achado no idioma escolhido (português quando não houver tradução).
+        ftext=lambda f, field: ((getattr(f, "en", None) or {}).get(field) if lang == "en" else None)
+        or getattr(f, field),
         severity_labels=lambda keys: ", ".join(tr.t(sev_labels.get(k, k)) for k in keys),
         result=result,
         report=result.to_dict() if result else None,

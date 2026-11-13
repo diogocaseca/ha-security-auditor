@@ -15,7 +15,7 @@ from ..blocklist import CATEGORIES, SOURCES, Blocklist, Match, load
 
 # Arquivo da lista pessoal das versões 0.9 a 0.11; não é mais lido (a lista fica na interface).
 LEGACY_PERSONAL_FILE = Path("security_auditor") / "lista_negra.json"
-from ..models import ComponentType, Finding, Severity
+from ..models import ComponentType, Finding, Severity, en_text
 from .base import ScanContext
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,6 +29,32 @@ _ADVICE = {
     "removido": "Veja o motivo da remoção; se o projeto foi abandonado ou substituído, procure a alternativa indicada.",
     "incompativel": "Atualize para uma versão fora da faixa bloqueada; o Home Assistant não carrega a versão afetada.",
 }
+
+_ADVICE_EN = {
+    "malicioso": "Remove the component until you review the evidence. If it had access to HA, change passwords and "
+                 "tokens.",
+    "comprometido": "Update to a version outside the affected range or remove it; check the evidence.",
+    "vulneravel": "Update to a fixed version or disable the component until a fix exists.",
+    "abandonado": "Look for a maintained alternative; without fixes, future flaws will not be corrected.",
+    "telemetria": "Check the evidence and decide whether you accept sending this data; disable it if you do not.",
+    "removido": "See why it was removed; if the project was abandoned or replaced, look for the suggested "
+                "alternative.",
+    "incompativel": "Update to a version outside the blocked range; Home Assistant does not load the affected "
+                    "version.",
+}
+_CATEGORIES_EN = {
+    "malicioso": "reported as malicious",
+    "comprometido": "reported as compromised (account or tampered version)",
+    "vulneravel": "with a known serious vulnerability",
+    "abandonado": "abandoned, with no security fixes",
+    "telemetria": "sends data to third parties without clear notice",
+    "removido": "removed or blocked in an official store (e.g. HACS)",
+    "incompativel": "version blocked by Home Assistant itself",
+}
+_ORIGIN_EN = {"pessoal": "personal", "comunitária": "community"}
+_SOURCES_EN = {"hacs": "HACS removed list", "home-assistant": "Home Assistant blocked list",
+               "comunidade": "community report"}
+_HOW_EN = (("repositório ", "repository "), ("imagem ", "image "), ("nome ", "name "))
 
 _LOWER = {Severity.CRITICAL: Severity.HIGH, Severity.HIGH: Severity.MEDIUM, Severity.MEDIUM: Severity.LOW,
           Severity.LOW: Severity.INFO, Severity.INFO: Severity.INFO}
@@ -105,6 +131,20 @@ def _finding(ctype: str, name: str, version: str | None, m: Match) -> Finding:
     if e.fonte:
         lines.append(f"Fonte: {SOURCES.get(e.fonte, e.fonte)}")
     lines += [f"Evidência: {url}" for url in e.evidencias]
+    # Inglês
+    what_en = _CATEGORIES_EN.get(e.categoria, e.categoria)
+    origin_en = _ORIGIN_EN.get(e.origem, e.origem)
+    how_en = m.how
+    for pt, en in _HOW_EN:
+        if how_en.startswith(pt):
+            how_en = en + how_en[len(pt):]
+    if m.strong:
+        title_en, match_en = f"On the {origin_en} blocklist: {what_en}", f"Matched by {how_en}."
+    else:
+        title_en = f"Possible match on the {origin_en} blocklist: {what_en}"
+        match_en = (f"Matched only by {how_en}; the repository could not be confirmed, so it may be another "
+                    "project with the same name.")
+    source_en = f" Source: {_SOURCES_EN.get(e.fonte, e.fonte)}." if e.fonte else ""
     return Finding(
         component=name,
         component_type=ctype,
@@ -117,6 +157,12 @@ def _finding(ctype: str, name: str, version: str | None, m: Match) -> Finding:
             "A lista registra relatos com evidências; confira os links antes de decidir."
         ),
         recommendation=_ADVICE.get(e.categoria, "Confira as evidências e decida."),
+        en=en_text(
+            title_en,
+            f"This component was reported on the {origin_en} blocklist: {e.motivo} {match_en}{source_en} "
+            "The list records reports with evidence; check the links before deciding.",
+            _ADVICE_EN.get(e.categoria, "Check the evidence and decide."),
+        ),
         snippet="\n".join(lines),
         source="lista_negra",
         extra={"fingerprint_key": e.id, "evidencias": list(e.evidencias), "origem": e.origem},
@@ -134,6 +180,11 @@ def _community_status(result: blocklist_update.UpdateResult) -> list[Finding]:
                         "Só a lista pessoal (se houver) foi usada nesta varredura.",
             recommendation="Confira a conexão com o GitHub. Se não quiser usar a lista, desligue "
                            "a opção lista_comunitaria.",
+            en=en_text("Community blocklist unavailable",
+                       f"The community list could not be obtained yet: {result.message}. Only the personal list "
+                       "(if any) was used in this scan.",
+                       "Check the connection to GitHub. If you do not want to use the list, turn off the "
+                       "lista_comunitaria option."),
             source="lista_negra", extra={"fingerprint_key": "indisponivel"},
         )]
     if blocklist_update.is_stale(result):
@@ -144,6 +195,10 @@ def _community_status(result: blocklist_update.UpdateResult) -> list[Finding]:
             explanation=f"A cópia local é de {result.downloaded_at[:10]} e as atualizações estão falhando "
                         f"({result.message}). Componentes reportados depois disso não serão avisados.",
             recommendation="Confira a conexão com o GitHub e o log do add-on.",
+            en=en_text("Community blocklist out of date",
+                       f"The local copy is from {result.downloaded_at[:10]} and updates are failing "
+                       f"({result.message}). Components reported after that will not be flagged.",
+                       "Check the connection to GitHub and the add-on log."),
             source="lista_negra", extra={"fingerprint_key": "desatualizada"},
         )]
     return []
@@ -160,6 +215,9 @@ def _invalid(error: str) -> Finding:
         explanation=f"Parte da lista negra foi ignorada: {error}.",
         recommendation=("Itens da lista pessoal podem ser corrigidos na aba Lista negra; erros na lista "
                         "comunitária devem ser avisados no repositório diogocaseca/ha-security-blocklist."),
+        en=en_text("Blocklist with errors", f"Part of the blocklist was ignored: {error}.",
+                   "Personal list items can be fixed in the Blocklist tab; errors in the community list should be "
+                   "reported in the diogocaseca/ha-security-blocklist repository."),
         source="lista_negra",
         extra={"fingerprint_key": error[:80]},
     )

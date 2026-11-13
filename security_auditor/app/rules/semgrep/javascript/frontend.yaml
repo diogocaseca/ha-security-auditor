@@ -25,6 +25,9 @@ rules:
         ele, qualquer servidor pode controlar o Home Assistant como esse usuário.
         Cards comuns usam a conexão "hass" já pronta e não precisam do token.
       recomendacao: Verifique se o token é enviado para algum lugar (fetch, WebSocket, imagem).
+      titulo_en: "Access token read in the browser"
+      explicacao_en: "The code reads the logged-in user's access (or refresh) token. With it, any server can control Home Assistant as that user. Regular cards use the ready-made \"hass\" connection and do not need the token."
+      recomendacao_en: "Check whether the token is sent anywhere (fetch, WebSocket, image)."
 
   - id: auditor.js.ofuscacao-decodifica-e-executa
     languages: [javascript, typescript]
@@ -54,6 +57,9 @@ rules:
         O código decodifica texto (base64, escapes, códigos de caractere) e o
         executa. É a técnica clássica para esconder código malicioso em scripts.
       recomendacao: Decodifique o trecho sem executar e leia o que ele faz.
+      titulo_en: "Obfuscated code being executed"
+      explicacao_en: "The code decodes text (base64, escapes, character codes) and executes it. This is the classic technique to hide malicious code in scripts."
+      recomendacao_en: "Decode the snippet without running it and read what it does."
 
   - id: auditor.js.eval-dinamico
     languages: [javascript, typescript]
@@ -78,6 +84,9 @@ rules:
         empacotadas usam isso de forma legítima, mas também é a porta para
         executar código vindo de fora.
       recomendacao: Veja de onde vem o texto executado.
+      titulo_en: "Dynamic code execution (eval/Function)"
+      explicacao_en: "eval and new Function execute text as code. Some bundled libraries use this legitimately, but it is also the door to running code that comes from outside."
+      recomendacao_en: "Check where the executed text comes from."
 
   - id: auditor.js.codigo-remoto
     languages: [javascript, typescript]
@@ -96,6 +105,9 @@ rules:
         execução. O que roda no seu navegador pode mudar a qualquer momento sem
         alteração no arquivo instalado.
       recomendacao: Confira o domínio e se o recurso não poderia vir empacotado.
+      titulo_en: "Script loaded from an external address"
+      explicacao_en: "The code loads and runs a script from another server at runtime. What runs in your browser can change at any time without any change to the installed file."
+      recomendacao_en: "Check the domain and whether the resource could be bundled instead."
 
   - id: auditor.js.destino-suspeito
     languages: [javascript, typescript]
@@ -110,6 +122,9 @@ rules:
         O script referencia um serviço frequentemente usado para receber dados
         roubados (webhooks, bots, túneis) ou hospedar payloads.
       recomendacao: Veja o que é enviado a esse endereço.
+      titulo_en: "Suspicious network destination"
+      explicacao_en: "The script references a service often used to receive stolen data (webhooks, bots, tunnels) or to host payloads."
+      recomendacao_en: "Check what is sent to this address."
 
   - id: auditor.js.ip-fixo-publico
     languages: [javascript, typescript]
@@ -124,3 +139,6 @@ rules:
         O script se conecta diretamente a um IP público, sem domínio. Isso é
         incomum em cards e pode indicar um servidor controlado pelo autor.
       recomendacao: Descubra a quem pertence o IP e o que é trocado com ele.
+      titulo_en: "Connection to a hard-coded public IP"
+      explicacao_en: "The script connects directly to a public IP, without a domain. This is unusual in cards and may point to a server controlled by the author."
+      recomendacao_en: "Find out who owns the IP and what is exchanged with it."

@@ -5,7 +5,7 @@ from __future__ import annotations
 from .addon_image import AddonImageScanner
 from .addon_perms import AddonPermissionsScanner
 from .addon_source import AddonSourceScanner
-from .base import Scanner, ScanContext
+from .base import ScanContext, Scanner
 from .blocklist import BlocklistScanner
 from .deps import DependencyScanner
 from .dns import DnsScanner

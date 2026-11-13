@@ -198,12 +198,12 @@
                    data-sev="{{ f.severity.key }}" data-new="{{ 'true' if f.is_new else 'false' }}"
                    data-suppressed="{{ 'true' if f.suppressed else 'false' }}" data-component="{{ f.component }}"
                    data-rule="{{ f.rule_id }}" data-file="{{ f.file or '' }}" data-fingerprint="{{ f.fingerprint }}"
-                   data-title="{{ f.title }}">
+                   data-title="{{ ftext(f, 'title') }}">
             <header>
               <span class="badge sev-{{ f.severity.key }}">{{ _(f.severity.label) }}</span>
               {% if f.is_new %}<span class="badge badge-new">{{ _("Novo") }}</span>{% endif %}
               {% if f.suppressed %}<span class="badge badge-muted">{{ _("Suprimido") }}</span>{% endif %}
-              <h3>{{ f.title }}</h3>
+              <h3>{{ ftext(f, 'title') }}</h3>
               {% if viewing_latest %}
                 {% if not f.suppressed %}
                   <button type="button" class="btn btn-ghost btn-sm finding-action" data-ignore>{{ _("Ignorar…") }}</button>
@@ -219,8 +219,8 @@
               <div><dt>{{ _("Regra") }}</dt><dd><code>{{ f.rule_id }}</code> <span class="muted">· {{ (f.extra.sources or [f.source]) | join(', ') }}</span></dd></div>
             </dl>
             {% if f.snippet %}<pre class="snippet"><code>{{ f.snippet }}</code></pre>{% endif %}
-            <p class="why"><strong>{{ _("Por que é suspeito:") }}</strong> {{ f.explanation }}</p>
-            <p class="todo"><strong>{{ _("O que fazer:") }}</strong> {{ f.recommendation }}</p>
+            <p class="why"><strong>{{ _("Por que é suspeito:") }}</strong> {{ ftext(f, 'explanation') }}</p>
+            <p class="todo"><strong>{{ _("O que fazer:") }}</strong> {{ ftext(f, 'recommendation') }}</p>
             {% if f.extra.evidencias %}
               <p class="small"><strong>{{ _("Evidências:") }}</strong>
                 {% for url in f.extra.evidencias if url.startswith('https://') %}<a href="{{ url }}" target="_blank" rel="noopener noreferrer">{{ url }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>
@@ -286,7 +286,7 @@
         <ul class="resolved">
           {% for r in result.resolved %}
             <li><span class="badge sev-{{ r.severity }}">{{ _(r.severity_label) }}</span>
-              <strong>{{ r.component }}</strong> · {{ r.title }}{% if r.file %} · <code>{{ r.file }}</code>{% endif %}</li>
+              <strong>{{ r.component }}</strong> · {{ (r.title_en if lang == 'en' and r.title_en else r.title) }}{% if r.file %} · <code>{{ r.file }}</code>{% endif %}</li>
           {% endfor %}
         </ul>
       </section>
