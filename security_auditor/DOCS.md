@@ -72,7 +72,8 @@ No relatório você encontra:
   mascarados), por que é suspeito e o que fazer;
 - filtros por texto, "só novos" e "mostrar suprimidos";
 - o botão **Ignorar…** em cada achado e o quadrado **Ignorados**, que mostra quantos achados
-  estão ignorados e abre a [lista de ignorados](#lista-de-ignorados-e-allowlist);
+  estão ignorados e abre a [lista de ignorados](#lista-de-ignorados-e-allowlist) numa aba
+  própria (clique de novo, ou em "Voltar para o resumo", para voltar);
 - o histórico de varreduras e o botão **Exportar JSON**;
 - o seletor de tema **Sistema / Claro / Escuro**.
 
@@ -264,8 +265,8 @@ Limitações:
 
 ## Lista de ignorados e allowlist
 
-Use para silenciar falsos positivos que você já revisou. A lista abre ao clicar no quadrado
-**Ignorados**, ao lado dos cartões de nível. **Achados ignorados continuam no
+Use para silenciar falsos positivos que você já revisou. A lista abre numa aba própria ao clicar no
+quadrado **Ignorados**, ao lado dos cartões de nível. **Achados ignorados continuam no
 relatório** (marque "Mostrar suprimidos"); eles só deixam de contar nos totais, nos sensores
 e na nota de risco. Assim nada some em silêncio. Há dois jeitos de ignorar, e os dois valem
 juntos:

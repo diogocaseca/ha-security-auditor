@@ -10,7 +10,8 @@
     sevLabels[b.dataset.filterSev] = b.querySelector(".card-label")?.textContent.trim() || b.dataset.filterSev;
   });
   const SEV_KEYS = Object.keys(sevLabels);
-  const state = { sev: new Set(), component: null, text: "", onlyNew: false, suppressed: false };
+  const state = { sev: new Set(), component: null, view: null, text: "", onlyNew: false, suppressed: false };
+  const VIEWS = ["ignorados"];
 
   // --- Estado na URL --------------------------------------------------------------
   // ?componente=X abre a tela de achados do componente; ?niveis=critical,high guarda os
@@ -18,14 +19,17 @@
   function readUrl() {
     const q = new URLSearchParams(window.location.search);
     state.component = q.get("componente") || null;
+    state.view = state.component ? null : (VIEWS.includes(q.get("ver")) ? q.get("ver") : null);
     state.sev = new Set((q.get("niveis") || "").split(",").filter((k) => SEV_KEYS.includes(k)));
   }
 
-  function urlFor(component) {
+  function urlFor(component, view) {
     const q = new URLSearchParams(window.location.search);
     q.delete("componente");
+    q.delete("ver");
     q.delete("niveis");
     if (component) q.set("componente", component);
+    else if (view) q.set("ver", view);
     if (state.sev.size) q.set("niveis", SEV_KEYS.filter((k) => state.sev.has(k)).join(","));
     const qs = q.toString();
     return window.location.pathname + (qs ? "?" + qs : "");
@@ -33,12 +37,14 @@
 
   function saveLevels() {
     // Atualiza a entrada atual do histórico (sem criar outra) quando os níveis mudam.
-    try { history.replaceState(history.state, "", urlFor(state.component)); } catch (e) { /* sem histórico */ }
+    try { history.replaceState(history.state, "", urlFor(state.component, state.view)); } catch (e) { /* sem histórico */ }
   }
 
   function apply() {
     const inComponent = !!state.component;
     document.body.classList.toggle("view-component", inComponent);
+    document.body.classList.toggle("view-ignored", state.view === "ignorados");
+    document.getElementById("toggle-ignored")?.setAttribute("aria-pressed", state.view === "ignorados" ? "true" : "false");
     let visible = 0;
     let total = 0;
     const perSev = {};
@@ -108,25 +114,28 @@
   // --- Navegação entre o resumo e a tela de um componente --------------------------
   if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 
-  function openComponent(name) {
+  function openView(component, view) {
     // Guarda a posição do resumo para voltar ao mesmo ponto.
     try {
-      history.replaceState({ ...(history.state || {}), scroll: window.scrollY }, "", urlFor(null));
-      history.pushState({ component: name }, "", urlFor(name));
+      history.replaceState({ ...(history.state || {}), scroll: window.scrollY }, "", urlFor(null, null));
+      history.pushState({ opened: true }, "", urlFor(component, view));
     } catch (e) { /* sem histórico: só troca a tela */ }
-    state.component = name;
+    state.component = component;
+    state.view = view;
     apply();
     window.scrollTo(0, 0);
   }
+  const openComponent = (name) => openView(name, null);
 
   function backToSummary() {
-    if (history.state && history.state.component) {
+    if (history.state && history.state.opened) {
       history.back(); // volta pela entrada criada ao abrir o componente (popstate cuida do resto)
       return;
     }
     // Aberto direto pela URL (ex.: recarregou a página): substitui pela do resumo.
-    try { history.replaceState({}, "", urlFor(null)); } catch (e) { /* sem histórico */ }
+    try { history.replaceState({}, "", urlFor(null, null)); } catch (e) { /* sem histórico */ }
     state.component = null;
+    state.view = null;
     apply();
     window.scrollTo(0, 0);
   }
@@ -134,12 +143,16 @@
   window.addEventListener("popstate", (ev) => {
     readUrl();
     apply();
-    window.scrollTo(0, state.component ? 0 : (ev.state && ev.state.scroll) || 0);
+    window.scrollTo(0, state.component || state.view ? 0 : (ev.state && ev.state.scroll) || 0);
   });
 
   document.querySelectorAll("[data-filter-component]").forEach((btn) =>
     btn.addEventListener("click", () => openComponent(btn.dataset.filterComponent)));
   document.getElementById("back-to-summary")?.addEventListener("click", backToSummary);
+  document.getElementById("back-from-ignored")?.addEventListener("click", backToSummary);
+  // Quadrado "Ignorados": abre a aba da lista; clicar de novo volta ao resumo.
+  document.getElementById("toggle-ignored")?.addEventListener("click", () =>
+    state.view === "ignorados" ? backToSummary() : openView(null, "ignorados"));
 
   const text = document.getElementById("filter-text");
   text?.addEventListener("input", () => { state.text = text.value.trim().toLowerCase(); apply(); });
@@ -228,23 +241,6 @@
   });
 
   if (document.body.dataset.running === "true") setTimeout(poll, 2000);
-
-  // --- Quadrado "Ignorados": mostra/esconde a lista ------------------------------
-  const ignoredPanel = document.getElementById("ignored");
-  const ignoredCard = document.getElementById("toggle-ignored");
-  const OPEN_KEY = "auditor.ignorados.aberto";
-  function setIgnoredOpen(open, scroll) {
-    if (!ignoredCard || !ignoredPanel) return;
-    ignoredPanel.hidden = !open;
-    ignoredCard.setAttribute("aria-pressed", open ? "true" : "false");
-    try { sessionStorage.setItem(OPEN_KEY, open ? "1" : "0"); } catch (e) { /* sem armazenamento */ }
-    if (open && scroll) ignoredPanel.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-  ignoredCard?.addEventListener("click", () => setIgnoredOpen(ignoredPanel.hidden, true));
-  // Continua aberta depois de incluir/remover (a página recarrega).
-  let wasOpen = false;
-  try { wasOpen = sessionStorage.getItem(OPEN_KEY) === "1"; } catch (e) { /* sem armazenamento */ }
-  if (wasOpen) setIgnoredOpen(true, false);
 
   // --- Lista de ignorados -----------------------------------------------------
   const dialog = document.getElementById("ignore-dialog");

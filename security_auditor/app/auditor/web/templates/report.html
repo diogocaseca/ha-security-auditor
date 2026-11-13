@@ -74,10 +74,6 @@
           <span class="card-label">{{ sev.label }}</span>
         </button>
       {% endfor %}
-      <div class="card card-new">
-        <span class="card-count">{{ report.new_count }}</span>
-        <span class="card-label">Novos desde a anterior</span>
-      </div>
       {% set n_rules = ignored | length + config_allowlist | length %}
       <button type="button" class="card card-ignored" id="toggle-ignored" aria-pressed="false" aria-controls="ignored"
               title="Mostrar ou esconder a lista de ignorados">
@@ -200,7 +196,9 @@
     </section>
   {% endif %}
 
-    <section class="panel" id="ignored" {% if result %}hidden{% endif %}>
+    {# Aba de ignorados: aberta pelo quadrado "Ignorados" (?ver=ignorados). Sem relatório, fica sempre visível. #}
+    <section class="panel{% if result %} ignored-tab{% endif %}" id="ignored">
+      {% if result %}<button type="button" class="btn btn-ghost btn-sm" id="back-from-ignored">← Voltar para o resumo</button>{% endif %}
       <div class="panel-head">
         <h2>Lista de ignorados <span class="muted">({{ ignored | length + config_allowlist | length }})</span></h2>
         <button type="button" class="btn btn-ghost btn-sm" id="ignore-add">Incluir na lista…</button>

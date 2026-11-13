@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.4
+
+- O quadrado **Ignorados** abre uma aba própria com a lista de ignorados: a tabela de
+  componentes, o histórico e o resto do resumo ficam escondidos. Volta pelo próprio quadrado,
+  por "Voltar para o resumo" ou pelo voltar do navegador.
+- Removido o quadrado "Novos desde a anterior". Os achados novos continuam marcados com
+  "Novo", há o filtro "Só novos" e o sensor `sensor.security_auditor_novos_achados`.
+
 ## 0.7.3
 
 - Clicar num componente abre uma **tela só com os achados dele** (com filtros por nível,

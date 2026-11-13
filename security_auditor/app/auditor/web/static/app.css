@@ -141,7 +141,6 @@ button.card[aria-pressed="true"] { outline: 2px solid var(--accent); outline-off
 .card.sev-high { border-top-color: var(--sev-high); }
 .card.sev-medium { border-top-color: var(--sev-medium); }
 .card.sev-low { border-top-color: var(--sev-low); }
-.card-new { border-top-color: var(--new); }
 .card-ignored { border-top-color: var(--muted); }
 
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
@@ -251,3 +250,8 @@ body.view-component main > :not(#findings-view) { display: none; }
 .chip.sev-medium[aria-pressed="true"] { background: var(--sev-medium-bg); color: var(--sev-medium); }
 .chip.sev-low[aria-pressed="true"] { background: var(--sev-low-bg); color: var(--sev-low); }
 .chip.sev-info[aria-pressed="true"] { background: var(--sev-info-bg); color: var(--sev-info); }
+
+/* Aba de ignorados (?ver=ignorados): só os avisos do topo, os cartões e a lista. */
+body:not(.view-ignored) #ignored.ignored-tab { display: none; }
+body.view-ignored main > :not(#ignored):not(.cards):not(.notice):not(.modes) { display: none; }
+#back-from-ignored { margin-bottom: 12px; }
