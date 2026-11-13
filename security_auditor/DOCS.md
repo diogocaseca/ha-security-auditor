@@ -365,7 +365,8 @@ o motivo, as versões afetadas e os links de evidência. É um relato, não um v
 evidências antes de decidir.
 
 - **Lista pessoal:** crie `/config/security_auditor/lista_negra.json` (pelo File editor, Studio
-  Code Server ou Samba) para marcar o que você mesmo quiser. Ela vale na próxima varredura.
+  Code Server ou Samba; crie a pasta `security_auditor` se não existir) para marcar o que você
+  mesmo quiser e clique em **Varrer agora**. Não precisa de assinatura nem de evidência.
 - **Lista comunitária:** mantida em
   [diogocaseca/ha-security-blocklist](https://github.com/diogocaseca/ha-security-blocklist).
   Além dos relatos da comunidade, ela inclui a **lista de removidos do HACS** (repositórios
@@ -415,6 +416,14 @@ Exemplo de lista pessoal:
   ]
 }
 ```
+
+**Como achar o `github` ou o `nome` de um componente:** na tabela de componentes, cada linha
+mostra o nome (use em `nome`) e, quando conhecido, o repositório (`repositorio: dono/repo`, use
+em `github`). Prefira `github`: a correspondência só pelo nome sai como "possível".
+
+**Para sugerir um item para todos**, abra uma issue *Relatar um componente* ou um Pull Request
+no [repositório da lista](https://github.com/diogocaseca/ha-security-blocklist#como-adicionar-um-item),
+que tem o passo a passo completo.
 
 Campos: `id` (único), `tipo` (`integracao`, `frontend`, `addon`; vazio = qualquer), `github`
 (`dono/repo`), `nome` (domínio, pasta do card ou slug; aceita `*`), `imagem` (`{arch}` vale
