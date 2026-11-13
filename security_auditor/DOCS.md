@@ -224,11 +224,6 @@ O Pi-hole v5 não é suportado (API antiga).
 | `pihole_password` | vazio | **Senha de app** do Pi-hole v6. Nunca é registrada em log. |
 | `dns_client_ips` | `[]` | IPs com que o HA aparece no servidor DNS. Vazio = IPs do host (via Supervisor) + `172.30.32.3` (DNS do Supervisor). |
 | `dns_verify_tls` | `true` | Desative só se o AdGuard ou o Pi-hole usar HTTPS com certificado próprio (vale para os dois). |
-
-As opções `dns_provider`, `dns_url`, `dns_username` e `dns_password` (até a 0.6.0) continuam
-funcionando: se estiverem preenchidas e o mesmo servidor não estiver nas opções novas, ele é
-usado normalmente. Para trocar, copie os valores para `adguard_*` ou `pihole_*` e mude
-`dns_provider` para `nenhum`.
 | `allowlist` | `[]` | Exceções; veja abaixo. |
 
 ## Proteções contra sobrecarga

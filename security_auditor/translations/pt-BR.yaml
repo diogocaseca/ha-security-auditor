@@ -64,15 +64,6 @@ configuration:
   pihole_password:
     name: Senha de app do Pi-hole
     description: Nunca é registrada em log.
-  dns_provider:
-    name: (Antigo) Servidor DNS
-    description: Opção da versão 0.6.0 e anteriores; prefira os campos do AdGuard e do Pi-hole.
-  dns_url:
-    name: (Antigo) URL do servidor DNS
-  dns_username:
-    name: (Antigo) Usuário
-  dns_password:
-    name: (Antigo) Senha
   dns_client_ips:
     name: IPs do Home Assistant no servidor DNS (opcional)
     description: Vazio = descobrir automaticamente (IPs do host + 172.30.32.3).

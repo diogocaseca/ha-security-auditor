@@ -1,5 +1,5 @@
 name: HA Security Auditor
-version: "0.7.1"
+version: "0.7.2"
 slug: security_auditor
 description: >-
   Audita integrações customizadas (HACS) e add-ons instalados e gera um
@@ -85,11 +85,6 @@ schema:
   adguard_password: password?
   pihole_url: str?
   pihole_password: password?
-  # Opções antigas (até a 0.6.0), aceitas para não quebrar configurações existentes.
-  dns_provider: list(nenhum|adguard|pihole)?
-  dns_url: str?
-  dns_username: str?
-  dns_password: password?
   dns_client_ips:
     - str
   dns_verify_tls: bool

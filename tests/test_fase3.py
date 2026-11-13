@@ -258,23 +258,29 @@ def test_random_and_base_domain():
     assert base_domain("a.b.exemplo.com.br") == "exemplo.com.br" and base_domain("x.y.io") == "y.io"
 
 
-def test_options_parse_dns_legacy():
-    o = Options.from_dict({"dns_provider": "AdGuard", "dns_url": " http://x:3000 ", "dns_password": "p",
-                           "dns_client_ips": ["192.168.1.10", ""], "dns_username": ""})
-    assert o.dns_servers == (DnsServer("adguard", "http://x:3000", None, "p"),)
-    assert o.dns_client_ips == ("192.168.1.10",)
-
-
 def test_options_parse_dns_both():
     o = Options.from_dict({"adguard_url": "http://ag:3000", "adguard_username": "admin", "adguard_password": "a",
                            "pihole_url": " http://pi.hole ", "pihole_password": "b",
-                           "dns_provider": "pihole", "dns_url": "http://antigo"})  # antigo não duplica o Pi-hole
+                           "dns_client_ips": ["192.168.1.10", ""]})
     assert o.dns_servers == (DnsServer("adguard", "http://ag:3000", "admin", "a"),
                              DnsServer("pihole", "http://pi.hole", None, "b"))
-    assert Options.from_dict({"pihole_url": "", "dns_provider": "nenhum"}).dns_servers == ()
-    # Opções novas + antigas de outro tipo: os dois são usados.
-    o = Options.from_dict({"pihole_url": "http://pi.hole", "dns_provider": "adguard", "dns_url": "http://ag"})
-    assert [s.kind for s in o.dns_servers] == ["pihole", "adguard"]
+    assert o.dns_client_ips == ("192.168.1.10",)
+    assert Options.from_dict({"pihole_url": ""}).dns_servers == ()
+
+
+def test_legacy_dns_options_are_ignored():
+    # Removidas na 0.7.2; o Supervisor descarta as que ainda estiverem salvas.
+    assert Options.from_dict({"dns_provider": "adguard", "dns_url": "http://ag"}).dns_servers == ()
+
+
+def test_config_has_no_legacy_dns_options():
+    import yaml
+
+    from .conftest import FIXTURES
+
+    cfg = yaml.safe_load((FIXTURES.parents[1] / "security_auditor" / "config.yaml").read_text())
+    for key in ("dns_provider", "dns_url", "dns_username", "dns_password"):
+        assert key not in cfg["schema"] and key not in cfg["options"]
 
 
 async def test_adguard_and_pihole_together(aiohttp_server, tmp_path):

@@ -54,12 +54,7 @@ def _text(value: Any) -> str | None:
 
 
 def _dns_servers(raw: dict[str, Any]) -> tuple[DnsServer, ...]:
-    """AdGuard Home e/ou Pi-hole, usados juntos quando os dois estão configurados.
-
-    As opções antigas (dns_provider, dns_url, dns_username, dns_password) continuam
-    valendo para quem já as tinha preenchido, se o mesmo tipo não estiver configurado
-    nas opções novas.
-    """
+    """AdGuard Home e/ou Pi-hole, usados juntos quando os dois estão configurados."""
     servers: list[DnsServer] = []
     if url := _text(raw.get("adguard_url")):
         servers.append(DnsServer("adguard", url, _text(raw.get("adguard_username")),
@@ -67,10 +62,6 @@ def _dns_servers(raw: dict[str, Any]) -> tuple[DnsServer, ...]:
     if url := _text(raw.get("pihole_url")):
         servers.append(DnsServer("pihole", url, None,
                                  str(raw["pihole_password"]) if raw.get("pihole_password") else None))
-    legacy = str(raw.get("dns_provider") or "nenhum").strip().lower()
-    if legacy in DNS_LABELS and all(s.kind != legacy for s in servers):
-        servers.append(DnsServer(legacy, _text(raw.get("dns_url")), _text(raw.get("dns_username")),
-                                 str(raw["dns_password"]) if raw.get("dns_password") else None))
     return tuple(servers)
 
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.2
+
+- Removidas as opções antigas de DNS (`dns_provider`, `dns_url`, `dns_username`,
+  `dns_password`). Use `adguard_*` e `pihole_*`. Se você ainda usava as antigas, copie os
+  valores para os campos novos antes ou depois de atualizar.
+
 ## 0.7.1
 
 - Ícone e logo do add-on (casa com escudo), exibidos na loja e na lista de add-ons do HA.

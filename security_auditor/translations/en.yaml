@@ -43,15 +43,6 @@ configuration:
     name: Pi-hole v6 URL (phase 3, optional)
   pihole_password:
     name: Pi-hole app password
-  dns_provider:
-    name: (Legacy) DNS server
-    description: Option from 0.6.0 and earlier; prefer the AdGuard and Pi-hole fields.
-  dns_url:
-    name: (Legacy) DNS server URL
-  dns_username:
-    name: (Legacy) Username
-  dns_password:
-    name: (Legacy) Password
   dns_client_ips:
     name: Home Assistant IPs on the DNS server (optional)
   dns_verify_tls:
