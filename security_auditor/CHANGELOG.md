@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.17.0
+
+- **Verificação de instalações e atualizações:** a cada 2 minutos o auditor confere o que está
+  instalado (arquivos de `custom_components/` e `www/community/`, sem ler o conteúdo, e versão dos
+  add-ons). Quando algo é instalado, atualizado ou removido, espera a instalação terminar e varre
+  **só aquele componente** (segundos); o resto do relatório vem da última varredura completa. No
+  histórico aparece como "Instalação/atualização: nome (novo)". Opção `verificar_instalacoes`.
+- **Avisos no HA:** notificação persistente quando o componente verificado tem achados a partir
+  de `aviso_nivel_minimo` (padrão: alta) ou está na lista negra, e o evento
+  `security_auditor_alerta` sempre, para automações (ex.: aviso no celular). O auditor avisa, não
+  bloqueia.
+- **DNS:** botão **Ignorar todos…** na tabela de domínios, que ignora de uma vez todos os domínios
+  da tabela que ainda não estão ignorados.
+
 ## 0.16.0
 
 - **Mais novos no topo:** a tabela de componentes e a lista de achados de cada componente são

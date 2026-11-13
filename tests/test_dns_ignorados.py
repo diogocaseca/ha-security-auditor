@@ -114,3 +114,20 @@ async def test_api_add_edit_remove(client):
     assert (await c.delete(f"/api/dns/ignorados/{entry_id}", headers=h)).status == 204
     assert (await c.delete(f"/api/dns/ignorados/{entry_id}", headers=h)).status == 404
     assert storage.list_dns_ignored() == []
+
+
+async def test_api_ignore_all(client):
+    c, h, storage = client
+    storage.add_dns_ignored("ja.com", "", "2026-11-13T10:00:00+00:00")
+    resp = await c.post("/api/dns/ignorados", headers=h,
+                        json={"dominios": ["a.com", "B.com", "a.com", "ja.com"], "motivo": "todos conhecidos"})
+    assert resp.status == 201 and len((await resp.json())["ids"]) == 2  # repetidos e já ignorados são pulados
+    assert sorted(storage.dns_ignored_patterns()) == ["a.com", "b.com", "ja.com"]
+    assert (await c.post("/api/dns/ignorados", headers=h, json={"dominios": ["a.com"], "motivo": ""})).status == 409
+    for bad in ([], ["*"], "a.com", [1]):
+        assert (await c.post("/api/dns/ignorados", headers=h, json={"dominios": bad, "motivo": ""})).status == 400
+
+
+def test_page_has_ignore_all_button():
+    html = render_html(_result_with(["a.com", "b.com"]), status={}, history=[], csrf_token="t", lang="en")
+    assert 'class="btn btn-ghost btn-sm dns-ignore-all">Ignore all…' in html

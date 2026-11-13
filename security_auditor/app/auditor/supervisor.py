@@ -3,7 +3,9 @@
 A role ``manager`` permitiria escritas no Supervisor; a garantia de que o
 auditor só lê está AQUI, no código:
  - ``SupervisorClient`` só faz GET, e só em caminhos de uma lista fixa;
- - ``CoreStatesPublisher`` só faz POST em ``/core/api/states/sensor.security_auditor_*``.
+ - ``CoreStatesPublisher`` só faz POST em ``/core/api/states/sensor.security_auditor_*``;
+ - ``CoreNotifier`` só cria notificações ``security_auditor_*`` e dispara o evento
+   ``security_auditor_alerta`` (avisos de instalação).
 """
 
 from __future__ import annotations
@@ -36,6 +38,8 @@ _READ_ONLY_PATHS: tuple[re.Pattern[str], ...] = tuple(
     )
 )
 _STATE_ENTITY = re.compile(r"^sensor\.security_auditor_[a-z0-9_]+$")
+_NOTIFICATION_ID = re.compile(r"^security_auditor_[a-z0-9_]{1,80}$")
+ALERT_EVENT = "security_auditor_alerta"
 
 
 class ForbiddenPathError(Exception):
@@ -136,3 +140,40 @@ class CoreStatesPublisher:
         ) as resp:
             if resp.status >= 400:
                 raise SupervisorError(f"Core respondeu {resp.status} ao publicar {entity_id}")
+
+
+class CoreNotifier:
+    """Avisos no Home Assistant: notificação persistente (sino) e evento para automações.
+
+    Só dois caminhos fixos do Core; o conteúdo vem do relatório já mascarado.
+    """
+
+    def __init__(self, session: aiohttp.ClientSession, token: str | None = None, base_url: str | None = None) -> None:
+        self._session = session
+        self._token = token if token is not None else _token()
+        self._base = (base_url or _base_url()).rstrip("/")
+
+    @property
+    def available(self) -> bool:
+        return bool(self._token)
+
+    async def _post(self, path: str, body: dict[str, Any]) -> None:
+        if not self._token:
+            raise SupervisorError("SUPERVISOR_TOKEN ausente; aviso não enviado")
+        async with self._session.post(
+            f"{self._base}{path}",
+            headers={"Authorization": f"Bearer {self._token}"},
+            json=body,
+            timeout=aiohttp.ClientTimeout(total=15),
+        ) as resp:
+            if resp.status >= 400:
+                raise SupervisorError(f"Core respondeu {resp.status} em {path}")
+
+    async def notify(self, notification_id: str, title: str, message: str) -> None:
+        if not _NOTIFICATION_ID.match(notification_id):
+            raise ForbiddenPathError(f"Notificação não permitida: {notification_id}")
+        await self._post("/core/api/services/persistent_notification/create",
+                         {"notification_id": notification_id, "title": title, "message": message})
+
+    async def fire_alert(self, data: dict[str, Any]) -> None:
+        await self._post(f"/core/api/events/{ALERT_EVENT}", data)

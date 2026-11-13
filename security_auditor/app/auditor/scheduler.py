@@ -103,6 +103,17 @@ class Scheduler:
             task.cancel(msg=USER_CANCEL)
         return True
 
+    async def run_job(self, job: Callable[[], Awaitable[ScanResult]]) -> ScanResult | None:
+        """Roda ``job`` (ex.: varredura de instalação) com a mesma trava das outras varreduras.
+
+        Devolve None, sem rodar, se já houver uma varredura em andamento.
+        """
+        if self.running:
+            return None
+        before = self.last_result
+        await self._execute(job)
+        return self.last_result if self.last_result is not before else None  # cancelada: None
+
     def start(self) -> None:
         now = datetime.now(UTC)
         self.next_run = now if self._scan_on_start else self._next_scheduled(now)
@@ -129,12 +140,12 @@ class Scheduler:
             await self._execute()
             self.next_run = self._next_scheduled(datetime.now(UTC))
 
-    async def _execute(self) -> None:
+    async def _execute(self, job: Callable[[], Awaitable[ScanResult]] | None = None) -> None:
         async with self._lock:
             self.last_started = datetime.now(UTC)
             self._cancel_requested = False
             await self._notify("varrendo")
-            self._current = asyncio.create_task(self._run_scan(), name="auditor-scan")
+            self._current = asyncio.create_task((job or self._run_scan)(), name="auditor-scan")
             try:
                 self.last_result = await self._current
             except asyncio.CancelledError:

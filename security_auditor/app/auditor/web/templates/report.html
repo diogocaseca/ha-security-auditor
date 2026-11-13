@@ -20,7 +20,7 @@
       <h1>Security Auditor</h1>
       <p class="muted small">
         {% if result %}
-          {{ _("Varredura de {data}", data=(result.finished_at | dt)) }}{% if not viewing_latest %} · <strong>{{ _("visualizando relatório antigo") }}</strong> · <a href="./">{{ _("ir para o mais recente") }}</a>{% endif %}
+          {{ _("Varredura de {data}", data=(result.finished_at | dt)) }}{% if result.kind == 'parcial' %} · {{ _("verificação de instalação/atualização") }}{% endif %}{% if not viewing_latest %} · <strong>{{ _("visualizando relatório antigo") }}</strong> · <a href="./">{{ _("ir para o mais recente") }}</a>{% endif %}
         {% else %}
           {{ _("Nenhuma varredura concluída ainda") }}
         {% endif %}
@@ -325,7 +325,8 @@
       <div class="dns-domains">
         <div class="panel-head">
           <h3>{{ mtext(c.metadata, 'nome') or _('Domínios consultados') }}</h3>
-          <span class="muted small">{{ mtext(c.metadata, 'trafego') }}</span>
+          <span class="muted small">{{ mtext(c.metadata, 'trafego') }}
+            <button type="button" class="btn btn-ghost btn-sm dns-ignore-all">{{ _("Ignorar todos…") }}</button></span>
         </div>
         <p class="notice notice-warn">{{ mtext(c.metadata, 'aviso') }}</p>
         <p class="muted small">{{ _("Clientes considerados: {clientes}.", clientes=(c.metadata.clientes | join(', '))) }}
@@ -460,7 +461,9 @@
           <tbody>
             {% for h in history %}
               <tr{% if result and h.scan_id == result.scan_id %} class="current"{% endif %}>
-                <td><a href="./?scan={{ h.scan_id }}">{{ h.finished_at | dt }}</a></td>
+                <td><a href="./?scan={{ h.scan_id }}">{{ h.finished_at | dt }}</a>
+                  {% if h.kind == 'parcial' %}<div class="comp-meta">{{ _("Instalação/atualização:") }}
+                    {% for t in h.targets %}{{ t.nome }} ({{ {'novo': _('novo'), 'atualizado': _('atualizado'), 'removido': _('removido')}.get(t.mudanca, t.mudanca) }}){% if not loop.last %}, {% endif %}{% endfor %}</div>{% endif %}</td>
                 <td>{{ {'concluida': _('Concluída'), 'falhou': _('Falhou'), 'cancelada': _('Cancelada'), 'em_andamento': _('Em andamento')}.get(h.status, h.status) }}</td>
                 <td class="num">{{ duration(h.started_at, h.finished_at) }}</td>
                 {% for sev in severities %}<td class="num">{{ h.counts.get(sev.key, 0) or '' }}</td>{% endfor %}
@@ -562,8 +565,10 @@
 <dialog id="dns-ignore-dialog" aria-labelledby="dns-ignore-title">
   <form method="dialog" id="dns-ignore-form">
     <h2 id="dns-ignore-title">{{ _("Ignorar domínio") }}</h2>
-    <label>{{ _("Domínio") }} <input type="text" name="domain" maxlength="253" required placeholder="{{ _('ex.: api.exemplo.com ou *.exemplo.com') }}"></label>
-    <p class="muted small">{{ _("*.exemplo.com vale para exemplo.com e todos os subdomínios.") }}</p>
+    <p class="muted small" id="dns-ignore-many" hidden></p>
+    <p class="notice notice-warn small" id="dns-ignore-many-warn" hidden>{{ _("Domínios ignorados deixam de gerar achados, inclusive de mineração e exfiltração. Confira a lista antes de confirmar.") }}</p>
+    <label id="dns-ignore-one">{{ _("Domínio") }} <input type="text" name="domain" maxlength="253" required placeholder="{{ _('ex.: api.exemplo.com ou *.exemplo.com') }}"></label>
+    <p class="muted small" id="dns-ignore-hint">{{ _("*.exemplo.com vale para exemplo.com e todos os subdomínios.") }}</p>
     <label>{{ _("Motivo") }} <input type="text" name="reason" maxlength="500" placeholder="{{ _('Por que isto pode ser ignorado?') }}" required></label>
     <p class="error small" id="dns-ignore-error" hidden></p>
     <div class="dialog-actions">

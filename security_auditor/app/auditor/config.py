@@ -100,6 +100,8 @@ class Options:
     dns_client_ips: tuple[str, ...] = field(default_factory=tuple)
     dns_verify_tls: bool = True
     community_blocklist: bool = True  # baixar a lista negra comunitária (assinada)
+    watch_installs: bool = True  # varrer logo depois de instalar/atualizar um componente
+    alert_min_level: str = "alta"  # critica | alta | media | baixa | desligado
     execution_modes: frozenset[str] = frozenset(DEFAULT_EXECUTION_MODES)
     scan_time: str = DEFAULT_SCAN_TIME  # HH:MM, usado com horario_fixo
     min_free_memory_mb: int = 500
@@ -145,6 +147,8 @@ class Options:
             dns_client_ips=tuple(str(x).strip() for x in (raw.get("dns_client_ips") or []) if str(x).strip()),
             dns_verify_tls=bool(raw.get("dns_verify_tls", True)),
             community_blocklist=bool(raw.get("lista_comunitaria", True)),
+            watch_installs=bool(raw.get("verificar_instalacoes", True)),
+            alert_min_level=_alert_level(raw.get("aviso_nivel_minimo")),
             execution_modes=_parse_modes(raw.get("modo_execucao")),
             scan_time=_parse_time(raw.get("horario_varredura")),
             min_free_memory_mb=max(64, int(raw.get("memoria_minima_mb", 500))),
@@ -181,6 +185,17 @@ def load_paths() -> Paths:
         data_dir=Path(os.environ.get("AUDITOR_DATA_DIR", "/data")),
         rules_dir=Path(os.environ.get("AUDITOR_RULES_DIR", str(app_dir / "rules"))),
     )
+
+
+ALERT_LEVELS = ("critica", "alta", "media", "baixa", "desligado")
+
+
+def _alert_level(value: Any) -> str:
+    text = str(value or "alta").strip().lower()
+    if text not in ALERT_LEVELS:
+        _LOGGER.warning("aviso_nivel_minimo inválido (%s); usando alta", text)
+        return "alta"
+    return text
 
 
 def load_options(data_dir: Path) -> Options:

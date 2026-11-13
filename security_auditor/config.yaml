@@ -1,5 +1,5 @@
 name: HA Security Auditor
-version: "0.16.0"
+version: "0.17.0"
 slug: security_auditor
 description: >-
   Audita integrações customizadas (HACS) e add-ons instalados e gera um
@@ -63,6 +63,8 @@ options:
   dns_client_ips: []
   dns_verify_tls: true
   lista_comunitaria: true
+  verificar_instalacoes: true
+  aviso_nivel_minimo: alta
   allowlist: []
 
 schema:
@@ -90,6 +92,8 @@ schema:
     - str
   dns_verify_tls: bool
   lista_comunitaria: bool
+  verificar_instalacoes: bool
+  aviso_nivel_minimo: list(critica|alta|media|baixa|desligado)
   allowlist:
     - component: str
       rule: str

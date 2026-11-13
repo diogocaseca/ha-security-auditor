@@ -558,13 +558,34 @@
   const dnsDialog = document.getElementById("dns-ignore-dialog");
   const dnsForm = document.getElementById("dns-ignore-form");
   const dnsError = document.getElementById("dns-ignore-error");
-  function openDnsIgnore(domain) {
+  let dnsMany = null; // "Ignorar todos": lista de domínios da tabela
+  function openDnsIgnore(domain, many) {
     dnsForm.reset();
     dnsError.hidden = true;
+    dnsMany = many || null;
     dnsForm.elements.domain.value = domain || "";
+    dnsForm.elements.domain.required = !dnsMany;
+    document.getElementById("dns-ignore-one").hidden = !!dnsMany;
+    document.getElementById("dns-ignore-hint").hidden = !!dnsMany;
+    const manyEl = document.getElementById("dns-ignore-many");
+    manyEl.hidden = !dnsMany;
+    document.getElementById("dns-ignore-many-warn").hidden = !dnsMany;
+    if (dnsMany) manyEl.textContent = T("Todos os {n} domínios da tabela que ainda não estão ignorados: {lista}",
+      { n: dnsMany.length, lista: dnsMany.slice(0, 8).join(", ") + (dnsMany.length > 8 ? ", …" : "") });
+    document.getElementById("dns-ignore-title").textContent = dnsMany ? T("Ignorar todos os domínios") : T("Ignorar domínio");
     dnsDialog.showModal();
-    (domain ? dnsForm.elements.reason : dnsForm.elements.domain).focus();
+    (domain || dnsMany ? dnsForm.elements.reason : dnsForm.elements.domain).focus();
   }
+  // Sem domínio para ignorar (todos já ignorados), o botão some.
+  document.querySelectorAll(".dns-ignore-all").forEach((b) => {
+    b.hidden = !b.closest(".dns-domains").querySelector("[data-dns-ignore]");
+  });
+  document.querySelectorAll(".dns-ignore-all").forEach((b) =>
+    b.addEventListener("click", () => {
+      const list = Array.from(b.closest(".dns-domains").querySelectorAll("[data-dns-ignore]"))
+        .map((x) => x.dataset.dnsIgnore);
+      if (list.length) openDnsIgnore("", list);
+    }));
   document.getElementById("dns-ignore-add")?.addEventListener("click", () => openDnsIgnore(""));
   document.querySelectorAll("[data-dns-ignore]").forEach((b) =>
     b.addEventListener("click", () => openDnsIgnore(b.dataset.dnsIgnore)));
@@ -574,8 +595,9 @@
     const submit = document.getElementById("dns-ignore-submit");
     submit.disabled = true;
     try {
-      const resp = await post("api/dns/ignorados", { dominio: dnsForm.elements.domain.value,
-                                                     motivo: dnsForm.elements.reason.value });
+      const motivo = dnsForm.elements.reason.value;
+      const resp = await post("api/dns/ignorados", dnsMany ? { dominios: dnsMany, motivo }
+                                                           : { dominio: dnsForm.elements.domain.value, motivo });
       if (resp.status === 201) { window.location.reload(); return; }
       const data = await resp.json().catch(() => ({}));
       dnsError.textContent = data.error || T("Não foi possível incluir (HTTP {status}).", { status: resp.status });

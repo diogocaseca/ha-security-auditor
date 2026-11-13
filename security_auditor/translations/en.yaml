@@ -50,6 +50,12 @@ configuration:
   lista_comunitaria:
     name: Community blocklist
     description: Downloads the signed list of reported components from GitHub and compares it locally. Nothing about your installation is sent.
+  verificar_instalacoes:
+    name: Check installs and updates
+    description: Every 2 minutes, checks whether an integration, frontend card or add-on was installed or updated and scans only that component right away.
+  aviso_nivel_minimo:
+    name: Minimum level for alerts
+    description: "After checking an install or update, warns in HA (notification and the security_auditor_alerta event) when there are findings from this level up or a blocklist match. Values: critica, alta, media, baixa or desligado (off)."
   allowlist:
     name: Allowlist
     description: Exceptions per component and rule. Suppressed findings stay in the report, flagged.

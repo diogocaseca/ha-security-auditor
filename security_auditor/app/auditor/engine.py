@@ -58,9 +58,25 @@ class ScanEngine:
         self.scanners = scanners
         self.progress: dict[str, str] = {}
 
-    async def run(self) -> ScanResult:
+    async def run(self, changes: list[dict[str, str]] | None = None) -> ScanResult:
+        """Varredura completa ou, com ``changes``, só dos componentes instalados/atualizados/removidos.
+
+        ``changes``: [{"tipo", "nome", "mudanca": novo|atualizado|removido}]. A parcial junta o
+        resultado ao relatório completo mais recente; sem relatório anterior, vira completa.
+        """
         scan_id = new_scan_id()
         result = ScanResult(scan_id=scan_id, started_at=utcnow_iso(), version=__version__)
+        base: ScanResult | None = None
+        if changes is not None:
+            base = await asyncio.to_thread(self.storage.load_latest)
+            if base is None:
+                _LOGGER.info("Sem relatório anterior: a varredura de instalação vira uma varredura completa")
+                changes = None
+        only = None
+        if changes is not None:
+            result.kind = "parcial"
+            result.targets = [dict(c) for c in changes]
+            only = frozenset((c["tipo"], c["nome"]) for c in changes if c.get("mudanca") != "removido")
         workdir = Path(tempfile.mkdtemp(prefix=f"auditor-{scan_id}-"))
         ctx = ScanContext(
             paths=self.paths,
@@ -75,8 +91,13 @@ class ScanEngine:
             guard=guard_from_options(self.options),
             ignore_entries=self.options.allowlist + tuple(self.storage.ignore_entries()),
             profile=profile_from_options(self.options),
+            only=only,
         )
-        _LOGGER.info("Varredura %s iniciada (%d scanners)", scan_id, len(self.scanners))
+        if only is None:
+            _LOGGER.info("Varredura %s iniciada (%d scanners)", scan_id, len(self.scanners))
+        else:
+            _LOGGER.info("Varredura %s de instalação/atualização iniciada: %s", scan_id,
+                         ", ".join(f"{c['nome']} ({c['mudanca']})" for c in changes or []))
         try:
             for scanner in self.scanners:
                 ctx.set_progress(scanner.name)
@@ -90,6 +111,8 @@ class ScanEngine:
                     message = self.masker.mask(f"{scanner.name}: {type(err).__name__}: {err}")
                     result.errors.append(message or scanner.name)
                     _LOGGER.exception("Scanner %s falhou", scanner.name)
+            if base is not None:
+                self._carry_over(result, ctx, base)
             self._finalize(result, ctx)
             result.status = "concluida"
         except asyncio.CancelledError as err:
@@ -146,6 +169,21 @@ class ScanEngine:
         result.resolved = [
             {k: (self.masker.mask(v) if isinstance(v, str) else v) for k, v in r.items()} for r in result.resolved
         ]
+
+    @staticmethod
+    def _carry_over(result: ScanResult, ctx: ScanContext, base: ScanResult) -> None:
+        """Parcial: o resto do relatório vem da última varredura completa (achados e componentes).
+
+        Componentes que mudaram (ou foram removidos) saem da base e ficam só com o resultado novo.
+        """
+        changed = {(t["tipo"], t["nome"]) for t in result.targets}
+        for c in base.components:
+            if (c.component_type, c.name) not in changed:
+                ctx.components.setdefault((c.component_type, c.name), dict(c.metadata))
+        kept = [f for f in base.findings if (f.component_type, f.component) not in changed]
+        for f in kept:
+            f.is_new = False
+        result.findings.extend(kept)
 
     def _finalize(self, result: ScanResult, ctx: ScanContext) -> None:
         result.findings = _dedupe(result.findings)

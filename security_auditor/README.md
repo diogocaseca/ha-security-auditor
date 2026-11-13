@@ -10,6 +10,8 @@ Audits the security of your installation and shows a report in the sidebar:
   outbound traffic spikes;
 - **blocklist**: badge and warning for reported components (personal list and the signed community
   list, which includes the HACS and Home Assistant lists);
+- **installs and updates**: a new or updated integration, card or add-on is scanned within minutes,
+  and HA shows a notification when something serious turns up (it warns, it does not block);
 - **DNS (optional)**: domains queried by the host, through AdGuard Home and/or Pi-hole v6.
 
 Findings are ranked by severity, with an explanation (in English or Portuguese) and a suggested

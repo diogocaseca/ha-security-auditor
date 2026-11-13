@@ -75,6 +75,17 @@ configuration:
     description: >-
       Baixa do GitHub a lista de componentes reportados (assinada; só é usada se a
       assinatura for válida) e compara localmente. Nada sobre a instalação é enviado.
+  verificar_instalacoes:
+    name: Verificar instalações e atualizações
+    description: >-
+      A cada 2 minutos, confere se uma integração, card de frontend ou add-on foi instalado ou
+      atualizado e varre só esse componente logo em seguida.
+  aviso_nivel_minimo:
+    name: Nível mínimo para avisos
+    description: >-
+      Depois de verificar uma instalação ou atualização, avisa no HA (notificação e evento
+      security_auditor_alerta) quando houver achados a partir deste nível ou correspondência na
+      lista negra. Valores: critica, alta, media, baixa ou desligado.
   allowlist:
     name: Exceções (allowlist)
     description: >-

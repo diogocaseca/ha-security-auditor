@@ -26,7 +26,8 @@ from .scanners.dns import check_servers
 from .scanners.traffic import TrafficCollector
 from .scheduler import SENSOR_REFRESH, Scheduler
 from .storage import Storage
-from .supervisor import CoreStatesPublisher, SupervisorClient
+from .supervisor import CoreNotifier, CoreStatesPublisher, SupervisorClient
+from .watcher import CHECK_INTERVAL, InstallWatcher
 from .web import create_app
 
 _LOGGER = logging.getLogger("auditor")
@@ -84,12 +85,22 @@ async def main() -> None:
             lang = await asyncio.to_thread(storage.get_setting, "idioma")
             await publisher.publish(latest, status, normalize(lang))
 
+        # Verificação de instalações: a foto de referência acompanha as varreduras completas.
+        watcher: InstallWatcher | None = None
+
+        async def full_scan():
+            snap = await watcher.snapshot() if watcher else None
+            result = await engine.run()
+            if watcher and snap is not None and result.status == "concluida":
+                await asyncio.to_thread(watcher.set_base, snap)
+            return result
+
         tz = await _timezone(supervisor)
         daily_at = options.scan_time_parts if options.has_mode(MODE_FIXED_TIME) else None
         if daily_at:
             _LOGGER.info("Varredura agendada todo dia às %02d:%02d (%s)", *daily_at, tz)
         scheduler = Scheduler(
-            engine.run, options.scan_interval_hours, options.scan_on_start, on_status,
+            full_scan, options.scan_interval_hours, options.scan_on_start, on_status,
             daily_at=daily_at, tz=tz, modes=sorted(options.execution_modes),
         )
 
@@ -142,6 +153,20 @@ async def main() -> None:
             _LOGGER.info("Testando a conexão com %d servidor(es) DNS: %s", len(options.dns_servers),
                          ", ".join(s.label for s in options.dns_servers))
             background.append(asyncio.create_task(check_dns(), name="auditor-teste-dns"))
+        if options.watch_installs:
+            watcher = InstallWatcher(
+                config_dir=paths.config_dir, storage=storage,
+                supervisor=supervisor if supervisor.available else None,
+                notifier=CoreNotifier(internal_session),
+                run_job=lambda changes: scheduler.run_job(lambda: engine.run(changes)),
+                is_busy=lambda: scheduler.running, min_level=options.alert_min_level,
+                addons=options.addons_scan,
+                # Só para desenvolvimento: intervalo curto para testar sem esperar 2 minutos.
+                interval=float(os.environ.get("AUDITOR_DEV_WATCH_SECONDS") or CHECK_INTERVAL),
+            )
+            background.append(asyncio.create_task(watcher.run(), name="auditor-instalacoes"))
+        else:
+            _LOGGER.info("Verificação de instalações desligada (verificar_instalacoes: false)")
         if supervisor.available and options.addons_scan:
             collector = TrafficCollector(storage, supervisor, options.stats_interval_minutes)
             background.append(asyncio.create_task(collector.run(), name="auditor-estatisticas"))

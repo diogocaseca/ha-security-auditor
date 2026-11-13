@@ -525,6 +525,8 @@ class DnsScanner:
 
     async def scan(self, ctx: ScanContext) -> list[Finding]:
         servers = ctx.options.dns_servers
+        if ctx.partial:
+            return []  # varredura de instalação: o DNS fica para a varredura completa
         if not servers or ctx.skipped(ComponentType.NETWORK, "dns", nome="Domínios consultados"):
             return []
         findings: list[Finding] = []

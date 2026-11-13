@@ -25,6 +25,7 @@ selector in the interface), for **human review**.
 | **Add-on code** | Dockerfile and scripts from GitHub: `curl \| sh`, reverse shell, `SUPERVISOR_TOKEN` sent elsewhere, `map` with write access to `/config` |
 | **Traffic** | CPU, memory and network history; alert on upload spikes compared with the add-on's own average |
 | **Blocklist** | Badge and warning for reported components (personal list and the signed [community list](https://github.com/diogocaseca/ha-security-blocklist)), matching GitHub, image and version locally |
+| **Installs and updates** | Every 2 minutes, notices a new or updated integration, card or add-on, scans only that component and warns in HA (notification and event) when there are serious findings or a blocklist match |
 | **DNS (optional)** | AdGuard Home and/or Pi-hole v6 (both together, if you have them): exfiltration, mining, random, blocked and new domains |
 
 The result shows in the sidebar (Ingress), can be exported as JSON, highlights what is new since the

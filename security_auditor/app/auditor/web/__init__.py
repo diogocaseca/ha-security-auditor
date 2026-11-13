@@ -322,27 +322,39 @@ def create_app(
             raise web.HTTPNotFound() from None
 
     async def add_dns_ignored(request: web.Request) -> web.Response:
+        """Inclui um domínio ({"dominio"}) ou vários de uma vez ({"dominios": [...]}, "Ignorar todos")."""
         try:
             body = await request.json()
-            if not isinstance(body, dict) or not isinstance(body.get("dominio"), str):
+            if not isinstance(body, dict):
                 raise InvalidEntryError(Bi("Informe o domínio", "Provide the domain"))
-            pattern = ignore_pattern(body["dominio"])
+            many = body.get("dominios")
+            if many is not None:
+                if (not isinstance(many, list) or not many or len(many) > MAX_IGNORED
+                        or not all(isinstance(d, str) for d in many)):
+                    raise InvalidEntryError(Bi("Lista de domínios inválida", "Invalid domain list"))
+                patterns = list(dict.fromkeys(ignore_pattern(d) for d in many))
+            elif isinstance(body.get("dominio"), str):
+                patterns = [ignore_pattern(body["dominio"])]
+            else:
+                raise InvalidEntryError(Bi("Informe o domínio", "Provide the domain"))
             reason = parse_reason({"reason": body.get("motivo") if isinstance(body.get("motivo"), str) else ""})
         except InvalidEntryError as err:
             return web.json_response({"error": await _say(err.args[0])}, status=400)
         except ValueError as err:
             msg = err.args[0] if err.args and isinstance(err.args[0], Bi) else Bi("JSON inválido", "Invalid JSON")
             return web.json_response({"error": await _say(msg)}, status=400)
-        if len(await asyncio.to_thread(storage.list_dns_ignored)) >= MAX_IGNORED:
+        if len(await asyncio.to_thread(storage.list_dns_ignored)) + len(patterns) > MAX_IGNORED:
             return web.json_response({"error": await _say(Bi(f"Limite de {MAX_IGNORED} itens na lista",
                                                              f"Limit of {MAX_IGNORED} items in the list"))}, status=400)
         now = datetime.now(UTC).isoformat(timespec="seconds")
-        entry_id = await asyncio.to_thread(storage.add_dns_ignored, pattern, reason, now)
-        if entry_id is None:
-            return web.json_response({"error": await _say(Bi(f"{pattern} já está na lista",
-                                                             f"{pattern} is already in the list"))}, status=409)
-        _LOGGER.info("Domínio incluído na lista de ignorados do DNS: %s (#%d)", pattern, entry_id)
-        return web.json_response({"id": entry_id, "dominio": pattern}, status=201)
+        ids = [i for p in patterns if (i := await asyncio.to_thread(storage.add_dns_ignored, p, reason, now))]
+        if not ids:
+            what = patterns[0] if len(patterns) == 1 else f"{len(patterns)}"
+            return web.json_response({"error": await _say(Bi(f"{what} já está na lista",
+                                                             f"{what} is already in the list"))}, status=409)
+        _LOGGER.info("Domínio(s) incluído(s) na lista de ignorados do DNS: %d de %d (%s)", len(ids), len(patterns),
+                     ", ".join(patterns[:5]) + (" …" if len(patterns) > 5 else ""))
+        return web.json_response({"id": ids[0], "ids": ids, "dominio": patterns[0]}, status=201)
 
     async def edit_dns_ignored(request: web.Request) -> web.Response:
         entry_id = _entry_id(request)

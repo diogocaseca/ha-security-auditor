@@ -19,6 +19,7 @@ tráfego e domínios suspeitos.
 - [O que é verificado](#o-que-é-verificado)
 - [Opções](#opções)
 - [Proteções contra sobrecarga](#proteções-contra-sobrecarga)
+- [Instalações e atualizações](#instalações-e-atualizações)
 - [Lista de ignorados e allowlist](#lista-de-ignorados-e-allowlist)
 - [Lista negra](#lista-negra)
 - [Sensores](#sensores)
@@ -217,6 +218,10 @@ segundo só vê o primeiro como cliente e essas consultas não entram de novo.
 | Domínios bloqueados pelo seu filtro | Baixa |
 | Domínios novos desde a varredura anterior | Informativa |
 
+Com **Ignorar todos…** (ao lado do título da tabela), todos os domínios da tabela que ainda não
+estão ignorados vão para a lista de uma vez, com um motivo só. Confira a lista antes: domínios
+ignorados deixam de gerar achados, inclusive de mineração e exfiltração.
+
 A tabela de domínios mostra **primeiro os descobertos por último** (data da primeira consulta que
 o auditor viu), com os mais consultados como desempate, até 150 domínios.
 
@@ -266,6 +271,8 @@ O Pi-hole v5 não é suportado (API antiga).
 | `pihole_password` | vazio | **Senha de app** do Pi-hole v6. Nunca é registrada em log. |
 | `dns_client_ips` | `[]` | IPs com que o HA aparece no servidor DNS. Vazio = IPs do host (via Supervisor) + `172.30.32.3` (DNS do Supervisor). |
 | `lista_comunitaria` | `true` | Baixa e usa a [lista negra comunitária](#lista-negra) assinada. |
+| `verificar_instalacoes` | `true` | Verificar instalações e atualizações logo em seguida. Veja [Instalações e atualizações](#instalações-e-atualizações). |
+| `aviso_nivel_minimo` | `alta` | Nível mínimo que gera notificação depois de uma instalação ou atualização: `critica`, `alta`, `media`, `baixa` ou `desligado` (sem notificação). |
 | `dns_verify_tls` | `true` | Desative só se o AdGuard ou o Pi-hole usar HTTPS com certificado próprio (vale para os dois). |
 | `allowlist` | `[]` | Exceções; veja abaixo. |
 
@@ -300,6 +307,63 @@ Limitações:
   `scan_on_start` para que as varreduras automáticas rodem só no horário escolhido.
 - A carga do host inclui o que o próprio auditor acabou de fazer; com o limite padrão
   (1,5 por núcleo), as etapas do auditor sozinhas não costumam disparar a espera.
+
+## Instalações e atualizações
+
+Com `verificar_instalacoes` ligado (padrão), a cada 2 minutos o auditor tira uma foto leve do que
+está instalado: nome, tamanho e data de cada arquivo em `custom_components/<nome>` e
+`www/community/<nome>` (sem ler o conteúdo) e a versão de cada add-on (`GET /addons`). Quando algo
+é **instalado, atualizado ou removido**, ele espera a foto parar de mudar (o HACS grava os arquivos
+aos poucos) e roda uma **varredura só desse componente**, que leva segundos. O resto do relatório
+vem da última varredura completa. A varredura aparece no histórico como "Instalação/atualização:
+nome (novo)".
+
+Depois ele **avisa no HA**:
+
+- uma **notificação** (o sino) quando o componente tem achados a partir de `aviso_nivel_minimo`
+  (padrão: alta e crítica) ou aparece na lista negra, com os principais achados e um link para o
+  relatório. Cada componente tem a sua notificação, substituída na próxima atualização;
+- o **evento `security_auditor_alerta`**, sempre, para cada componente verificado, para você montar
+  as suas automações (por exemplo, um aviso no celular):
+
+```yaml
+automation:
+  - alias: Avisar sobre instalações suspeitas
+    triggers:
+      - trigger: event
+        event_type: security_auditor_alerta
+        event_data:
+          alerta: true
+    actions:
+      - action: notify.mobile_app_meu_celular
+        data:
+          title: Security Auditor
+          message: >-
+            {{ trigger.event.data.componente }} {{ trigger.event.data.versao or '' }}
+            ({{ trigger.event.data.mudanca }}): {{ trigger.event.data.achados.critical }} crítico(s),
+            {{ trigger.event.data.achados.high }} alto(s)
+            {{- ', na lista negra' if trigger.event.data.lista_negra else '' }}.
+```
+
+Dados do evento: `tipo` (`integracao`, `frontend`, `addon`), `componente`, `mudanca` (`novo` ou
+`atualizado`), `versao`, `achados` (contagem por nível: `critical`, `high`, `medium`, `low`,
+`info`), `lista_negra`, `alerta` (se atingiu o nível da notificação) e `scan_id`.
+
+O que saber:
+
+- O auditor **avisa, não bloqueia**: quando ele varre, os arquivos já estão no disco. Se o HA for
+  reiniciado nesse intervalo, o código da integração roda antes da verificação. Bloquear exigiria
+  escrever no `/config` ou interceptar o HACS, contra o princípio de que o auditor nunca pode virar o
+  maior risco da instalação.
+- Só rodam as etapas que olham o próprio componente (lista negra, análise estática, dependências,
+  integridade, permissões, código e imagem dos add-ons). DNS e picos de tráfego ficam para a
+  varredura completa.
+- Arquivos de `www/` fora de `community/` não são vigiados (mudam muito, ex.: fotos de câmera); a
+  varredura completa continua verificando-os.
+- Componentes ignorados por inteiro na [lista de ignorados](#lista-de-ignorados-e-allowlist) não
+  são varridos nem avisados.
+- Se já houver uma varredura em andamento, a verificação espera ela terminar. Sem um relatório
+  completo anterior, a primeira verificação vira uma varredura completa.
 
 ## Lista de ignorados e allowlist
 
@@ -514,7 +578,7 @@ necessário:
 |---|---|
 | `map: homeassistant_config` **somente leitura** em `/config` | Ler integrações, `www/`, `.storage/hacs.repositories` e o `secrets.yaml` (este último só para mascarar os valores; veja [Segredos](#segredos)). Não é possível escrever em `/config`. |
 | `hassio_api: true` com `hassio_role: manager` | Listar os add-ons e ler permissões, estatísticas, repositórios da loja e IPs do host. O papel `default` só libera endpoints terminados em `/info`; listar os add-ons (`/addons`), ler os repositórios da loja e as estatísticas de **outros** add-ons (`/stats`) exige `manager`. **Esse papel permitiria alterações**, por isso a garantia de leitura está no código: o cliente do Supervisor só faz `GET`, e só numa lista fixa de caminhos (`/addons`, `/addons/<slug>/info`, `/addons/<slug>/stats`, `/store`, `/store/repositories`, `/info`, `/core/info`, `/supervisor/info`, `/network/info`). Qualquer outro caminho é recusado antes de sair do add-on. |
-| `homeassistant_api: true` | Publicar os sensores. O cliente só aceita gravar entidades `sensor.security_auditor_*`; não lê nem controla outras entidades. |
+| `homeassistant_api: true` | Publicar os sensores e avisar sobre instalações. O cliente só aceita gravar entidades `sensor.security_auditor_*`, criar notificações com id começando por `security_auditor_` e disparar o evento `security_auditor_alerta`; não lê nem controla outras entidades. |
 | `ingress: true` | Mostrar o relatório na barra lateral, com o login do próprio HA. O servidor web só aceita conexões vindas do Ingress (`172.30.32.2`), usa CSP restritiva e token anti-CSRF no botão "Varrer agora". Nenhuma porta é aberta na rede. |
 | `apparmor: true` com perfil próprio | Ver abaixo. |
 | `init: true` | O tini do Docker como processo inicial, para repassar sinais e recolher processos das ferramentas. |

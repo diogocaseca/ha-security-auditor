@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -65,7 +66,8 @@ class AddonInfo:
         }
 
 
-async def collect(supervisor: SupervisorClient) -> list[AddonInfo]:
+async def collect(supervisor: SupervisorClient, include: Callable[[str], bool] | None = None) -> list[AddonInfo]:
+    """Add-ons instalados; ``include`` filtra pelo slug antes de pedir os detalhes."""
     repos: dict[str, str] = dict(OFFICIAL_REPOSITORIES)
     try:
         for r in await supervisor.store_repositories():
@@ -82,6 +84,8 @@ async def collect(supervisor: SupervisorClient) -> list[AddonInfo]:
             continue
         if slug == own:
             _LOGGER.debug("Ignorando o próprio auditor (%s)", slug)
+            continue
+        if include is not None and not include(slug):
             continue
         try:
             info = await supervisor.addon_info(slug)

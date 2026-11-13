@@ -37,6 +37,15 @@ class ScanContext:
     profile: Profile = field(default_factory=Profile)
     # Lista de ignorados + allowlist: componentes ignorados por inteiro não são varridos.
     ignore_entries: tuple[Any, ...] = ()
+    # Varredura parcial (instalação ou atualização): só estes (tipo, nome). None = todos.
+    only: frozenset[tuple[str, str]] | None = None
+
+    @property
+    def partial(self) -> bool:
+        return self.only is not None
+
+    def wants(self, component_type: str, name: str) -> bool:
+        return self.only is None or (component_type, name) in self.only
 
     def skipped(self, component_type: str, name: str, **metadata: Any) -> bool:
         """True se o componente está ignorado por inteiro; registra-o como "não verificado"."""
@@ -71,7 +80,8 @@ class ScanContext:
             from ..inventory import discover
 
             inv = discover(self.paths.config_dir)
-            keep = lambda c: not self.skipped(c.component_type, c.name, **c.metadata())  # noqa: E731
+            keep = lambda c: (self.wants(c.component_type, c.name)  # noqa: E731
+                              and not self.skipped(c.component_type, c.name, **c.metadata()))
             inv.integrations = [c for c in inv.integrations if keep(c)]
             inv.frontend = [c for c in inv.frontend if keep(c)]
             for comp in inv.components:
@@ -92,8 +102,8 @@ class ScanContext:
             else:
                 from ..addons import collect
 
-                self._addons = [a for a in await collect(self.supervisor)
-                                if not self.skipped("addon", a.slug, **a.metadata())]
+                found = await collect(self.supervisor, include=lambda slug: self.wants("addon", slug))
+                self._addons = [a for a in found if not self.skipped("addon", a.slug, **a.metadata())]
                 for a in self._addons:
                     self.register_component("addon", a.slug, **a.metadata())
         return self._addons

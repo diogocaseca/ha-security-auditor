@@ -18,6 +18,7 @@ add-ons with broad permissions, images with CVEs, abnormal traffic spikes and su
 - [What is checked](#what-is-checked)
 - [Options](#options)
 - [Overload protection](#overload-protection)
+- [Installs and updates](#installs-and-updates)
 - [Ignore list and allowlist](#ignore-list-and-allowlist)
 - [Blocklist](#blocklist)
 - [Sensors](#sensors)
@@ -214,6 +215,10 @@ those queries are not counted again.
 | Domains blocked by your filter | Low |
 | New domains since the previous scan | Info |
 
+With **Ignore all…** (next to the table title) every domain in the table that is not ignored yet
+goes to the list at once, with a single reason. Check the list first: ignored domains no longer
+create findings, including mining and exfiltration ones.
+
 The domain table shows the **most recently discovered domains first** (date of the first query the
 auditor saw), with the most queried as tie-breaker, up to 150 domains.
 
@@ -265,6 +270,8 @@ language.
 | `pihole_password` | empty | Pi-hole v6 **app password**. Never logged. |
 | `dns_client_ips` | `[]` | IPs HA shows up with on the DNS server. Empty = host IPs (through the Supervisor) + `172.30.32.3` (Supervisor DNS). |
 | `lista_comunitaria` | `true` | Download and use the signed [community blocklist](#blocklist). |
+| `verificar_instalacoes` | `true` | Check installs and updates right away. See [Installs and updates](#installs-and-updates). |
+| `aviso_nivel_minimo` | `alta` | Minimum level that creates a notification after an install or update: `critica`, `alta`, `media`, `baixa` or `desligado` (no notification). |
 | `dns_verify_tls` | `true` | Turn off only if AdGuard or Pi-hole uses HTTPS with a self-signed certificate (applies to both). |
 | `allowlist` | `[]` | Exceptions; see below. |
 
@@ -299,6 +306,62 @@ Limitations:
   that automatic scans only run at the chosen time.
 - The host load includes what the auditor itself just did; with the default limit (1.5 per core),
   the auditor's steps alone do not usually trigger the wait.
+
+## Installs and updates
+
+With `verificar_instalacoes` on (default), every 2 minutes the auditor takes a light snapshot of
+what is installed: the name, size and date of each file in `custom_components/<name>` and
+`www/community/<name>` (without reading their contents) and the version of each add-on (`GET
+/addons`). When something is **installed, updated or removed**, it waits until the snapshot stops
+changing (HACS writes the files little by little) and runs a **scan of only that component**, which
+takes seconds. The rest of the report comes from the latest full scan. The scan shows up in the
+history as "Install/update: name (new)".
+
+Then it **warns you in HA**:
+
+- a **notification** (the bell) when the component has findings from `aviso_nivel_minimo` up
+  (default: high and critical) or matches the blocklist, with the main findings and a link to the
+  report. Each component has its own notification, replaced on the next update;
+- the **`security_auditor_alerta` event**, always, for every component checked, so you can build
+  your own automations (for example, a push notification to your phone):
+
+```yaml
+automation:
+  - alias: Warn about suspicious installs
+    triggers:
+      - trigger: event
+        event_type: security_auditor_alerta
+        event_data:
+          alerta: true
+    actions:
+      - action: notify.mobile_app_my_phone
+        data:
+          title: Security Auditor
+          message: >-
+            {{ trigger.event.data.componente }} {{ trigger.event.data.versao or '' }}
+            ({{ trigger.event.data.mudanca }}): {{ trigger.event.data.achados.critical }} critical,
+            {{ trigger.event.data.achados.high }} high
+            {{- ', on the blocklist' if trigger.event.data.lista_negra else '' }}.
+```
+
+Event data: `tipo` (`integracao`, `frontend`, `addon`), `componente`, `mudanca` (`novo` or
+`atualizado`), `versao`, `achados` (count per level: `critical`, `high`, `medium`, `low`, `info`),
+`lista_negra`, `alerta` (whether it reached the notification level) and `scan_id`.
+
+What to know:
+
+- The auditor **warns, it does not block**: when it scans, the files are already on disk. If HA is
+  restarted in that interval, the integration's code runs before the check. Blocking would require
+  writing to `/config` or intercepting HACS, against the principle that the auditor must never
+  become the biggest risk in the installation.
+- Only the steps that look at the component itself run (blocklist, static analysis, dependencies,
+  integrity, add-on permissions, code and image). DNS and traffic spikes stay for the full scan.
+- Files in `www/` outside `community/` are not watched (they change often, e.g. camera snapshots);
+  the full scan still checks them.
+- Components fully ignored in the [ignore list](#ignore-list-and-allowlist) are not scanned or
+  notified.
+- If a scan is already running, the check waits for it to finish. Without a previous full report,
+  the first check becomes a full scan.
 
 ## Ignore list and allowlist
 
@@ -514,7 +577,7 @@ it needs:
 |---|---|
 | `map: homeassistant_config` **read-only** at `/config` | Read integrations, `www/`, `.storage/hacs.repositories` and `secrets.yaml` (the latter only to mask its values; see [Secrets](#secrets)). Writing to `/config` is not possible. |
 | `hassio_api: true` with `hassio_role: manager` | List add-ons and read permissions, statistics, store repositories and host IPs. The `default` role only allows endpoints ending in `/info`; listing add-ons (`/addons`), reading store repositories and **other** add-ons' statistics (`/stats`) requires `manager`. **That role would allow changes**, so the read-only guarantee is in the code: the Supervisor client only does `GET`, and only on a fixed list of paths (`/addons`, `/addons/<slug>/info`, `/addons/<slug>/stats`, `/store`, `/store/repositories`, `/info`, `/core/info`, `/supervisor/info`, `/network/info`). Any other path is refused before leaving the add-on. |
-| `homeassistant_api: true` | Publish the sensors. The client only accepts writing `sensor.security_auditor_*` entities; it does not read or control other entities. |
+| `homeassistant_api: true` | Publish the sensors and warn about installs. The client only accepts writing `sensor.security_auditor_*` entities, creating notifications whose id starts with `security_auditor_` and firing the `security_auditor_alerta` event; it does not read or control other entities. |
 | `ingress: true` | Show the report in the sidebar, with HA's own login. The web server only accepts connections from Ingress (`172.30.32.2`), uses a strict CSP and an anti-CSRF token on every action. No port is opened on the network. |
 | `apparmor: true` with its own profile | See below. |
 | `init: true` | Docker's tini as the init process, to forward signals and reap the tools' processes. |

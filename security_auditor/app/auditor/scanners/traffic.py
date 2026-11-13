@@ -157,6 +157,8 @@ class TrafficScanner:
         for addon in addons:
             samples = await asyncio.to_thread(storage.addon_stats_since, addon.slug, since)
             ctx.register_component(ComponentType.ADDON, addon.slug, **summarize(samples, addon.info))
+        if ctx.partial:
+            return []  # picos pendentes ficam para a varredura completa
         events = await asyncio.to_thread(storage.take_unreported_events, ctx.scan_id)
         return findings_from_events(events)
 

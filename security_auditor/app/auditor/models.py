@@ -158,6 +158,8 @@ class ScanResult:
     previous_scan_id: str | None = None
     resolved: list[dict[str, Any]] = field(default_factory=list)
     version: str = ""
+    kind: str = "completa"  # completa | parcial (instalação ou atualização)
+    targets: list[dict[str, str]] = field(default_factory=list)  # parcial: [{tipo, nome, mudanca}]
 
     def counts(self, include_suppressed: bool = False) -> dict[str, int]:
         result = {sev.key: 0 for sev in Severity}
@@ -175,6 +177,8 @@ class ScanResult:
         return {
             "scan_id": self.scan_id,
             "version": self.version,
+            "kind": self.kind,
+            "targets": self.targets,
             "started_at": self.started_at,
             "finished_at": self.finished_at,
             "status": self.status,
@@ -193,6 +197,8 @@ class ScanResult:
         return cls(
             scan_id=data["scan_id"],
             version=data.get("version", ""),
+            kind=data.get("kind", "completa"),
+            targets=data.get("targets", []),
             started_at=data["started_at"],
             finished_at=data.get("finished_at"),
             status=data.get("status", "concluida"),

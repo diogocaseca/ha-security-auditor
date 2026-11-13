@@ -111,6 +111,11 @@ class Storage:
             cols = {r["name"] for r in conn.execute("PRAGMA table_info(ignored)")}
             if "severities" not in cols:
                 conn.execute("ALTER TABLE ignored ADD COLUMN severities TEXT")
+            # Migração (0.17.0): varreduras parciais, feitas ao instalar ou atualizar um componente.
+            cols = {r["name"] for r in conn.execute("PRAGMA table_info(scans)")}
+            if "kind" not in cols:
+                conn.execute("ALTER TABLE scans ADD COLUMN kind TEXT NOT NULL DEFAULT 'completa'")
+                conn.execute("ALTER TABLE scans ADD COLUMN targets_json TEXT NOT NULL DEFAULT '[]'")
 
     @contextmanager
     def _conn(self) -> Iterator[sqlite3.Connection]:
@@ -255,8 +260,8 @@ class Storage:
         os.replace(tmp, path)  # escrita atômica
         with self._conn() as conn:
             conn.execute(
-                "INSERT OR REPLACE INTO scans (scan_id, started_at, finished_at, status, counts_json, new_count)"
-                " VALUES (?, ?, ?, ?, ?, ?)",
+                "INSERT OR REPLACE INTO scans (scan_id, started_at, finished_at, status, counts_json, new_count,"
+                " kind, targets_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     result.scan_id,
                     result.started_at,
@@ -264,6 +269,8 @@ class Storage:
                     result.status,
                     json.dumps(data["counts"]),
                     data["new_count"],
+                    result.kind,
+                    json.dumps(result.targets, ensure_ascii=False),
                 ),
             )
         return path
@@ -274,7 +281,8 @@ class Storage:
                 "SELECT * FROM scans ORDER BY scan_id DESC LIMIT ? OFFSET ?", (limit, max(0, offset))
             ).fetchall()
         return [
-            {**dict(r), "counts": json.loads(r["counts_json"] or "{}")}
+            {**dict(r), "counts": json.loads(r["counts_json"] or "{}"),
+             "targets": json.loads(r["targets_json"] or "[]")}
             for r in rows
         ]
 
