@@ -15,6 +15,10 @@ _LOGGER = logging.getLogger(__name__)
 
 SENSOR_REFRESH = timedelta(minutes=15)
 
+# Mensagem passada a Task.cancel() quando o usuário pede para cancelar; o motor
+# a reconhece e salva o relatório parcial como "cancelada" em vez de "falhou".
+USER_CANCEL = "cancelada-pelo-usuario"
+
 
 def next_daily_run(now: datetime, hour: int, minute: int, tz: tzinfo) -> datetime:
     """Próxima ocorrência de HH:MM no fuso ``tz`` estritamente depois de ``now`` (em UTC)."""
@@ -55,6 +59,7 @@ class Scheduler:
         self._trigger = asyncio.Event()
         self._task: asyncio.Task[None] | None = None
         self._current: asyncio.Task[ScanResult] | None = None
+        self._cancel_requested = False
         self.next_run: datetime | None = None
         self.last_started: datetime | None = None
         self.last_result: ScanResult | None = None
@@ -66,6 +71,7 @@ class Scheduler:
     def status(self) -> dict[str, Any]:
         return {
             "running": self.running,
+            "cancelling": self.running and self._cancel_requested,
             "next_run": self.next_run.isoformat(timespec="seconds") if self.next_run else None,
             "last_started": self.last_started.isoformat(timespec="seconds") if self.last_started else None,
             "last_scan_id": self.last_result.scan_id if self.last_result else None,
@@ -84,6 +90,17 @@ class Scheduler:
         if self.running:
             return False
         self._trigger.set()
+        return True
+
+    def cancel_scan(self) -> bool:
+        """Cancela a varredura em andamento. Retorna False se não houver nenhuma."""
+        task = self._current
+        if task is None or task.done():
+            return False
+        if not self._cancel_requested:
+            _LOGGER.info("Cancelamento da varredura solicitado pelo usuário")
+            self._cancel_requested = True
+            task.cancel(msg=USER_CANCEL)
         return True
 
     def start(self) -> None:
@@ -115,16 +132,22 @@ class Scheduler:
     async def _execute(self) -> None:
         async with self._lock:
             self.last_started = datetime.now(UTC)
+            self._cancel_requested = False
             await self._notify("varrendo")
             self._current = asyncio.create_task(self._run_scan(), name="auditor-scan")
             try:
                 self.last_result = await self._current
             except asyncio.CancelledError:
-                raise
+                me = asyncio.current_task()
+                # Cancelamento só da varredura (pedido do usuário): o agendador continua.
+                if not (self._cancel_requested and me is not None and not me.cancelling()):
+                    raise
+                _LOGGER.info("Varredura cancelada")
             except Exception:  # noqa: BLE001 - o agendador sobrevive a qualquer falha
                 _LOGGER.exception("Erro inesperado na varredura")
             finally:
                 self._current = None
+                self._cancel_requested = False
         await self._notify(self.last_result.status if self.last_result else "falhou")
 
     async def _notify(self, status: str) -> None:

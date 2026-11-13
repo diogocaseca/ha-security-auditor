@@ -63,7 +63,7 @@ def test_allowlist_by_component_rule_and_path():
     )
     assert apply_allowlist(findings, entries) == 2
     assert [f.suppressed for f in findings] == [True, False, True]
-    assert findings[0].suppression_reason == "revisado"
+    assert findings[0].suppression_reason == "revisado (allowlist das configurações)"
 
 
 def test_options_parse_allowlist_and_ignores_invalid():

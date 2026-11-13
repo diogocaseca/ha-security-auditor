@@ -82,6 +82,7 @@ class Finding:
     # Preenchidos depois da varredura:
     suppressed: bool = False
     suppression_reason: str | None = None
+    suppressed_by: int | None = None  # id na lista de ignorados da interface (None = configurações)
     is_new: bool = False
 
     @property
@@ -135,7 +136,7 @@ class ScanResult:
     scan_id: str
     started_at: str
     finished_at: str | None = None
-    status: str = "em_andamento"  # em_andamento | concluida | falhou
+    status: str = "em_andamento"  # em_andamento | concluida | falhou | cancelada
     findings: list[Finding] = field(default_factory=list)
     components: list[ComponentSummary] = field(default_factory=list)
     errors: list[str] = field(default_factory=list)

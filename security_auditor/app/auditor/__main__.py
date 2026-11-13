@@ -89,7 +89,11 @@ async def main() -> None:
             daily_at=daily_at, tz=tz, modes=sorted(options.execution_modes),
         )
 
-        app = create_app(storage, scheduler, engine.progress)
+        async def on_ignored_change() -> None:
+            await on_status(status_holder["status"])
+
+        app = create_app(storage, scheduler, engine.progress, config_allowlist=options.allowlist,
+                         on_change=on_ignored_change)
         runner = web.AppRunner(app, access_log=None)
         await runner.setup()
         port = int(os.environ.get("AUDITOR_PORT", "8099"))

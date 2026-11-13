@@ -26,6 +26,7 @@ em português, para **revisão humana**.
 O resultado aparece na barra lateral (Ingress), pode ser exportado em JSON, destaca o que é
 novo desde a varredura anterior e é publicado como sensores
 (`sensor.security_auditor_alertas_altos`, `sensor.security_auditor_ultima_varredura`...).
+Falsos positivos revisados podem ser ignorados direto no relatório, sem sumir dele.
 
 ## Feito para não virar o maior risco da instalação
 

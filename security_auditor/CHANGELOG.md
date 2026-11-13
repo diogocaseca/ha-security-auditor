@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0
+
+- Botão **Cancelar varredura**: encerra as ferramentas em execução e salva o parcial como
+  "Cancelada" (mascarado, fora da comparação). O agendamento continua normalmente.
+- **Lista de ignorados** na interface: botão "Ignorar…" em cada achado (só o achado, a regra no
+  arquivo, no componente ou em todos), inclusão manual e remoção. Vale na hora para o relatório
+  mais recente e os sensores. As entradas da `allowlist` aparecem na lista como "Configurações".
+- Os cartões de severidade agora filtram também a **tabela de componentes**; dá para marcar mais
+  de um nível ao mesmo tempo.
+
 ## 0.5.0
 
 - Proteções contra sobrecarga do HA, combináveis na nova opção `modo_execucao`:

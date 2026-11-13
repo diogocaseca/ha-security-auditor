@@ -81,6 +81,8 @@ def render_html(
     history: list[dict[str, Any]],
     csrf_token: str,
     viewing_latest: bool = True,
+    ignored: list[dict[str, Any]] | None = None,
+    config_allowlist: tuple = (),
 ) -> str:
     template = _ENV.get_template("report.html")
     return template.render(
@@ -90,6 +92,8 @@ def render_html(
         history=history,
         csrf_token=csrf_token,
         viewing_latest=viewing_latest,
+        ignored=ignored or [],
+        config_allowlist=config_allowlist,
     )
 
 

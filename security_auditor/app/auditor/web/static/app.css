@@ -113,6 +113,10 @@ h3 { font-size: 15px; margin: 0; }
 .btn-primary:disabled { opacity: .6; cursor: progress; }
 .btn-ghost:hover { background: var(--surface-2); }
 .btn-sm { padding: 4px 10px; font-size: 13px; }
+.btn-danger { border-color: var(--sev-critical); color: var(--sev-critical); background: var(--surface); }
+.btn-danger:hover { background: var(--sev-critical-bg); }
+.btn:disabled { opacity: .6; cursor: progress; }
+[hidden] { display: none !important; }
 .link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-align: left; }
 .link.active { font-weight: 700; text-decoration: underline; }
 
@@ -201,3 +205,26 @@ tr.current td { background: var(--surface-2); }
 .comp-meta { color: var(--muted); font-size: 12px; white-space: normal; min-width: 260px; max-width: 520px; margin-top: 2px; }
 .notice-warn { border-left-color: var(--sev-medium); }
 .modes { margin: 0 0 10px; }
+
+/* Ações nos achados e lista de ignorados */
+.finding-action { margin-left: auto; }
+td.wrap { white-space: normal; min-width: 160px; }
+.error { color: var(--sev-critical); }
+
+dialog {
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); color: var(--text);
+  padding: 18px 20px; width: min(520px, calc(100vw - 32px));
+}
+dialog::backdrop { background: rgb(0 0 0 / .45); }
+dialog h2 { margin: 0 0 4px; font-size: 18px; }
+dialog form { display: flex; flex-direction: column; gap: 10px; }
+dialog fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; margin: 0; display: grid; gap: 4px; }
+dialog legend { color: var(--muted); font-size: 13px; padding: 0 4px; }
+dialog label { display: flex; flex-direction: column; gap: 4px; font-size: 14px; }
+dialog fieldset label { flex-direction: row; align-items: center; gap: 8px; }
+dialog input[type="text"] {
+  padding: 7px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--text); font: inherit;
+}
+#ignore-manual { display: grid; gap: 10px; }
+.dialog-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px; }

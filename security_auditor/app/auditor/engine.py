@@ -17,7 +17,8 @@ from .masking import Masker
 from .models import Finding, ScanResult
 from .net import SafeHttpClient
 from .resources import guard_from_options, profile_from_options
-from .scanners.base import Scanner, ScanContext
+from .scanners.base import ScanContext, Scanner
+from .scheduler import USER_CANCEL
 from .scoring import summarize
 from .storage import Storage
 from .supervisor import SupervisorClient
@@ -90,10 +91,19 @@ class ScanEngine:
                     _LOGGER.exception("Scanner %s falhou", scanner.name)
             self._finalize(result, ctx)
             result.status = "concluida"
-        except asyncio.CancelledError:
-            result.status = "falhou"
-            result.errors.append("Varredura cancelada")
-            raise
+        except asyncio.CancelledError as err:
+            if err.args and err.args[0] == USER_CANCEL:
+                # Pedido do usuário: o cancelamento termina aqui e o parcial fica salvo.
+                result.status = "cancelada"
+                result.errors.append("Varredura cancelada pelo usuário")
+                _LOGGER.info("Varredura %s cancelada pelo usuário", scan_id)
+                task = asyncio.current_task()
+                if task is not None:
+                    task.uncancel()
+            else:
+                result.status = "falhou"
+                result.errors.append("Varredura cancelada")
+                raise
         except Exception as err:  # noqa: BLE001
             result.status = "falhou"
             result.errors.append(self.masker.mask(f"{type(err).__name__}: {err}") or "erro")
@@ -137,7 +147,7 @@ class ScanEngine:
         result.findings = _dedupe(result.findings)
         # Antes da comparação: a identidade de cada achado usa o trecho já mascarado.
         self._sanitize(result)
-        apply_allowlist(result.findings, self.options.allowlist)
+        apply_allowlist(result.findings, self.options.allowlist + tuple(self.storage.ignore_entries()))
         compare(result, self.storage.load_latest())
         result.findings.sort(key=lambda f: (-int(f.severity), not f.is_new, f.component, f.file or "", f.line or 0))
         result.components = summarize(result.findings, ctx.components)

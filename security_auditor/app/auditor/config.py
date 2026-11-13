@@ -29,6 +29,8 @@ class AllowlistEntry:
     rule: str  # id da regra, aceita glob (ex.: "semgrep.*") ou "*"
     reason: str
     path: str | None = None  # glob opcional de arquivo
+    fingerprint: str | None = None  # só um achado específico (lista de ignorados da interface)
+    entry_id: int | None = None  # id na lista de ignorados; None = allowlist das configurações
 
 
 @dataclass(frozen=True)

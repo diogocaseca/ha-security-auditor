@@ -17,7 +17,7 @@ tráfego e domínios suspeitos.
 - [O que é verificado](#o-que-é-verificado)
 - [Opções](#opções)
 - [Proteções contra sobrecarga](#proteções-contra-sobrecarga)
-- [Exceções (allowlist)](#exceções-allowlist)
+- [Lista de ignorados e allowlist](#lista-de-ignorados-e-allowlist)
 - [Sensores](#sensores)
 - [Severidades e nota de risco](#severidades-e-nota-de-risco)
 - [Permissões pedidas e por quê](#permissões-pedidas-e-por-quê)
@@ -42,7 +42,10 @@ Arquiteturas suportadas: `amd64` e `aarch64` (Raspberry Pi 4/5 com sistema de 64
 ## Primeiro uso
 
 Com a opção `scan_on_start` ligada (padrão), a primeira varredura começa assim que o add-on
-inicia. Você também pode clicar em **Varrer agora** no topo da página.
+inicia. Você também pode clicar em **Varrer agora** no topo da página. Enquanto uma varredura
+roda, aparece o botão **Cancelar varredura**: as ferramentas em execução são encerradas e o que
+já foi analisado fica salvo no histórico como "Cancelada" (uma varredura cancelada não vira
+linha de base para a comparação).
 
 - A **primeira varredura demora mais**: o Trivy baixa a base de vulnerabilidades (algumas
   centenas de MB, guardadas em `/data`) e o código das integrações é baixado do GitHub para
@@ -57,12 +60,15 @@ inicia. Você também pode clicar em **Varrer agora** no topo da página.
 
 No relatório você encontra:
 
-- cartões com o total por severidade (clique para filtrar);
+- cartões com o total por severidade: clique em um ou mais para filtrar os achados **e** a
+  tabela de componentes (ficam só os componentes com achados nos níveis escolhidos); clique de
+  novo para desmarcar;
 - a tabela de componentes com a nota de risco e detalhes (versão, origem, integridade,
   código analisado, tráfego, CVEs);
 - cada achado com componente, tipo, arquivo e linha, trecho de código (com segredos
   mascarados), por que é suspeito e o que fazer;
 - filtros por texto, "só novos" e "mostrar suprimidos";
+- o botão **Ignorar…** em cada achado e a [lista de ignorados](#lista-de-ignorados-e-allowlist);
 - o histórico de varreduras e o botão **Exportar JSON**;
 - o seletor de tema **Sistema / Claro / Escuro**.
 
@@ -240,13 +246,33 @@ Limitações:
 - A carga do host inclui o que o próprio auditor acabou de fazer; com o limite padrão
   (1,5 por núcleo), as etapas do auditor sozinhas não costumam disparar a espera.
 
-## Exceções (allowlist)
+## Lista de ignorados e allowlist
 
-Use exceções para silenciar falsos positivos que você já revisou. **Achados suprimidos
-continuam no relatório** (marque "Mostrar suprimidos"); eles só deixam de contar nos totais,
-nos sensores e na nota de risco. Assim nenhuma exceção esconde algo em silêncio.
+Use para silenciar falsos positivos que você já revisou. **Achados ignorados continuam no
+relatório** (marque "Mostrar suprimidos"); eles só deixam de contar nos totais, nos sensores
+e na nota de risco. Assim nada some em silêncio. Há dois jeitos de ignorar, e os dois valem
+juntos:
 
-Cada entrada tem:
+**Pela interface (lista de ignorados).** Em cada achado do relatório mais recente, clique em
+**Ignorar…**, escolha o alcance e escreva o motivo:
+
+| Alcance | O que deixa de contar |
+|---|---|
+| Só este achado | Apenas esse achado (identificado pela impressão digital: componente, regra, arquivo e trecho). Se o código mudar, ele volta a aparecer. |
+| Esta regra neste arquivo | Todos os achados da regra naquele arquivo. |
+| Esta regra em todo o componente | Todos os achados da regra no componente. |
+| Esta regra em todos os componentes | A regra inteira, em qualquer componente. |
+
+Também dá para incluir manualmente em **Lista de ignorados → Incluir na lista…** (componente,
+regra e arquivo, com curingas) e tirar com **Remover** ou com **Deixar de ignorar** no próprio
+achado. A mudança vale **na hora** para o relatório mais recente e para os sensores, sem precisar
+varrer de novo, e também para as próximas varreduras. Relatórios antigos do histórico não são
+alterados. A lista fica em `/data/auditor.db` e entra no backup do add-on. Por segurança, não é
+aceito componente `*` com regra `*` sem arquivo (isso ignoraria tudo).
+
+**Pela configuração (allowlist).** A opção `allowlist` continua funcionando e aparece na lista
+de ignorados com a origem "Configurações"; essas entradas só podem ser removidas na aba
+**Configuração** do add-on. Cada entrada tem:
 
 - `component`: nome da integração, slug do add-on, `dns` ou `*` (qualquer);
 - `rule`: id da regra (o relatório mostra), aceita curingas como `bandit.*` ou `*`;
@@ -421,7 +447,7 @@ Leia antes de concluir que "está tudo limpo":
 
 Tudo fica em `/data` do add-on (incluído nos backups do add-on):
 
-- `auditor.db` (SQLite): histórico de varreduras, estatísticas dos add-ons (30 dias), picos de
+- `auditor.db` (SQLite): histórico de varreduras, lista de ignorados, estatísticas dos add-ons (30 dias), picos de
   tráfego e domínios DNS já vistos;
 - `reports/*.json`: os últimos `report_retention` relatórios, os mesmos do botão Exportar JSON;
 - `cache/`: código de referência do GitHub (integridade e add-ons), base do Trivy e cache do
@@ -461,6 +487,6 @@ de madrugada) em `modo_execucao`; veja [Proteções contra sobrecarga](#proteç�
 - Se a lista vier vazia, descubra no log do AdGuard/Pi-hole com que IP o HA aparece e
   preencha `dns_client_ips`.
 
-**Muitos falsos positivos de uma regra.** Use a [allowlist](#exceções-allowlist). Se a regra
+**Muitos falsos positivos de uma regra.** Use a [allowlist](#lista-de-ignorados-e-allowlist). Se a regra
 erra com frequência em integrações populares, abra uma issue com o trecho de código (sem
 segredos) para ajustarmos a regra.

@@ -45,6 +45,8 @@
     <button class="btn btn-primary" id="scan-now" type="button" {% if status.running %}disabled{% endif %}>
       {{ 'Varrendo…' if status.running else 'Varrer agora' }}
     </button>
+    <button class="btn btn-danger" id="scan-cancel" type="button" {% if not status.running %}hidden{% endif %}
+            {% if status.cancelling %}disabled{% endif %}>{{ 'Cancelando…' if status.cancelling else 'Cancelar varredura' }}</button>
   </div>
 </header>
 
@@ -89,8 +91,11 @@
     {% endif %}
 
     {% if result.components %}
-      <section class="panel">
-        <h2>Componentes</h2>
+      <section class="panel" id="components">
+        <div class="panel-head">
+          <h2>Componentes <span class="muted" id="comp-count"></span></h2>
+          <span class="muted small" id="comp-filter-note" hidden></span>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -99,7 +104,7 @@
             </thead>
             <tbody>
               {% for c in result.components %}
-                <tr>
+                <tr class="comp-row" data-sevs="{% for sev in severities if c.counts.get(sev.key, 0) %}{{ sev.key }} {% endfor %}">
                   <td>
                     <button type="button" class="link" data-filter-component="{{ c.name }}">{{ c.name }}</button>
                     {% set details = component_details(c.metadata) %}
@@ -113,6 +118,7 @@
             </tbody>
           </table>
         </div>
+        <p class="muted" id="comp-no-match" hidden>Nenhum componente tem achados nos níveis selecionados.</p>
       </section>
     {% endif %}
 
@@ -133,12 +139,21 @@
         {% for f in result.findings %}
           <article class="finding sev-{{ f.severity.key }}{% if f.suppressed %} is-suppressed{% endif %}"
                    data-sev="{{ f.severity.key }}" data-new="{{ 'true' if f.is_new else 'false' }}"
-                   data-suppressed="{{ 'true' if f.suppressed else 'false' }}" data-component="{{ f.component }}">
+                   data-suppressed="{{ 'true' if f.suppressed else 'false' }}" data-component="{{ f.component }}"
+                   data-rule="{{ f.rule_id }}" data-file="{{ f.file or '' }}" data-fingerprint="{{ f.fingerprint }}"
+                   data-title="{{ f.title }}">
             <header>
               <span class="badge sev-{{ f.severity.key }}">{{ f.severity.label }}</span>
               {% if f.is_new %}<span class="badge badge-new">Novo</span>{% endif %}
               {% if f.suppressed %}<span class="badge badge-muted">Suprimido</span>{% endif %}
               <h3>{{ f.title }}</h3>
+              {% if viewing_latest %}
+                {% if not f.suppressed %}
+                  <button type="button" class="btn btn-ghost btn-sm finding-action" data-ignore>Ignorar…</button>
+                {% elif f.suppressed_by is not none %}
+                  <button type="button" class="btn btn-ghost btn-sm finding-action" data-unignore="{{ f.suppressed_by }}">Deixar de ignorar</button>
+                {% endif %}
+              {% endif %}
             </header>
             <dl class="meta">
               <div><dt>Componente</dt><dd>{{ f.component }} <span class="muted">({{ type_label(f.component_type) }})</span></dd></div>
@@ -149,12 +164,54 @@
             {% if f.snippet %}<pre class="snippet"><code>{{ f.snippet }}</code></pre>{% endif %}
             <p class="why"><strong>Por que é suspeito:</strong> {{ f.explanation }}</p>
             <p class="todo"><strong>O que fazer:</strong> {{ f.recommendation }}</p>
-            {% if f.suppressed %}<p class="muted small">Suprimido pela allowlist: {{ f.suppression_reason }}</p>{% endif %}
+            {% if f.suppressed %}<p class="muted small">Ignorado: {{ f.suppression_reason }}</p>{% endif %}
           </article>
         {% endfor %}
       </div>
       <p class="muted" id="no-match" hidden>Nenhum achado corresponde aos filtros.</p>
     </section>
+  {% endif %}
+
+    <section class="panel" id="ignored">
+      <div class="panel-head">
+        <h2>Lista de ignorados <span class="muted">({{ ignored | length + config_allowlist | length }})</span></h2>
+        <button type="button" class="btn btn-ghost btn-sm" id="ignore-add">Incluir na lista…</button>
+      </div>
+      <p class="muted small">Achados ignorados continuam no relatório (marque "Mostrar suprimidos"), mas não contam
+        nos totais, nas notas nem nos sensores. A mudança vale na hora para o relatório mais recente e nas próximas varreduras.</p>
+      {% if ignored or config_allowlist %}
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Componente</th><th>Regra</th><th>Alcance</th><th>Motivo</th><th>Origem</th><th></th></tr></thead>
+            <tbody>
+              {% for e in ignored %}
+                <tr>
+                  <td><code>{{ e.component }}</code></td>
+                  <td><code>{{ e.rule }}</code></td>
+                  <td class="wrap">{% if e.fingerprint %}só o achado “{{ e.title or 'específico' }}”{% elif e.path %}arquivos <code>{{ e.path }}</code>{% else %}todos os achados da regra{% endif %}</td>
+                  <td class="wrap">{{ e.reason or '—' }}</td>
+                  <td>Interface · {{ e.created_at | dt }}</td>
+                  <td><button type="button" class="btn btn-ghost btn-sm" data-unignore="{{ e.id }}">Remover</button></td>
+                </tr>
+              {% endfor %}
+              {% for e in config_allowlist %}
+                <tr>
+                  <td><code>{{ e.component }}</code></td>
+                  <td><code>{{ e.rule }}</code></td>
+                  <td class="wrap">{% if e.path %}arquivos <code>{{ e.path }}</code>{% else %}todos os achados da regra{% endif %}</td>
+                  <td class="wrap">{{ e.reason or '—' }}</td>
+                  <td>Configurações</td>
+                  <td class="muted small">remova na aba Configuração</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="muted">Nada está sendo ignorado.</p>
+      {% endif %}
+    </section>
+  {% if result %}
 
     {% for c in result.components if c.component_type == 'rede' and c.metadata.dominios %}
       <section class="panel">
@@ -207,7 +264,7 @@
             {% for h in history %}
               <tr{% if result and h.scan_id == result.scan_id %} class="current"{% endif %}>
                 <td><a href="./?scan={{ h.scan_id }}">{{ h.finished_at | dt }}</a></td>
-                <td>{{ {'concluida': 'Concluída', 'falhou': 'Falhou', 'em_andamento': 'Em andamento'}.get(h.status, h.status) }}</td>
+                <td>{{ {'concluida': 'Concluída', 'falhou': 'Falhou', 'cancelada': 'Cancelada', 'em_andamento': 'Em andamento'}.get(h.status, h.status) }}</td>
                 {% for sev in severities %}<td class="num">{{ h.counts.get(sev.key, 0) or '' }}</td>{% endfor %}
                 <td class="num">{{ h.new_count or '' }}</td>
               </tr>
@@ -218,5 +275,30 @@
     </section>
   {% endif %}
 </main>
+
+<dialog id="ignore-dialog" aria-labelledby="ignore-title">
+  <form method="dialog" id="ignore-form">
+    <h2 id="ignore-title">Ignorar achado</h2>
+    <p class="muted small" id="ignore-subject"></p>
+    <fieldset id="ignore-scope">
+      <legend>O que ignorar</legend>
+      <label><input type="radio" name="scope" value="finding" checked> Só este achado</label>
+      <label><input type="radio" name="scope" value="file"> Esta regra neste arquivo</label>
+      <label><input type="radio" name="scope" value="component"> Esta regra em todo o componente</label>
+      <label><input type="radio" name="scope" value="all"> Esta regra em todos os componentes</label>
+    </fieldset>
+    <div id="ignore-manual" hidden>
+      <label>Componente <input type="text" name="component" maxlength="200" placeholder="ex.: minha_integracao ou *"></label>
+      <label>Regra <input type="text" name="rule" maxlength="200" placeholder="ex.: auditor.semgrep.eval ou semgrep.*"></label>
+      <label>Arquivo (opcional) <input type="text" name="path" maxlength="500" placeholder="ex.: */vendor/*"></label>
+    </div>
+    <label>Motivo <input type="text" name="reason" maxlength="500" placeholder="Por que isto pode ser ignorado?" required></label>
+    <p class="error small" id="ignore-error" hidden></p>
+    <div class="dialog-actions">
+      <button type="button" class="btn btn-ghost" id="ignore-cancel">Cancelar</button>
+      <button type="submit" class="btn btn-primary" id="ignore-submit">Ignorar</button>
+    </div>
+  </form>
+</dialog>
 </body>
 </html>

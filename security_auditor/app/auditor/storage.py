@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+from .config import AllowlistEntry
 from .models import ScanResult
 
 _LOGGER = logging.getLogger(__name__)
@@ -44,6 +45,16 @@ CREATE TABLE IF NOT EXISTS dns_domains (
     first_seen TEXT,
     last_seen  TEXT,
     queries    INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS ignored (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    component   TEXT NOT NULL,
+    rule        TEXT NOT NULL,
+    path        TEXT,
+    fingerprint TEXT,
+    title       TEXT,
+    reason      TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS traffic_events (
     slug          TEXT NOT NULL,
@@ -76,6 +87,34 @@ class Storage:
                 conn.commit()
             finally:
                 conn.close()
+
+    # --- Lista de ignorados (gerenciada pela interface) -------------------
+
+    def list_ignored(self) -> list[dict[str, Any]]:
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM ignored ORDER BY id").fetchall()
+        return [dict(r) for r in rows]
+
+    def add_ignored(self, *, component: str, rule: str, reason: str, created_at: str,
+                    path: str | None = None, fingerprint: str | None = None, title: str | None = None) -> int:
+        with self._conn() as conn:
+            cur = conn.execute(
+                "INSERT INTO ignored (component, rule, path, fingerprint, title, reason, created_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (component, rule, path, fingerprint, title, reason, created_at),
+            )
+            return int(cur.lastrowid or 0)
+
+    def remove_ignored(self, entry_id: int) -> bool:
+        with self._conn() as conn:
+            return conn.execute("DELETE FROM ignored WHERE id = ?", (entry_id,)).rowcount > 0
+
+    def ignore_entries(self) -> list[AllowlistEntry]:
+        return [
+            AllowlistEntry(component=r["component"], rule=r["rule"], reason=r["reason"], path=r["path"],
+                           fingerprint=r["fingerprint"], entry_id=r["id"])
+            for r in self.list_ignored()
+        ]
 
     # --- Varreduras -------------------------------------------------------
 
