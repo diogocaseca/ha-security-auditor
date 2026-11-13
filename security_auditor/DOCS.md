@@ -419,7 +419,7 @@ If the list could never be downloaded, the report shows "Community blocklist una
 blocklist out of date".
 
 **To suggest an item for everyone**, open a *Relatar um componente* issue or a Pull Request in the
-[list repository](https://github.com/diogocaseca/ha-security-blocklist#como-adicionar-um-item),
+[list repository](https://github.com/diogocaseca/ha-security-blocklist#how-to-add-an-item),
 which has the full step by step.
 
 ### How matching works

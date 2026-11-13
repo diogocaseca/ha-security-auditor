@@ -421,7 +421,7 @@ Se a lista nunca pôde ser baixada, o relatório mostra "Lista negra comunitári
 "Lista negra comunitária desatualizada".
 
 **Para sugerir um item para todos**, abra uma issue *Relatar um componente* ou um Pull Request
-no [repositório da lista](https://github.com/diogocaseca/ha-security-blocklist#como-adicionar-um-item),
+no [repositório da lista](https://github.com/diogocaseca/ha-security-blocklist/blob/main/README.pt-BR.md#como-adicionar-um-item),
 que tem o passo a passo completo.
 
 ### Como a correspondência é feita
