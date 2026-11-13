@@ -367,6 +367,8 @@ EN: dict[str, str] = {
     "Versões": "Versions",
     "Categoria": "Category",
     "Criado em": "Created",
+    "Descoberto em": "Discovered",
+    "descoberto em {data}": "discovered {data}",
     "qualquer tipo": "any type",
     "todas": "all",
     "Nenhum item. Use <strong>Adicionar item…</strong> ou, na tela de um componente, "

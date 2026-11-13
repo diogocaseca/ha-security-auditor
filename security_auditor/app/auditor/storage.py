@@ -20,6 +20,14 @@ from .models import ScanResult
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def component_key(component_type: str, name: str) -> str:
+    return f"c\x1f{component_type}\x1f{name}"
+
+
+def finding_key(fingerprint: str) -> str:
+    return f"f\x1f{fingerprint}"
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS scans (
     scan_id     TEXT PRIMARY KEY,
@@ -66,6 +74,11 @@ CREATE TABLE IF NOT EXISTS ignored (
     title       TEXT,
     reason      TEXT NOT NULL DEFAULT '',
     created_at  TEXT NOT NULL
+);
+-- Primeira vez que cada componente ("c") ou achado ("f") apareceu numa varredura.
+CREATE TABLE IF NOT EXISTS discovered (
+    key        TEXT PRIMARY KEY,
+    first_seen TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS traffic_events (
     slug          TEXT NOT NULL,
@@ -120,7 +133,7 @@ class Storage:
     def list_blocklist_items(self) -> list[dict[str, Any]]:
         """Itens da lista negra pessoal criados pela interface, com as datas."""
         with self._conn() as conn:
-            rows = conn.execute("SELECT * FROM blocklist_items ORDER BY created_at, id").fetchall()
+            rows = conn.execute("SELECT * FROM blocklist_items ORDER BY created_at DESC, id DESC").fetchall()
         out = []
         for r in rows:
             try:
@@ -151,7 +164,7 @@ class Storage:
 
     def list_ignored(self) -> list[dict[str, Any]]:
         with self._conn() as conn:
-            rows = conn.execute("SELECT * FROM ignored ORDER BY id").fetchall()
+            rows = conn.execute("SELECT * FROM ignored ORDER BY id DESC").fetchall()
         return [{**dict(r), "severities": [s for s in (r["severities"] or "").split(",") if s]} for r in rows]
 
     def add_ignored(self, *, component: str, rule: str, reason: str, created_at: str,
@@ -179,6 +192,45 @@ class Storage:
                            fingerprint=r["fingerprint"], entry_id=r["id"], severities=tuple(r["severities"]))
             for r in self.list_ignored()
         ]
+
+    # --- Data de descoberta ------------------------------------------------
+
+    def discovered(self, keys: list[str], seen_at: str) -> dict[str, str]:
+        """Registra as chaves ainda desconhecidas com ``seen_at`` e devolve a data de cada uma.
+
+        Na primeira vez (tabela vazia), aproveita os relatórios guardados para não
+        dar a mesma data a tudo o que já existia antes desta versão.
+        """
+        with self._conn() as conn:
+            empty = conn.execute("SELECT 1 FROM discovered LIMIT 1").fetchone() is None
+        if empty:
+            self._backfill_discovered()
+        with self._conn() as conn:
+            conn.executemany("INSERT OR IGNORE INTO discovered (key, first_seen) VALUES (?, ?)",
+                             [(k, seen_at) for k in keys])
+            out: dict[str, str] = {}
+            for i in range(0, len(keys), 500):
+                chunk = keys[i:i + 500]
+                marks = ",".join("?" * len(chunk))
+                for r in conn.execute(f"SELECT key, first_seen FROM discovered WHERE key IN ({marks})", chunk):
+                    out[r["key"]] = r["first_seen"]
+        return out
+
+    def _backfill_discovered(self) -> None:
+        with self._conn() as conn:
+            ids = [r["scan_id"] for r in conn.execute(
+                "SELECT scan_id FROM scans WHERE status = 'concluida' ORDER BY scan_id")]
+        rows: list[tuple[str, str]] = []
+        for scan_id in ids:
+            old = self.load_scan(scan_id)
+            if old is None:
+                continue
+            rows += [(component_key(c.component_type, c.name), old.started_at) for c in old.components]
+            rows += [(finding_key(f.fingerprint), old.started_at) for f in old.findings]
+        if rows:
+            with self._conn() as conn:
+                conn.executemany("INSERT OR IGNORE INTO discovered (key, first_seen) VALUES (?, ?)", rows)
+            _LOGGER.info("Datas de descoberta recuperadas de %d relatório(s) anteriores", len(ids))
 
     # --- Varreduras -------------------------------------------------------
 

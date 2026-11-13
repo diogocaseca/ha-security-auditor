@@ -97,6 +97,7 @@ class Finding:
     suppression_reason: str | None = None
     suppressed_by: int | None = None  # id na lista de ignorados da interface (None = configurações)
     is_new: bool = False
+    first_seen: str | None = None  # primeira varredura em que o achado apareceu (ISO)
 
     @property
     def fingerprint(self) -> str:
@@ -142,6 +143,7 @@ class ComponentSummary:
     score: int = 0  # 0 = sem risco aparente, 100 = risco máximo
     counts: dict[str, int] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
+    first_seen: str | None = None  # primeira varredura em que o componente apareceu (ISO)
 
 
 @dataclass

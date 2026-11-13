@@ -149,6 +149,7 @@
                         {{ _("Lista negra") if bl.forte else _("Lista negra?") }}</span>
                     {% endif %}
                     {% set details = component_details(c.metadata) %}
+                    {% if c.first_seen %}{% set details = details + [_("descoberto em {data}", data=(c.first_seen | dt))] %}{% endif %}
                     {% if details %}<div class="comp-meta">{{ details | join(' · ') }}</div>{% endif %}
                   </td>
                   <td>{{ _(type_label(c.component_type)) }}</td>
@@ -217,6 +218,7 @@
               <div><dt>{{ _("Componente") }}</dt><dd>{{ f.component }} <span class="muted">({{ _(type_label(f.component_type)) }})</span></dd></div>
               <div><dt>{{ _("Tipo") }}</dt><dd>{{ cat_label(f.category) }}</dd></div>
               {% if f.file %}<div><dt>{{ _("Arquivo") }}</dt><dd><code>{{ f.file }}{% if f.line %}:{{ f.line }}{% endif %}</code></dd></div>{% endif %}
+              {% if f.first_seen %}<div><dt>{{ _("Descoberto em") }}</dt><dd>{{ f.first_seen | dt }}</dd></div>{% endif %}
               <div><dt>{{ _("Regra") }}</dt><dd><code>{{ f.rule_id }}</code> <span class="muted">· {% for src in (f.extra.sources or [f.source]) %}{{ src_label(src) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></dd></div>
             </dl>
             {% if f.snippet %}<pre class="snippet"><code>{{ ftext(f, 'snippet') }}</code></pre>{% endif %}

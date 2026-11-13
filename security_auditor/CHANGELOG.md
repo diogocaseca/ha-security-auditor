@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.16.0
+
+- **Mais novos no topo:** a tabela de componentes e a lista de achados de cada componente são
+  ordenadas pela data de descoberta (a primeira varredura em que apareceram), da mais nova para a
+  mais antiga; a data aparece na linha do componente ("descoberto em") e em cada achado. Na
+  primeira varredura depois da atualização, as datas são recuperadas dos relatórios guardados.
+- A lista de ignorados e a lista negra pessoal também mostram os itens mais novos primeiro.
+- **Celular:** a barra do topo não fica mais presa ao rolar a tela.
+
 ## 0.15.0
 
 - **Tradução completa da interface para o inglês:** detalhes dos componentes (integridade,

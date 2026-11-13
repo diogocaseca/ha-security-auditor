@@ -20,7 +20,7 @@ from .resources import guard_from_options, profile_from_options
 from .scanners.base import ScanContext, Scanner
 from .scheduler import USER_CANCEL
 from .scoring import summarize
-from .storage import Storage
+from .storage import Storage, component_key, finding_key
 from .supervisor import SupervisorClient
 
 _LOGGER = logging.getLogger(__name__)
@@ -153,8 +153,22 @@ class ScanEngine:
         self._sanitize(result)
         apply_allowlist(result.findings, self.options.allowlist + tuple(self.storage.ignore_entries()))
         compare(result, self.storage.load_latest())
-        result.findings.sort(key=lambda f: (-int(f.severity), not f.is_new, f.component, f.file or "", f.line or 0))
         result.components = summarize(result.findings, ctx.components)
+        self._discovery_dates(result)
+
+    def _discovery_dates(self, result: ScanResult) -> None:
+        """Data de descoberta de cada componente e achado; os mais novos ficam no topo."""
+        ckeys = {id(c): component_key(c.component_type, c.name) for c in result.components}
+        fkeys = {id(f): finding_key(f.fingerprint) for f in result.findings}
+        seen = self.storage.discovered([*ckeys.values(), *fkeys.values()], result.started_at)
+        for c in result.components:
+            c.first_seen = seen.get(ckeys[id(c)], result.started_at)
+        for f in result.findings:
+            f.first_seen = seen.get(fkeys[id(f)], result.started_at)
+        # Ordem atual como desempate; depois a data, da mais nova para a mais antiga (sort estável).
+        result.findings.sort(key=lambda f: (-int(f.severity), not f.is_new, f.component, f.file or "", f.line or 0))
+        result.findings.sort(key=lambda f: f.first_seen or "", reverse=True)
+        result.components.sort(key=lambda c: c.first_seen or "", reverse=True)
 
     def _persist(self, result: ScanResult) -> None:
         try:

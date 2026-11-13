@@ -191,6 +191,8 @@ tr.current td { background: var(--surface-2); }
 
 @media (max-width: 640px) {
   .topbar, main { padding-left: 16px; padding-right: 16px; }
+  /* No celular o topo ocupa muita altura: rola junto com a página. */
+  .topbar { position: static; }
   .filters input[type="search"] { min-width: 0; width: 100%; }
 }
 
