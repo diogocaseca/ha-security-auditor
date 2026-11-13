@@ -297,6 +297,20 @@ Também dá para ignorar a partir da **tabela de componentes**:
 
 Itens restritos a níveis mostram os níveis na coluna **Alcance** da lista.
 
+**Ignorar por completo pula a verificação.** Quando um item cobre um componente inteiro (nome
+do componente ou curinga como `meu_*`, regra `*`, todos os níveis, sem arquivo nem achado
+específico), o componente **deixa de ser varrido**: nenhuma ferramenta roda nele, ele aparece
+na tabela como "não verificado" e a lista marca o item com "não é verificado". Use para os seus
+próprios apps e os que você considera confiáveis; é por sua conta. Para voltar a verificar,
+remova o item da lista. Um curinga sozinho (`*`) nunca pula nada.
+
+Nos outros casos (só alguns níveis, só uma regra, um arquivo ou um achado) **o componente
+continua sendo analisado** em toda varredura; o auditor só deixa de contar o que foi ignorado.
+Se um achado ignorado com "só este achado" mudar (o trecho de código for alterado, por
+exemplo), ele vira outro achado e volta a contar.
+
+O motivo de cada item da interface pode ser alterado com **Editar** na lista.
+
 Também dá para incluir manualmente em **Lista de ignorados → Incluir na lista…** (componente,
 regra, arquivo e níveis, com curingas) e tirar com **Remover** ou com **Deixar de ignorar** no próprio
 achado. A mudança vale **na hora** para o relatório mais recente e para os sensores, sem precisar

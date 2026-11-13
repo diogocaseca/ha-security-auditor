@@ -5,7 +5,7 @@ from __future__ import annotations
 from fnmatch import fnmatchcase
 
 from .config import AllowlistEntry
-from .models import Finding, ScanResult
+from .models import Finding, ScanResult, Severity
 from .scoring import summarize
 
 
@@ -43,6 +43,34 @@ def apply_allowlist(findings: list[Finding], entries: tuple[AllowlistEntry, ...]
                 suppressed += 1
                 break
     return suppressed
+
+
+_ALL_LEVELS = frozenset(s.key for s in Severity)
+
+
+def skips_whole_component(entry: AllowlistEntry) -> bool:
+    """Item que ignora um componente por inteiro: todas as regras, todos os níveis, sem
+    restrição de arquivo ou achado, com um nome (ou curinga) que não seja só "*".
+
+    Componentes cobertos por um item assim são pulados na varredura (decisão do usuário).
+    """
+    pattern = entry.component.strip()
+    return (
+        bool(pattern)
+        and not set(pattern) <= {"*", "?"}
+        and entry.rule.strip() in ("", "*")
+        and not entry.path
+        and not entry.fingerprint
+        and (not entry.severities or _ALL_LEVELS <= set(entry.severities))
+    )
+
+
+def skip_entry_for(name: str, entries: tuple[AllowlistEntry, ...]) -> AllowlistEntry | None:
+    """Item da lista que faz o componente ``name`` ser pulado na varredura, se houver."""
+    for entry in entries:
+        if skips_whole_component(entry) and fnmatchcase(name, entry.component.strip()):
+            return entry
+    return None
 
 
 def describe(entry: AllowlistEntry) -> str:

@@ -274,3 +274,104 @@ def test_all_levels_means_no_level_restriction():
     e = parse_ignore_entry({"component": "a", "rule": "*",
                             "severities": ["critical", "high", "medium", "low", "info"]})
     assert e["severities"] == ()
+
+
+async def test_edit_ignored_reason(ignore_client):
+    client, token, storage, _, changes = ignore_client
+    resp = await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                             json={"component": "*", "rule": "auditor.eval-dinamico", "reason": "antigo"})
+    entry_id = (await resp.json())["id"]
+    assert (await client.patch(f"/api/ignored/{entry_id}", json={"reason": "x"})).status == 403  # sem CSRF
+
+    resp = await client.patch(f"/api/ignored/{entry_id}", headers={CSRF_HEADER: token},
+                              json={"reason": "  revisado em 12/11  "})
+    assert resp.status == 200 and (await resp.json())["reason"] == "revisado em 12/11"
+    assert storage.list_ignored()[0]["reason"] == "revisado em 12/11"
+    assert len(changes) == 2  # sensores republicados de novo
+    # O relatório mais recente já mostra o motivo novo nos achados ignorados.
+    reasons = {f.suppression_reason for f in storage.load_latest().findings if f.suppressed}
+    assert reasons == {"revisado em 12/11 (lista de ignorados)"}
+    html = await (await client.get("/")).text()
+    assert f'data-edit-reason="{entry_id}"' in html and 'data-reason="revisado em 12/11"' in html
+
+    bad = await client.patch(f"/api/ignored/{entry_id}", headers={CSRF_HEADER: token}, json={"reason": "a\nb"})
+    assert bad.status == 400
+    assert (await client.patch(f"/api/ignored/{entry_id}", headers={CSRF_HEADER: token}, json={})).status == 400
+    assert (await client.patch("/api/ignored/999", headers={CSRF_HEADER: token}, json={"reason": "x"})).status == 404
+
+
+# --- Componente ignorado por inteiro: pulado na varredura --------------------------------------
+
+
+@pytest.mark.parametrize(("entry", "skips"), [
+    (AllowlistEntry("meu_app", "*", ""), True),
+    (AllowlistEntry("meu_*", "*", ""), True),
+    (AllowlistEntry("meu_app", "*", "", severities=("critical", "high", "medium", "low", "info")), True),
+    (AllowlistEntry("meu_app", "*", "", severities=("low", "info")), False),  # só alguns níveis
+    (AllowlistEntry("meu_app", "auditor.eval-dinamico", ""), False),  # só uma regra
+    (AllowlistEntry("meu_app", "*", "", path="*/vendor/*"), False),
+    (AllowlistEntry("meu_app", "*", "", fingerprint="0" * 24), False),
+    (AllowlistEntry("*", "*", ""), False),  # nunca pula tudo
+    (AllowlistEntry("**", "*", ""), False),
+])
+def test_skips_whole_component(entry, skips):
+    from auditor.allowlist import skips_whole_component
+
+    assert skips_whole_component(entry) is skips
+
+
+async def test_fully_ignored_integration_is_not_scanned(tmp_path, monkeypatch):
+    from auditor.scanners import static as static_mod
+    from auditor.scanners.static import StaticAnalysisScanner
+
+    from .conftest import FIXTURES
+    from .test_protecoes import _ctx
+
+    seen = []
+
+    async def fake_run_tool(args, **kw):
+        seen.extend(str(a) for a in args)
+        return __import__("auditor.tools", fromlist=["ToolResult"]).ToolResult(0, '{"results": [], "errors": []}', "")
+
+    monkeypatch.setattr(static_mod, "run_tool", fake_run_tool)
+    ctx = _ctx(tmp_path, config_dir=FIXTURES / "config")
+    ctx.ignore_entries = (AllowlistEntry("ofuscada", "*", "meu app", entry_id=1),)
+    await StaticAnalysisScanner().scan(ctx)
+    assert seen and not any("/ofuscada/" in a for a in seen)  # nenhuma ferramenta olhou a pasta
+    assert any("/adulterada/" in a for a in seen)
+    meta = ctx.components[("integracao", "ofuscada")]
+    assert meta["verificacao"].startswith("não verificado: ignorado por completo") and "meu app" in meta["verificacao"]
+
+
+async def test_fully_ignored_addon_is_not_scanned(tmp_path, monkeypatch):
+    from auditor.scanners import addon_image as image_mod
+    from auditor.scanners.addon_image import AddonImageScanner
+    from auditor.tools import ToolResult
+
+    from .test_fase2 import FakeSupervisor, _addon
+    from .test_protecoes import _ctx
+
+    refs = []
+
+    async def fake_run_tool(args, **kw):
+        refs.append(args[-1])
+        return ToolResult(0, '{"Results": []}', "")
+
+    monkeypatch.setattr(image_mod, "run_tool", fake_run_tool)
+    sup = FakeSupervisor([_addon(), _addon(slug="local_meu_app", repository="local", image="local/meu")])
+    ctx = _ctx(tmp_path, sup)
+    ctx.ignore_entries = (AllowlistEntry("abc123_*", "*", "confiável"),)
+    findings = await AddonImageScanner().scan(ctx)
+    assert refs == []  # a imagem do add-on ignorado não foi baixada
+    assert [f.component for f in findings] == ["local_meu_app"]  # o outro segue normal
+    assert "não verificado" in ctx.components[("addon", "abc123_exemplo")]["verificacao"]
+
+
+async def test_ignored_list_marks_entries_that_skip_scan(ignore_client):
+    client, token, *_ = ignore_client
+    await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                      json={"component": "outra", "rule": "*", "reason": "meu"})
+    await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                      json={"component": "minha_integracao", "rule": "*", "severities": ["low"], "reason": "x"})
+    html = await (await client.get("/")).text()
+    assert html.count("<strong>não é verificado</strong>") == 1

@@ -35,6 +35,20 @@ class ScanContext:
     logger: logging.Logger = field(default_factory=lambda: logging.getLogger("auditor.scan"))
     guard: ResourceGuard = field(default_factory=ResourceGuard)  # desligado por padrão
     profile: Profile = field(default_factory=Profile)
+    # Lista de ignorados + allowlist: componentes ignorados por inteiro não são varridos.
+    ignore_entries: tuple[Any, ...] = ()
+
+    def skipped(self, component_type: str, name: str, **metadata: Any) -> bool:
+        """True se o componente está ignorado por inteiro; registra-o como "não verificado"."""
+        from ..allowlist import describe, skip_entry_for
+
+        entry = skip_entry_for(name, self.ignore_entries)
+        if entry is None:
+            return False
+        self.register_component(component_type, name, **metadata,
+                                verificacao=f"não verificado: ignorado por completo ({describe(entry)})")
+        self.logger.info("Componente %s pulado: ignorado por completo", name)
+        return True
 
     async def wait_resources(self, label: str, need_mb: float | None = None) -> str | None:
         """Modo aguardar_folga: None = seguir; texto = motivo para adiar a etapa."""
@@ -55,9 +69,13 @@ class ScanContext:
         if self._inventory is None:
             from ..inventory import discover
 
-            self._inventory = discover(self.paths.config_dir)
-            for comp in self._inventory.components:
+            inv = discover(self.paths.config_dir)
+            keep = lambda c: not self.skipped(c.component_type, c.name, **c.metadata())  # noqa: E731
+            inv.integrations = [c for c in inv.integrations if keep(c)]
+            inv.frontend = [c for c in inv.frontend if keep(c)]
+            for comp in inv.components:
                 self.register_component(comp.component_type, comp.name, **comp.metadata())
+            self._inventory = inv
         return self._inventory
 
     _addons: Any = None
@@ -73,7 +91,8 @@ class ScanContext:
             else:
                 from ..addons import collect
 
-                self._addons = await collect(self.supervisor)
+                self._addons = [a for a in await collect(self.supervisor)
+                                if not self.skipped("addon", a.slug, **a.metadata())]
                 for a in self._addons:
                     self.register_component("addon", a.slug, **a.metadata())
         return self._addons

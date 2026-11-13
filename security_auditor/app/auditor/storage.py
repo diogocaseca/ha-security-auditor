@@ -111,6 +111,10 @@ class Storage:
             )
             return int(cur.lastrowid or 0)
 
+    def update_ignored_reason(self, entry_id: int, reason: str) -> bool:
+        with self._conn() as conn:
+            return conn.execute("UPDATE ignored SET reason = ? WHERE id = ?", (reason, entry_id)).rowcount > 0
+
     def remove_ignored(self, entry_id: int) -> bool:
         with self._conn() as conn:
             return conn.execute("DELETE FROM ignored WHERE id = ?", (entry_id,)).rowcount > 0

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.8.0
+
+- **Componentes ignorados por inteiro não são mais varridos.** Um item da lista de ignorados
+  (ou da `allowlist`) com o nome do componente, regra `*`, todos os níveis e sem arquivo ou
+  achado específico faz o componente ser pulado: nenhuma ferramenta roda nele (Semgrep,
+  Bandit, pip-audit, integridade, permissões, código, Trivy). Ele aparece na tabela como "não
+  verificado" e a lista de ignorados marca esses itens com "não é verificado". O diálogo de
+  ignorar avisa antes de confirmar. Itens com só alguns níveis ou só uma regra continuam sendo
+  verificados normalmente. Um curinga sozinho (`*`) nunca pula nada.
+
+## 0.7.9
+
+- Lista de ignorados: botão **Editar** para mudar o motivo de um item (Enter salva, Esc
+  cancela). O motivo novo aparece na hora nos achados ignorados do relatório.
+
 ## 0.7.8
 
 - Diálogo de ignorar: opção **Todos os níveis**, que marca ou desmarca todos de uma vez.

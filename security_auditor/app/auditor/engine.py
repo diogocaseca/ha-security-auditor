@@ -73,6 +73,7 @@ class ScanEngine:
             scan_id=scan_id,
             progress=self.progress,
             guard=guard_from_options(self.options),
+            ignore_entries=self.options.allowlist + tuple(self.storage.ignore_entries()),
             profile=profile_from_options(self.options),
         )
         _LOGGER.info("Varredura %s iniciada (%d scanners)", scan_id, len(self.scanners))

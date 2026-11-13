@@ -362,7 +362,7 @@ class DnsScanner:
 
     async def scan(self, ctx: ScanContext) -> list[Finding]:
         servers = ctx.options.dns_servers
-        if not servers:
+        if not servers or ctx.skipped(ComponentType.NETWORK, "dns", nome="Domínios consultados"):
             return []
         findings: list[Finding] = []
         valid: list[tuple[DnsServer, str]] = []

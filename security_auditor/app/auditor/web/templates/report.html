@@ -219,10 +219,13 @@
                 <tr>
                   <td><code>{{ e.component }}</code></td>
                   <td><code>{{ e.rule }}</code></td>
-                  <td class="wrap">{% if e.fingerprint %}só o achado “{{ e.title or 'específico' }}”{% elif e.path %}arquivos <code>{{ e.path }}</code>{% elif e.rule == '*' %}todos os achados{% else %}todos os achados da regra{% endif %}{% if e.severities %} · níveis: {{ severity_labels(e.severities) }}{% endif %}</td>
-                  <td class="wrap">{{ e.reason or '—' }}</td>
+                  <td class="wrap">{% if e.fingerprint %}só o achado “{{ e.title or 'específico' }}”{% elif e.path %}arquivos <code>{{ e.path }}</code>{% elif e.rule == '*' %}todos os achados{% else %}todos os achados da regra{% endif %}{% if e.severities %} · níveis: {{ severity_labels(e.severities) }}{% endif %}{% if e.pula_varredura %} · <strong>não é verificado</strong>{% endif %}</td>
+                  <td class="wrap reason-cell" data-reason="{{ e.reason }}"><span class="reason-text">{{ e.reason or '—' }}</span></td>
                   <td>Interface · {{ e.created_at | dt }}</td>
-                  <td><button type="button" class="btn btn-ghost btn-sm" data-unignore="{{ e.id }}">Remover</button></td>
+                  <td class="row-actions">
+                    <button type="button" class="btn btn-ghost btn-sm" data-edit-reason="{{ e.id }}">Editar</button>
+                    <button type="button" class="btn btn-ghost btn-sm" data-unignore="{{ e.id }}">Remover</button>
+                  </td>
                 </tr>
               {% endfor %}
               {% for e in config_allowlist %}
@@ -354,6 +357,9 @@
       <label>Arquivo (opcional) <input type="text" name="path" maxlength="500" placeholder="ex.: */vendor/*"></label>
     </div>
     <label>Motivo <input type="text" name="reason" maxlength="500" placeholder="Por que isto pode ser ignorado?" required></label>
+    <p class="notice notice-warn small" id="ignore-skip-note" hidden>Com todos os níveis, este componente
+      <strong>deixa de ser verificado</strong> nas próximas varreduras (nenhuma ferramenta roda nele). Remova da
+      lista para voltar a verificá-lo.</p>
     <p class="error small" id="ignore-error" hidden></p>
     <div class="dialog-actions">
       <button type="button" class="btn btn-ghost" id="ignore-cancel">Cancelar</button>

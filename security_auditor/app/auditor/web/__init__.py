@@ -15,7 +15,7 @@ from typing import Any
 
 from aiohttp import web
 
-from ..allowlist import reapply
+from ..allowlist import reapply, skips_whole_component
 from ..config import AllowlistEntry
 from ..models import Severity
 from ..report import render_html, to_json
@@ -50,6 +50,16 @@ _SEVERITY_KEYS = [s.key for s in sorted(Severity, reverse=True)]
 
 class InvalidEntryError(ValueError):
     """Entrada da lista de ignorados recusada (mensagem mostrada ao usuário)."""
+
+
+def parse_reason(body: Any) -> str:
+    """Valida o corpo de PATCH /api/ignored/{id}: só o motivo pode ser editado."""
+    if not isinstance(body, dict) or not isinstance(body.get("reason"), str):
+        raise InvalidEntryError("Informe o motivo")
+    reason = body["reason"].strip()
+    if len(reason) > _LIMITS["reason"] or any(ord(ch) < 32 for ch in reason):
+        raise InvalidEntryError("Motivo grande demais ou com caracteres inválidos")
+    return reason
 
 
 def parse_ignore_entry(body: Any) -> dict[str, Any]:
@@ -141,6 +151,8 @@ def create_app(
             page = 1
         history = await asyncio.to_thread(storage.list_scans, HISTORY_PAGE_SIZE, (page - 1) * HISTORY_PAGE_SIZE)
         ignored = await asyncio.to_thread(storage.list_ignored)
+        for row, entry in zip(ignored, await asyncio.to_thread(storage.ignore_entries), strict=True):
+            row["pula_varredura"] = skips_whole_component(entry)
         html = render_html(
             result,
             status={**scheduler.status(), "progress": dict(progress)},
@@ -206,6 +218,22 @@ def create_app(
         await _changed()
         return web.json_response({"id": entry_id}, status=201)
 
+    async def edit_ignored(request: web.Request) -> web.Response:
+        try:
+            entry_id = int(request.match_info["entry_id"])
+        except ValueError:
+            raise web.HTTPNotFound() from None
+        try:
+            reason = parse_reason(await request.json())
+        except (InvalidEntryError, ValueError) as err:
+            msg = str(err) if isinstance(err, InvalidEntryError) else "JSON inválido"
+            return web.json_response({"error": msg}, status=400)
+        if not await asyncio.to_thread(storage.update_ignored_reason, entry_id, reason):
+            raise web.HTTPNotFound(text="Item não encontrado")
+        _LOGGER.info("Motivo editado na lista de ignorados: #%d", entry_id)
+        await _changed()  # o motivo aparece nos achados ignorados do relatório
+        return web.json_response({"id": entry_id, "reason": reason})
+
     async def remove_ignored(request: web.Request) -> web.Response:
         try:
             entry_id = int(request.match_info["entry_id"])
@@ -241,6 +269,7 @@ def create_app(
             web.post("/api/scan/cancel", cancel_scan),
             web.get("/api/ignored", list_ignored),
             web.post("/api/ignored", add_ignored),
+            web.patch("/api/ignored/{entry_id}", edit_ignored),
             web.delete("/api/ignored/{entry_id}", remove_ignored),
             web.get("/api/report.json", report_json),
             web.get("/api/scans", scans),

@@ -59,6 +59,7 @@ _DETAIL_KEYS = (
     ("envio_medio", "envio médio"),
     ("envio_maximo", "pico de envio"),
     ("trafego", "tráfego"),
+    ("verificacao", ""),
 )
 
 

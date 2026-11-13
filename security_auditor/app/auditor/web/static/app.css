@@ -275,3 +275,12 @@ body.view-history main > :not(#history):not(.tabs) { display: none; }
 .pager-current { background: var(--accent); color: var(--accent-text); font-weight: 700; }
 .pager [aria-disabled="true"] { opacity: .45; cursor: default; }
 .level-all { padding-bottom: 6px; margin-bottom: 4px; border-bottom: 1px solid var(--border); }
+
+/* Edição do motivo na lista de ignorados */
+.row-actions { display: flex; gap: 6px; justify-content: flex-end; }
+.reason-edit { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.reason-edit input {
+  flex: 1 1 200px; min-width: 0; padding: 5px 8px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text); font: inherit;
+}
+.reason-edit .error { flex-basis: 100%; margin: 0; }

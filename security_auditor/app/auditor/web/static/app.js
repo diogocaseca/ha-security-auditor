@@ -287,6 +287,9 @@
     const n = levelBoxes.filter((b) => b.checked).length;
     levelAll.checked = n === levelBoxes.length;
     levelAll.indeterminate = n > 0 && n < levelBoxes.length;
+    // Componente inteiro em todos os níveis = deixa de ser verificado: avisa antes de confirmar.
+    const note = document.getElementById("ignore-skip-note");
+    if (note) note.hidden = !(mode.kind === "component" && (n === 0 || n === levelBoxes.length));
   }
   levelAll?.addEventListener("change", () => {
     levelBoxes.forEach((b) => { b.checked = levelAll.checked; });
@@ -402,6 +405,64 @@
         window.alert("Não foi possível remover da lista.");
       }
     }));
+  // Edição do motivo na tabela de ignorados (só itens incluídos pela interface).
+  document.querySelectorAll("[data-edit-reason]").forEach((btn) =>
+    btn.addEventListener("click", () => {
+      const row = btn.closest("tr");
+      const cell = row.querySelector(".reason-cell");
+      if (cell.querySelector("input")) return; // já em edição
+      const original = cell.dataset.reason || "";
+      const view = cell.querySelector(".reason-text");
+      view.hidden = true;
+      const box = document.createElement("div");
+      box.className = "reason-edit";
+      const input = document.createElement("input");
+      input.type = "text";
+      input.maxLength = 500;
+      input.value = original;
+      input.setAttribute("aria-label", "Motivo");
+      const save = document.createElement("button");
+      save.type = "button";
+      save.className = "btn btn-primary btn-sm";
+      save.textContent = "Salvar";
+      const cancel = document.createElement("button");
+      cancel.type = "button";
+      cancel.className = "btn btn-ghost btn-sm";
+      cancel.textContent = "Cancelar";
+      const err = document.createElement("p");
+      err.className = "error small";
+      err.hidden = true;
+      box.append(input, save, cancel, err);
+      cell.append(box);
+      btn.disabled = true;
+      input.focus();
+      input.select();
+
+      const close = () => { box.remove(); view.hidden = false; btn.disabled = false; };
+      async function submit() {
+        save.disabled = true;
+        try {
+          const resp = await post("api/ignored/" + encodeURIComponent(btn.dataset.editReason),
+                                  { reason: input.value }, "PATCH");
+          if (resp.ok) { window.location.reload(); return; }
+          const data = await resp.json().catch(() => ({}));
+          err.textContent = data.error || "Não foi possível salvar (HTTP " + resp.status + ").";
+          err.hidden = false;
+        } catch (e) {
+          err.textContent = "Não foi possível salvar.";
+          err.hidden = false;
+        } finally {
+          save.disabled = false;
+        }
+      }
+      save.addEventListener("click", submit);
+      cancel.addEventListener("click", close);
+      input.addEventListener("keydown", (ev) => {
+        if (ev.key === "Enter") { ev.preventDefault(); submit(); }
+        if (ev.key === "Escape") { ev.preventDefault(); close(); }
+      });
+    }));
+
   readUrl();
   apply();
 })();
