@@ -58,12 +58,12 @@
 
 <main>
   <nav class="tabs" role="tablist" aria-label="{{ _('Seções') }}">
-    <button type="button" role="tab" data-tab="inicio" aria-selected="true">{{ _("Componentes") }}</button>
-    <button type="button" role="tab" data-tab="historico" aria-selected="false">{{ _("Histórico de verificações") }}</button>
-    <button type="button" role="tab" data-tab="listanegra" aria-selected="false">{{ _("Lista negra") }}</button>
     {% set dns_components = (result.components | selectattr('component_type', 'equalto', 'rede') | list) if result else [] %}
     {% set dns_tab = (status.dns and status.dns.configurado) or dns_components %}
+    <button type="button" role="tab" data-tab="inicio" aria-selected="true">{{ _("Componentes") }}</button>
     {% if dns_tab %}<button type="button" role="tab" data-tab="dns" aria-selected="false">DNS</button>{% endif %}
+    <button type="button" role="tab" data-tab="historico" aria-selected="false">{{ _("Histórico de verificações") }}</button>
+    <button type="button" role="tab" data-tab="listanegra" aria-selected="false">{{ _("Lista negra") }}</button>
   </nav>
   {% set mode_labels = {'prioridade_baixa': _('prioridade baixa'), 'modo_leve': _('modo leve'), 'aguardar_folga': _('aguarda o sistema desocupar'), 'horario_fixo': _('horário fixo')} %}
   <p class="muted small modes">{{ _("Proteções contra sobrecarga:") }}

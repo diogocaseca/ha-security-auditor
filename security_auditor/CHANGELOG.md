@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.13.2
+
+- A aba **DNS** fica logo depois de **Componentes**.
+
 ## 0.13.1
 
 - Nova aba **DNS** (aparece com AdGuard/Pi-hole configurado): situação dos servidores com
