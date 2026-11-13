@@ -11,7 +11,10 @@ import logging
 from pathlib import Path
 
 from .. import blocklist_update
-from ..blocklist import CATEGORIES, SOURCES, Blocklist, Match, load, personal_path
+from ..blocklist import CATEGORIES, SOURCES, Blocklist, Match, load
+
+# Arquivo da lista pessoal das versões 0.9 a 0.11; não é mais lido (a lista fica na interface).
+LEGACY_PERSONAL_FILE = Path("security_auditor") / "lista_negra.json"
 from ..models import ComponentType, Finding, Severity
 from .base import ScanContext
 
@@ -43,8 +46,12 @@ class BlocklistScanner:
             findings.extend(_community_status(result))
         elif not community:
             _LOGGER.info("Lista negra comunitária desativada nas opções")
+        legacy = ctx.paths.config_dir / LEGACY_PERSONAL_FILE
+        if await asyncio.to_thread(legacy.exists):
+            _LOGGER.warning("O arquivo %s não é mais lido: recrie os itens na aba Lista negra da interface "
+                            "e apague o arquivo", "/config/" + str(LEGACY_PERSONAL_FILE))
         ui_items = [r["item"] for r in await asyncio.to_thread(ctx.storage.list_blocklist_items)]
-        bl: Blocklist = await asyncio.to_thread(load, ctx.paths.config_dir, ctx.paths.cache_dir, community, ui_items)
+        bl: Blocklist = await asyncio.to_thread(load, ctx.paths.cache_dir, community, ui_items)
         findings.extend(_invalid(err) for err in bl.errors[:5])
         if not bl.entries:
             return findings
@@ -147,11 +154,12 @@ def _invalid(error: str) -> Finding:
         component="auditor",
         component_type=ComponentType.SYSTEM,
         category="configuracao",
-        rule_id="auditor.lista-negra.arquivo-invalido",
+        rule_id="auditor.lista-negra.item-invalido",
         severity=Severity.LOW,
         title="Lista negra com erro",
         explanation=f"Parte da lista negra foi ignorada: {error}.",
-        recommendation=f"Corrija o arquivo (a lista pessoal fica em {personal_path(Path('/config'))}).",
+        recommendation=("Itens da lista pessoal podem ser corrigidos na aba Lista negra; erros na lista "
+                        "comunitária devem ser avisados no repositório diogocaseca/ha-security-blocklist."),
         source="lista_negra",
         extra={"fingerprint_key": error[:80]},
     )

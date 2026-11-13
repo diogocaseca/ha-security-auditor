@@ -350,16 +350,15 @@
     </div>
 
     <div class="panel-head">
-      <h3>Lista pessoal <span class="muted">({{ blocklist.interface | length + blocklist.arquivo | length }})</span></h3>
+      <h3>Lista pessoal <span class="muted">({{ blocklist.interface | length }})</span></h3>
       <button type="button" class="btn btn-primary btn-sm" id="bl-add">Adicionar item…</button>
     </div>
-    <p class="muted small">Vale só nesta instalação. Itens criados aqui ficam no add-on; os do arquivo
-      <code>{{ blocklist.arquivo_caminho }}</code> aparecem como somente leitura (edite o arquivo).</p>
-    {% for err in blocklist.arquivo_erros %}<p class="error small">Arquivo: {{ err }}</p>{% endfor %}
-    {% if blocklist.interface or blocklist.arquivo %}
+    <p class="muted small">Vale só nesta instalação. Os itens ficam guardados no add-on (entram no backup dele)
+      e não precisam de assinatura nem de evidência.</p>
+    {% if blocklist.interface %}
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Nível</th><th>Componente</th><th>Versões</th><th>Categoria</th><th>Motivo</th><th>Origem</th><th></th></tr></thead>
+          <thead><tr><th>Nível</th><th>Componente</th><th>Versões</th><th>Categoria</th><th>Motivo</th><th>Criado em</th><th></th></tr></thead>
           <tbody>
             {% for r in blocklist.interface %}
               {% set it = r.item %}
@@ -370,23 +369,11 @@
                 <td>{{ it.versoes or 'todas' }}</td>
                 <td>{{ bl_categorias.get(it.categoria, it.categoria) }}</td>
                 <td class="wrap">{{ it.motivo }}{% for url in it.evidencias or [] if url.startswith('https://') %}<br><a href="{{ url }}" target="_blank" rel="noopener noreferrer" class="small">{{ url }}</a>{% endfor %}</td>
-                <td>Interface · {{ r.criado_em | dt }}</td>
+                <td>{{ r.criado_em | dt }}</td>
                 <td class="row-actions">
                   <button type="button" class="btn btn-ghost btn-sm" data-bl-edit="{{ it.id }}">Editar</button>
                   <button type="button" class="btn btn-ghost btn-sm" data-bl-remove="{{ it.id }}">Remover</button>
                 </td>
-              </tr>
-            {% endfor %}
-            {% for e in blocklist.arquivo %}
-              <tr>
-                <td><span class="badge sev-{{ bl_niveis.get(e.nivel, ('info', e.nivel))[0] }}">{{ bl_niveis.get(e.nivel, ('', e.nivel))[1] }}</span></td>
-                <td class="wrap">{% if e.github %}<code>{{ e.github }}</code>{% endif %}{% if e.nome %} <code>{{ e.nome }}</code>{% endif %}{% if e.imagem %} <code>{{ e.imagem }}</code>{% endif %}
-                  <div class="comp-meta">{{ bl_tipos.get(e.tipo, 'qualquer tipo') }} · id {{ e.id }}</div></td>
-                <td>{{ e.versoes or 'todas' }}</td>
-                <td>{{ bl_categorias.get(e.categoria, e.categoria) }}</td>
-                <td class="wrap">{{ e.motivo }}</td>
-                <td>Arquivo</td>
-                <td class="muted small">edite o arquivo</td>
               </tr>
             {% endfor %}
           </tbody>

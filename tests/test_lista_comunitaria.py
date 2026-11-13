@@ -195,7 +195,7 @@ async def test_scanner_status_findings(tmp_path, monkeypatch):
     community_cache_path(ctx.paths.cache_dir).write_bytes(_doc("2026-11-13", "A-1"))
     ctx.options = Options(community_blocklist=False)
     assert await BlocklistScanner().scan(ctx) == [] and calls == []
-    assert load(ctx.paths.config_dir, ctx.paths.cache_dir, community=False).entries == []
+    assert load(ctx.paths.cache_dir, community=False).entries == []
 
 
 def test_option_parsing():

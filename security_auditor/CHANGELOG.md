@@ -6,8 +6,10 @@
   remover itens da lista pessoal pela tela (formulário com a mesma validação do arquivo).
 - Na tela de um componente, **Adicionar à lista negra…** abre o formulário já preenchido com o
   tipo, o GitHub, o nome e (add-ons) a imagem.
-- Os itens da tela ficam no banco do add-on (o `/config` continua somente leitura); os do arquivo
-  `/config/security_auditor/lista_negra.json` seguem valendo e aparecem como somente leitura.
+- Os itens ficam no banco do add-on (o `/config` continua somente leitura).
+- **A lista pessoal por arquivo (`/config/security_auditor/lista_negra.json`) foi removida:** o
+  arquivo não é mais lido. Se você o usava, recrie os itens na aba Lista negra e apague o arquivo
+  (o log avisa enquanto ele existir).
 
 ## 0.11.0
 

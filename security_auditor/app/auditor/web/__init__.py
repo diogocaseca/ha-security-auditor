@@ -17,7 +17,7 @@ from aiohttp import web
 
 from .. import blocklist_update
 from ..allowlist import reapply, skips_whole_component
-from ..blocklist import BlocklistError, load_file, personal_path, validate_item
+from ..blocklist import BlocklistError, validate_item
 from ..config import AllowlistEntry
 from ..models import Severity
 from ..report import render_html, to_json
@@ -149,7 +149,7 @@ def create_app(
     on_change: Callable[[], Awaitable[None]] | None = None,
     dns_state: dict[str, Any] | None = None,
     dns_check: Callable[[], Awaitable[list[dict[str, Any]]]] | None = None,
-    blocklist_dirs: tuple[Path, Path] | None = None,  # (config_dir, cache_dir)
+    blocklist_cache_dir: Path | None = None,  # onde fica a lista comunitária baixada
     community_enabled: bool = True,
 ) -> web.Application:
     dns = dns_state if dns_state is not None else {"configurado": False, "testando": False, "resultados": []}
@@ -299,26 +299,13 @@ def create_app(
     # --- Lista negra pessoal (aba "Lista negra") ----------------------------------
 
     def _blocklist_view() -> dict[str, Any]:
-        view: dict[str, Any] = {"interface": storage.list_blocklist_items(), "arquivo": [], "arquivo_erros": [],
-                                "arquivo_caminho": "/config/security_auditor/lista_negra.json",
-                                "comunitaria": {"ativa": community_enabled}}
-        if blocklist_dirs is not None:
-            config_dir, cache_dir = blocklist_dirs
-            entries, errors = load_file(personal_path(config_dir), "pessoal")
-            view["arquivo"] = entries
-            view["arquivo_erros"] = errors[:5]
-            view["comunitaria"].update(blocklist_update.read_state(cache_dir))
+        view: dict[str, Any] = {"interface": storage.list_blocklist_items(), "comunitaria": {"ativa": community_enabled}}
+        if blocklist_cache_dir is not None:
+            view["comunitaria"].update(blocklist_update.read_state(blocklist_cache_dir))
         return view
 
-    def _file_ids() -> set[str]:
-        if blocklist_dirs is None:
-            return set()
-        return {e.id for e in load_file(personal_path(blocklist_dirs[0]), "pessoal")[0]}
-
     async def blocklist_list(request: web.Request) -> web.Response:
-        view = await asyncio.to_thread(_blocklist_view)
-        view["arquivo"] = [{"id": e.id, "github": e.github, "nome": e.nome, "imagem": e.imagem} for e in view["arquivo"]]
-        return web.json_response(view)
+        return web.json_response(await asyncio.to_thread(_blocklist_view))
 
     async def blocklist_add(request: web.Request) -> web.Response:
         try:
@@ -328,8 +315,6 @@ def create_app(
             return web.json_response({"error": msg}, status=400)
         if len(await asyncio.to_thread(storage.list_blocklist_items)) >= MAX_BLOCKLIST_ITEMS:
             return web.json_response({"error": f"Limite de {MAX_BLOCKLIST_ITEMS} itens"}, status=400)
-        if item["id"] in await asyncio.to_thread(_file_ids):
-            return web.json_response({"error": f"O id {item['id']} já existe no arquivo da lista"}, status=409)
         now = datetime.now(UTC).isoformat(timespec="seconds")
         if not await asyncio.to_thread(lambda: storage.save_blocklist_item(item, now, create=True)):
             return web.json_response({"error": f"O id {item['id']} já existe"}, status=409)

@@ -118,7 +118,7 @@ def render_html(
         ignored=ignored or [],
         config_allowlist=config_allowlist,
         history_page=history_page or {"page": 1, "pages": 1, "total": len(history), "scan": None},
-        blocklist=blocklist or {"interface": [], "arquivo": [], "arquivo_erros": [], "comunitaria": {"ativa": False}},
+        blocklist=blocklist or {"interface": [], "comunitaria": {"ativa": False}},
     )
 
 

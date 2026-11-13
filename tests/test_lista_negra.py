@@ -3,12 +3,10 @@
 from __future__ import annotations
 
 import json
-import shutil
-from pathlib import Path
 
 import pytest
 
-from auditor.blocklist import Blocklist, BlocklistError, load, load_file, parse, personal_path, version_affected
+from auditor.blocklist import Blocklist, BlocklistError, load, load_file, parse, version_affected
 from auditor.models import ComponentType, Severity
 from auditor.report import render_html
 from auditor.scanners.blocklist import BlocklistScanner
@@ -105,26 +103,26 @@ def test_load_file_errors(tmp_path):
 # --- Scanner ------------------------------------------------------------------------------------
 
 
-@pytest.fixture
-def config_with_list(tmp_path) -> Path:
-    config = tmp_path / "config"
-    shutil.copytree(FIXTURES / "config", config, symlinks=True)
-    path = personal_path(config)
-    path.parent.mkdir()
-    path.write_text(json.dumps(_list(
-        _item(id="P-1", github="exemplo/ha-adulterada", nivel="critica", categoria="comprometido",
-              versoes="<=1.0.0", evidencias=["https://github.com/exemplo/ha-adulterada/issues/7"]),
-        _item(id="P-2", nome="ofuscada", tipo="integracao", nivel="alta", categoria="malicioso"),
-        _item(id="P-3", github="exemplo/ha-limpa", versoes="<1.0.0", categoria="vulneravel"),  # já corrigido
-        _item(id="P-4", imagem="ghcr.io/terceiro/{arch}-addon-exemplo", categoria="telemetria", nivel="aviso"),
-        _item(id="ruim", nivel="x", github="a/b"),
-    )))
-    return config
+PERSONAL = [
+    _item(id="P-1", github="exemplo/ha-adulterada", nivel="critica", categoria="comprometido",
+          versoes="<=1.0.0", evidencias=["https://github.com/exemplo/ha-adulterada/issues/7"]),
+    _item(id="P-2", nome="ofuscada", tipo="integracao", nivel="alta", categoria="malicioso"),
+    _item(id="P-3", github="exemplo/ha-limpa", versoes="<1.0.0", categoria="vulneravel"),  # já corrigido
+    _item(id="P-4", imagem="ghcr.io/terceiro/{arch}-addon-exemplo", categoria="telemetria", nivel="aviso"),
+    _item(id="ruim", nivel="x", github="a/b"),  # gravado sem validar, para testar o aviso de erro
+]
 
 
-async def test_scanner_reports_and_marks_components(tmp_path, config_with_list):
+def _ctx_with_personal(tmp_path, supervisor=None):
+    ctx = _ctx(tmp_path, supervisor, config_dir=FIXTURES / "config")
+    for item in PERSONAL:
+        ctx.storage.save_blocklist_item(item, "2026-11-13T00:00:00+00:00", create=True)
+    return ctx
+
+
+async def test_scanner_reports_and_marks_components(tmp_path):
     sup = FakeSupervisor([_addon(image="ghcr.io/terceiro/amd64-addon-exemplo")])
-    ctx = _ctx(tmp_path, sup, config_dir=config_with_list)
+    ctx = _ctx_with_personal(tmp_path, sup)
     findings = await BlocklistScanner().scan(ctx)
     by = {f.component: f for f in findings}
 
@@ -136,8 +134,8 @@ async def test_scanner_reports_and_marks_components(tmp_path, config_with_list):
     assert by["ofuscada"].severity is Severity.MEDIUM and by["ofuscada"].title.startswith("Possível")
     assert "limpa" not in by  # versão instalada já corrigida
     assert by["abc123_exemplo"].severity is Severity.LOW
-    # Item inválido vira aviso de arquivo com erro, sem derrubar o resto.
-    assert by["auditor"].rule_id == "auditor.lista-negra.arquivo-invalido"
+    # Item inválido vira aviso de erro, sem derrubar o resto.
+    assert by["auditor"].rule_id == "auditor.lista-negra.item-invalido"
 
     meta = ctx.components[(ComponentType.INTEGRATION, "adulterada")]["lista_negra"]
     assert meta == {"id": "P-1", "categoria": "comprometido", "nivel": "critica", "forte": True,
@@ -151,20 +149,35 @@ async def test_scanner_without_list_does_nothing(tmp_path):
     assert not any("lista_negra" in m for m in ctx.components.values())
 
 
-def test_load_merges_community_cache_and_personal(tmp_path, config_with_list):
+def test_load_merges_community_cache_and_personal(tmp_path):
     cache = tmp_path / "cache"
     cache.mkdir()
     (cache / "lista_comunitaria.json").write_text(json.dumps(_list(_item(id="C-1", github="x/y"))))
-    bl = load(config_with_list, cache)
+    bl = load(cache, True, PERSONAL)
     assert {e.origem for e in bl.entries} == {"comunitária", "pessoal"}
-    assert bl.sources == ["lista comunitária (1 itens)", "lista pessoal (4 itens)"]
+    assert bl.sources == ["lista pessoal (4 itens)", "lista comunitária (1 itens)"]
+    assert [e.origem for e in load(cache, False, PERSONAL).entries] == ["pessoal"] * 4
 
 
-async def test_badge_and_evidence_links_in_report(tmp_path, config_with_list):
+async def test_legacy_personal_file_is_ignored_with_warning(tmp_path, caplog):
+    import logging
+    import shutil
+
+    config = tmp_path / "config"
+    shutil.copytree(FIXTURES / "config", config, symlinks=True)
+    (config / "security_auditor").mkdir()
+    (config / "security_auditor" / "lista_negra.json").write_text(json.dumps(_list(PERSONAL[0])))
+    caplog.set_level(logging.WARNING, logger="auditor")
+    ctx = _ctx(tmp_path, config_dir=config)
+    assert await BlocklistScanner().scan(ctx) == []  # o arquivo não é lido
+    assert "não é mais lido" in caplog.text
+
+
+async def test_badge_and_evidence_links_in_report(tmp_path):
     from auditor.models import ScanResult
     from auditor.scoring import summarize
 
-    ctx = _ctx(tmp_path, FakeSupervisor([]), config_dir=config_with_list)
+    ctx = _ctx_with_personal(tmp_path, FakeSupervisor([]))
     findings = await BlocklistScanner().scan(ctx)
     result = ScanResult(scan_id="x", started_at="2026-11-13T00:00:00+00:00", status="concluida",
                         findings=findings, components=summarize(findings, ctx.components))
@@ -199,7 +212,7 @@ async def test_new_categories_and_source(tmp_path):
 
 
 @pytest.fixture
-async def bl_client(aiohttp_client, tmp_path, config_with_list):
+async def bl_client(aiohttp_client, tmp_path):
     import ipaddress
 
     from auditor.scheduler import Scheduler
@@ -210,7 +223,7 @@ async def bl_client(aiohttp_client, tmp_path, config_with_list):
     cache = tmp_path / "cache"
     cache.mkdir()
     app = create_app(storage, Scheduler(lambda: None, 0, False), {}, allowed_peers={ipaddress.ip_address("127.0.0.1")},
-                     blocklist_dirs=(config_with_list, cache))
+                     blocklist_cache_dir=cache)
     client = await aiohttp_client(app)
     html = await (await client.get("/")).text()
     token = html.split('name="csrf-token" content="')[1].split('"')[0]
@@ -241,16 +254,15 @@ async def test_ui_blocklist_crud(bl_client):
     assert (await client.post("/api/lista-negra", headers=h,
                               json={"nivel": "alta", "categoria": "malicioso", "motivo": "x"})).status == 400
     assert (await client.put("/api/lista-negra/nao-existe", headers=h, json=item)).status == 404
-    # id que já existe no arquivo pessoal é recusado.
-    dup = await client.post("/api/lista-negra", headers=h, json={**item, "id": "P-1"})
+    # id repetido é recusado.
+    dup = await client.post("/api/lista-negra", headers=h, json={**item, "id": new_id})
     assert dup.status == 409
 
     html = await (await client.get("/?ver=listanegra")).text()
     assert f'data-bl-edit="{new_id}"' in html and "dono/repo" in html
-    assert "Arquivo</td>" in html and "exemplo/ha-adulterada" in html  # itens do arquivo, só leitura
-    assert "item 5" in html  # erro do arquivo exibido na aba
+    assert "Arquivo</td>" not in html and "lista_negra.json" not in html
     listing = await (await client.get("/api/lista-negra")).json()
-    assert listing["interface"][0]["item"]["id"] == new_id and len(listing["arquivo"]) == 4
+    assert listing["interface"][0]["item"]["id"] == new_id and "arquivo" not in listing
 
     assert (await client.delete(f"/api/lista-negra/{new_id}", headers=h)).status == 204
     assert storage.list_blocklist_items() == []

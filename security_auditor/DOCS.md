@@ -362,37 +362,53 @@ allowlist:
 Componentes **reportados** como maliciosos, comprometidos, vulneráveis, abandonados ou com
 telemetria não declarada ganham o selo **Lista negra** na tabela de componentes e um achado com
 o motivo, as versões afetadas e os links de evidência. É um relato, não um veredito: confira as
-evidências antes de decidir.
+evidências antes de decidir. Tudo fica na aba **Lista negra**.
 
-- **Lista pessoal:** marque o que você mesmo quiser, sem assinatura nem evidência, de dois
-  jeitos:
-  - **pela tela (mais prático):** aba **Lista negra → Adicionar item…**, ou, na tela de um
-    componente, **Adicionar à lista negra…**, que já preenche o tipo, o GitHub e o nome. Dá para
-    editar e remover pela mesma aba. Esses itens ficam no banco do add-on (`/data`), porque o
-    `/config` é montado somente leitura;
-  - **por arquivo:** crie `/config/security_auditor/lista_negra.json` (pelo File editor, Studio
-    Code Server ou Samba; crie a pasta `security_auditor` se não existir). Os itens do arquivo
-    aparecem na aba como somente leitura.
+### Lista pessoal
 
-  Depois de mudar a lista, clique em **Varrer agora**: os selos são calculados na varredura.
-  A aba **Lista negra** também mostra a situação da lista comunitária (itens, data da lista,
-  última busca e a chave da assinatura).
-- **Lista comunitária:** mantida em
-  [diogocaseca/ha-security-blocklist](https://github.com/diogocaseca/ha-security-blocklist).
-  Além dos relatos da comunidade, ela inclui a **lista de removidos do HACS** (repositórios
-  tirados da lista padrão: crítico, blacklist, removido, abandonado) e a **lista de bloqueados do
-  Home Assistant** (versões de integrações que o próprio HA não carrega). O achado mostra a
-  fonte de cada item. A lista é
-  baixada a cada varredura (no máximo a cada 6 horas), somada à pessoal. Opção
-  `lista_comunitaria` (ligada por padrão) para desligar.
+Para marcar o que você mesmo quiser, sem assinatura nem evidência:
 
-A lista comunitária só é usada se estiver **assinada** pelo mantenedor (Ed25519; a chave
-pública vem embutida no add-on). Uma lista com assinatura inválida, de chave desconhecida, com
-formato errado ou mais antiga que a cópia local é recusada, e o auditor continua com a cópia
-anterior. O download é do arquivo inteiro, sem enviar nada sobre a instalação. No log:
+1. Abra a aba **Lista negra → Adicionar item…**, ou, na tela de um componente, clique em
+   **Adicionar à lista negra…** (já vem com o tipo, o GitHub, o nome e, em add-ons, a imagem).
+2. Escolha o nível e a categoria, escreva o motivo e salve.
+3. Clique em **Varrer agora**: os selos são calculados na varredura.
+
+Na mesma aba dá para **Editar** e **Remover** os itens. Eles ficam guardados no banco do add-on
+(`/data`, que entra no backup dele); não é preciso criar pasta nem arquivo no `/config`.
+
+Campos do formulário:
+
+| Campo | Para quê |
+|---|---|
+| Tipo | Integração, Frontend, Add-on ou qualquer um |
+| Repositório do GitHub | `dono/repo`; correspondência forte (prefira este) |
+| Nome | Domínio da integração, pasta do card ou slug do add-on; aceita `*`. Sozinho gera "possível correspondência" |
+| Imagem do add-on | Ex.: `ghcr.io/dono/{arch}-addon-x` (`{arch}` vale qualquer arquitetura); correspondência forte |
+| Versões afetadas | Faixa no formato do pip, ex.: `<1.4.2` ou `>=1.0,<1.2`; vazio = todas |
+| Nível | Crítica, Alta, Média ou Aviso |
+| Categoria | Malicioso, Comprometido, Vulnerável, Abandonado, Telemetria, Removido de loja, Incompatível |
+| Motivo e evidências | O que acontece e, se quiser, links `https://` (um por linha) |
+
+É preciso informar o GitHub, o nome ou a imagem. Para descobrir o GitHub ou o nome de um
+componente, veja a linha dele na tabela de componentes (`repositorio: dono/repo`).
+
+### Lista comunitária
+
+Mantida em [diogocaseca/ha-security-blocklist](https://github.com/diogocaseca/ha-security-blocklist).
+Além dos relatos da comunidade, ela inclui a **lista de removidos do HACS** (repositórios tirados
+da lista padrão: crítico, blacklist, removido, abandonado) e a **lista de bloqueados do Home
+Assistant** (versões de integrações que o próprio HA não carrega). O achado mostra a fonte de
+cada item. É baixada a cada varredura (no máximo a cada 6 horas) e somada à pessoal; a opção
+`lista_comunitaria` (ligada por padrão) a desliga. A aba **Lista negra** mostra quantos itens ela
+tem, a data da lista, a última busca e a chave da assinatura.
+
+Ela só é usada se estiver **assinada** pelo mantenedor (Ed25519; a chave pública vem embutida
+no add-on). Uma lista com assinatura inválida, de chave desconhecida, com formato errado ou mais
+antiga que a cópia local é recusada, e o auditor continua com a cópia anterior. O download é do
+arquivo inteiro, sem enviar nada sobre a instalação. No log:
 
 ```
-INFO  Lista negra comunitária atualizada: 12 item(ns), lista de 2026-11-13, assinatura OK (chave 539f9e99d82adfd9)
+INFO  Lista negra comunitária atualizada: 560 item(ns), lista de 2026-11-13, assinatura OK (chave 539f9e99d82adfd9)
 WARNING Lista negra comunitária: lista recusada: assinatura inválida (...); mantendo a cópia anterior
 ```
 
@@ -400,57 +416,19 @@ Se a lista nunca pôde ser baixada, o relatório mostra "Lista negra comunitári
 (informativo); se a cópia local passar de 7 dias porque as atualizações estão falhando,
 "Lista negra comunitária desatualizada".
 
-Exemplo de lista pessoal:
-
-```json
-{
-  "versao": 1,
-  "itens": [
-    {
-      "id": "meu-001",
-      "github": "dono/repositorio",
-      "versoes": "<1.4.2",
-      "nivel": "critica",
-      "categoria": "comprometido",
-      "motivo": "A 1.4.1 foi publicada por uma conta invadida.",
-      "evidencias": ["https://github.com/dono/repositorio/issues/123"]
-    },
-    {
-      "id": "meu-002",
-      "tipo": "addon",
-      "imagem": "ghcr.io/alguem/{arch}-addon-exemplo",
-      "nivel": "aviso",
-      "categoria": "telemetria",
-      "motivo": "Envia estatísticas de uso sem opção para desligar."
-    }
-  ]
-}
-```
-
-**Como achar o `github` ou o `nome` de um componente:** na tabela de componentes, cada linha
-mostra o nome (use em `nome`) e, quando conhecido, o repositório (`repositorio: dono/repo`, use
-em `github`). Prefira `github`: a correspondência só pelo nome sai como "possível".
-
 **Para sugerir um item para todos**, abra uma issue *Relatar um componente* ou um Pull Request
 no [repositório da lista](https://github.com/diogocaseca/ha-security-blocklist#como-adicionar-um-item),
 que tem o passo a passo completo.
 
-Campos: `id` (único), `tipo` (`integracao`, `frontend`, `addon`; vazio = qualquer), `github`
-(`dono/repo`), `nome` (domínio, pasta do card ou slug; aceita `*`), `imagem` (`{arch}` vale
-qualquer arquitetura), `versoes` (faixa no formato do pip, vazio = todas), `nivel` (`critica`,
-`alta`, `media`, `aviso`), `categoria` (`malicioso`, `comprometido`, `vulneravel`,
-`abandonado`, `telemetria`, `removido`, `incompativel`), `motivo` e `evidencias` (links
-`https://`). É preciso informar
-`github`, `nome` ou `imagem`.
-
-Como a correspondência é feita:
+### Como a correspondência é feita
 
 | Correspondência | Selo | Severidade |
 |---|---|---|
 | Mesmo repositório do GitHub (HACS, manifest ou loja de add-ons) ou mesma imagem | **Lista negra** (vermelho) | a do item |
+| Domínio de uma integração bloqueada pelo Home Assistant | **Lista negra** (vermelho) | a do item |
 | Só pelo nome | **Lista negra?** (amarelo), "possível correspondência" | um nível abaixo |
 | Nome igual, mas o componente tem outro repositório | nenhum (é outro projeto) | — |
-| Versão instalada fora da faixa `versoes` | nenhum (já corrigido) | — |
+| Versão instalada fora da faixa de versões | nenhum (já corrigido) | — |
 
 Itens com erro são ignorados e geram o achado "Lista negra com erro", dizendo qual item e por
 quê; o resto da lista continua valendo. A lista só **acrescenta** avisos: ela não libera nem

@@ -3,9 +3,9 @@
 A lista só ACRESCENTA avisos. Ela nunca libera, suprime ou muda o que o auditor
 verifica. Tudo é comparado localmente: nada sobre a instalação sai daqui.
 
-Fontes, na ordem:
-- ``/data/cache/lista_comunitaria.json``: lista comunitária baixada (fase 2);
-- ``/config/security_auditor/lista_negra.json``: lista pessoal, editável no HA.
+Fontes:
+- ``/data/cache/lista_comunitaria.json``: lista comunitária baixada e assinada;
+- lista pessoal: itens criados na aba "Lista negra" da interface (banco em /data).
 
 Formato (versão 1):
 
@@ -255,10 +255,6 @@ def load_file(path: Path, origem: str) -> tuple[list[BlocklistEntry], list[str]]
     return entries, [f"{path.name}, {e}" for e in errors]
 
 
-def personal_path(config_dir: Path) -> Path:
-    return config_dir / "security_auditor" / "lista_negra.json"
-
-
 def community_cache_path(cache_dir: Path) -> Path:
     return cache_dir / "lista_comunitaria.json"
 
@@ -273,27 +269,23 @@ def validate_item(item: Any) -> BlocklistEntry:
     return entries[0]
 
 
-def load(config_dir: Path, cache_dir: Path, community: bool = True,
-         ui_items: list[dict[str, Any]] | None = None) -> Blocklist:
-    """Junta a lista comunitária (cache), o arquivo pessoal e os itens pessoais criados na interface."""
+def load(cache_dir: Path, community: bool = True, ui_items: list[dict[str, Any]] | None = None) -> Blocklist:
+    """Junta a lista comunitária (cache) e a lista pessoal criada na interface."""
     bl = Blocklist()
     if ui_items:
         entries, errors = parse({"versao": FORMAT_VERSION, "itens": ui_items}, "pessoal")
         bl.entries.extend(entries)
-        bl.errors.extend(f"lista pessoal da interface, {e}" for e in errors)
+        bl.errors.extend(f"lista pessoal, {e}" for e in errors)
         if entries:
-            bl.sources.append(f"lista pessoal da interface ({len(entries)} itens)")
-            _LOGGER.info("Lista negra pessoal (interface) carregada: %d item(ns)", len(entries))
-    sources = [(personal_path(config_dir), "pessoal")]
+            bl.sources.append(f"lista pessoal ({len(entries)} itens)")
+            _LOGGER.info("Lista negra pessoal carregada: %d item(ns)", len(entries))
     if community:
-        sources.insert(0, (community_cache_path(cache_dir), "comunitária"))
-    for path, origem in sources:
-        entries, errors = load_file(path, origem)
+        entries, errors = load_file(community_cache_path(cache_dir), "comunitária")
         bl.errors.extend(errors)
         if entries:
             bl.entries.extend(entries)
-            bl.sources.append(f"lista {origem} ({len(entries)} itens)")
-            _LOGGER.info("Lista negra %s carregada: %d item(ns)", origem, len(entries))
+            bl.sources.append(f"lista comunitária ({len(entries)} itens)")
+            _LOGGER.info("Lista negra comunitária carregada: %d item(ns)", len(entries))
     for err in errors_unique(bl.errors):
         _LOGGER.warning("Lista negra: %s", err)
     return bl
