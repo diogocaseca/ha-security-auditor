@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.19.3
+
+- **Quadro "Ignorados":** o texto agora é só "Ignorados", com a quantidade de itens da lista no
+  número.
+
 ## 0.19.2
 
 - **Correção:** o link "Abrir o Security Auditor" dos avisos no HA abria o dashboard principal.

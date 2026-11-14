@@ -80,8 +80,8 @@ def test_ignored_and_blocklist_newest_first(storage):
     assert [e["id"] for e in storage.list_ignored()] == [second, first]
 
 
-def test_ignored_card_counts_list_items_and_hidden_findings(storage):
-    """O número grande é o tamanho da lista; embaixo, quantos achados ela esconde neste relatório."""
+def test_ignored_card_counts_list_items(storage):
+    """O número é o tamanho da lista, e o texto é só "Ignorados"."""
     from auditor.models import ScanResult
 
     hidden = make_finding(component="a", file="custom_components/a/x.py")
@@ -92,7 +92,7 @@ def test_ignored_card_counts_list_items_and_hidden_findings(storage):
                for i in range(8)]
     html = render_html(result, status={}, history=[], csrf_token="t", lang="pt", ignored=entries)
     card = html.split('id="toggle-ignored"')[1].split("</button>")[0]
-    assert '<span class="card-count">8</span>' in card and "Ignorados · 1 achado escondido" in card
+    assert '<span class="card-count">8</span>' in card and '<span class="card-label">Ignorados</span>' in card
     html = render_html(result, status={}, history=[], csrf_token="t", lang="en", ignored=[])
     card = html.split('id="toggle-ignored"')[1].split("</button>")[0]
-    assert '<span class="card-count">0</span>' in card and "Ignored · 1 finding hidden" in card
+    assert '<span class="card-count">0</span>' in card and '<span class="card-label">Ignored</span>' in card

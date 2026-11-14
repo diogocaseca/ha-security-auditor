@@ -90,11 +90,9 @@
       {% set n_rules = ignored | length + config_allowlist | length %}
       <button type="button" class="card card-ignored" id="toggle-ignored" aria-pressed="false" aria-controls="ignored"
               title="{{ _('Mostrar ou esconder a lista de ignorados') }}">
-        {# Número grande: itens da lista (o que o quadro abre). Embaixo: achados que eles escondem neste relatório
-           (pode ser 0 com itens na lista: componente ignorado por inteiro nem é verificado). #}
-        {% set hidden = (report.counts_including_suppressed.values() | sum) - (counts.values() | sum) %}
+        {# Número: itens da lista de ignorados (o que o quadro abre). #}
         <span class="card-count">{{ n_rules }}</span>
-        <span class="card-label">{{ _("Ignorados · {n} achado escondido", n=hidden) if hidden == 1 else _("Ignorados · {n} achados escondidos", n=hidden) }}</span>
+        <span class="card-label">{{ _("Ignorados") }}</span>
       </button>
     </section>
 

@@ -242,8 +242,6 @@ EN: dict[str, str] = {
     # --- Cartões e erros ---
     "Resumo por severidade": "Summary by severity",
     "Mostrar ou esconder a lista de ignorados": "Show or hide the ignore list",
-    "Ignorados · {n} achado escondido": "Ignored · {n} finding hidden",
-    "Ignorados · {n} achados escondidos": "Ignored · {n} findings hidden",
     "Etapas com erro": "Steps with errors",
     "Estas etapas não terminaram; o relatório pode estar incompleto.":
         "These steps did not finish; the report may be incomplete.",
@@ -408,6 +406,7 @@ EN: dict[str, str] = {
     "Provavelmente seguro": "Probably safe",
     "Desconhecido": "Unknown",
     "Perguntar de novo": "Ask again",
+    "Ignorados": "Ignored",
     "Fechar": "Close",
     "Só o nome do domínio é enviado ao {provedor}, e só quando você pede. A resposta é a opinião de um modelo de linguagem: pode errar e não substitui a sua verificação.":
         "Only the domain name is sent to {provedor}, and only when you ask. The answer is a language model's opinion: it can be wrong and does not replace your own check.",
