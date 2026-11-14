@@ -242,8 +242,8 @@ EN: dict[str, str] = {
     # --- Cartões e erros ---
     "Resumo por severidade": "Summary by severity",
     "Mostrar ou esconder a lista de ignorados": "Show or hide the ignore list",
-    "Ignorados · {n} item na lista": "Ignored · {n} item in the list",
-    "Ignorados · {n} itens na lista": "Ignored · {n} items in the list",
+    "Ignorados · {n} achado escondido": "Ignored · {n} finding hidden",
+    "Ignorados · {n} achados escondidos": "Ignored · {n} findings hidden",
     "Etapas com erro": "Steps with errors",
     "Estas etapas não terminaram; o relatório pode estar incompleto.":
         "These steps did not finish; the report may be incomplete.",

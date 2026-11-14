@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.1
+
+- **Quadro "Ignorados":** o número grande agora é a quantidade de itens na lista de ignorados (o
+  que o quadro abre), e embaixo aparece quantos achados eles escondem nesta varredura. Antes o
+  número era o de achados escondidos, e mostrava "0" com itens na lista quando eles pulam
+  componentes inteiros ou não batem com nenhum achado do relatório atual.
+
 ## 0.19.0
 
 - **Perguntar à IA (aba DNS):** novo botão em cada linha da tabela de domínios que pergunta ao
