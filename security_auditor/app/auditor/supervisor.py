@@ -66,6 +66,7 @@ class SupervisorClient:
         self._token = token if token is not None else _token()
         self._base = (base_url or _base_url()).rstrip("/")
         self._self_slug: str | None = None
+        self._self_panel = False
 
     @property
     def available(self) -> bool:
@@ -100,7 +101,20 @@ class SupervisorClient:
                 _LOGGER.warning("Não foi possível identificar o próprio add-on: %s", err)
                 return None
             self._self_slug = str(info.get("slug") or "")
+            self._self_panel = bool(info.get("ingress_panel"))
         return self._self_slug or None
+
+    async def self_page(self) -> str | None:
+        """Caminho, dentro do HA, para abrir o auditor (link dos avisos).
+
+        Com "Mostrar na barra lateral" ligado, o painel fica em ``/<slug>``; sem ele, abre a página
+        do add-on (``/config/app/<slug>/info``). O antigo ``/hassio/ingress/<slug>`` não existe mais
+        no HA e cai no dashboard padrão.
+        """
+        slug = await self.self_slug()
+        if not slug:
+            return None
+        return f"/{slug}" if self._self_panel else f"/config/app/{slug}/info"
 
     async def addon_info(self, slug: str) -> dict[str, Any]:
         return await self.get(f"/addons/{slug}/info") or {}

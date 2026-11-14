@@ -125,13 +125,13 @@ async def test_alert_levels_and_blocklist(paths, storage, masker):
     medium = await _result_with(paths, storage, masker, [_f("nova", severity=Severity.MEDIUM)])
     event, note = build_alert(medium, NEW, "alta", "pt")
     assert note is None and event["alerta"] is False and event["achados"]["medium"] == 1
-    event, note = build_alert(medium, NEW, "media", "pt", "/hassio/ingress/abc_security_auditor")
+    event, note = build_alert(medium, NEW, "media", "pt", "/abc_security_auditor")
     assert event["alerta"] is True and event["versao"] == "1.0"
     notification_id, title, message = note
     assert notification_id == "security_auditor_integracao_nova" and title == "Security Auditor: revise nova"
     assert "A integração **nova** 1.0 foi instalada e verificada logo em seguida." in message
     assert "1 médio(s)" in message
-    assert "(/hassio/ingress/abc_security_auditor)" in message and "não decide sozinho" in message
+    assert "(/abc_security_auditor)" in message and "não decide sozinho" in message
     assert build_alert(medium, NEW, "desligado", "pt")[1] is None
 
     listed = await _result_with(paths, storage, masker, [_f(
@@ -252,3 +252,23 @@ def test_config_yaml_option_order_and_schema():
     for lang in ("en", "pt-BR"):
         conf = yaml.safe_load((addon / "translations" / f"{lang}.yaml").read_text())["configuration"]
         assert conf["intervalo_verificacao_minutos"]["name"]
+
+
+@pytest.mark.parametrize("panel, expected", [(True, "/abc_security_auditor"),
+                                             (False, "/config/app/abc_security_auditor/info")])
+async def test_alert_link_opens_the_auditor(monkeypatch, panel, expected):
+    """O link do aviso abre o painel do auditor (ou a página do add-on), nunca /hassio/ingress/."""
+    from auditor.supervisor import SupervisorClient
+    from auditor.watcher import _ingress_url
+
+    client = SupervisorClient(session=None, token="t", base_url="http://supervisor")
+    seen = []
+
+    async def get(path):
+        seen.append(path)
+        return {"slug": "abc_security_auditor", "ingress_panel": panel}
+
+    monkeypatch.setattr(client, "get", get)
+    assert await _ingress_url(client) == expected
+    assert await _ingress_url(client) == expected and seen == ["/addons/self/info"]  # consulta uma vez só
+    assert await _ingress_url(None) is None

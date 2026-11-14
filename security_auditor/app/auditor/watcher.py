@@ -185,10 +185,9 @@ async def _ingress_url(supervisor: Any | None) -> str | None:
     if supervisor is None:
         return None
     try:
-        slug = await supervisor.self_slug()
+        return await supervisor.self_page()
     except Exception:  # noqa: BLE001
         return None
-    return f"/hassio/ingress/{slug}" if slug else None
 
 
 async def _send(notifier: Any | None, event: dict[str, Any], note: tuple[str, str, str] | None,

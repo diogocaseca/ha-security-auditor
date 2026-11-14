@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.2
+
+- **Correção:** o link "Abrir o Security Auditor" dos avisos no HA abria o dashboard principal.
+  Ele usava `/hassio/ingress/<slug>`, endereço que o HA não tem mais. Agora abre o painel do
+  auditor na barra lateral (`/<slug>`) ou, com "Mostrar na barra lateral" desligado, a página do
+  add-on (`/config/app/<slug>/info`). Avisos já criados continuam com o link antigo.
+
 ## 0.19.1
 
 - **Quadro "Ignorados":** o número grande agora é a quantidade de itens na lista de ignorados (o

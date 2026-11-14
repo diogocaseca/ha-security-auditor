@@ -108,13 +108,13 @@ async def _dns_result(paths, storage, masker, findings):
 
 async def test_dns_alert_levels(paths, storage, masker):
     result = await _dns_result(paths, storage, masker, [_dns(), _dns("auditor.dns.x", Severity.MEDIUM, "médio")])
-    event, note = build_dns_alert(result, "alta", "pt", "/hassio/ingress/abc")
+    event, note = build_dns_alert(result, "alta", "pt", "/abc_security_auditor")
     assert event["alerta"] is True and event["achados"]["high"] == 1 and event["achados"]["medium"] == 1
     assert event["mudanca"] == "verificacao_dns" and event["componente"] == "dns"
     notification_id, title, message = note
     assert notification_id == DNS_NOTIFICATION_ID and title == "Security Auditor: revise as consultas DNS"
     assert "Consulta a pool de mineração" in message and "médio" not in message.split("Achados novos")[1][20:]
-    assert "(/hassio/ingress/abc)" in message and "não decide sozinho" in message
+    assert "(/abc_security_auditor)" in message and "não decide sozinho" in message
     assert build_dns_alert(result, "critica", "en", None)[1] is None  # só alto: abaixo do nível
     assert build_dns_alert(result, "desligado", "en", None)[0]["alerta"] is False
 
