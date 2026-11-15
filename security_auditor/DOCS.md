@@ -433,12 +433,12 @@ You can also ignore from the **components table**:
 Items restricted to levels show the levels in the list's **Scope** column.
 
 **Ignoring a component skips the scan.** **Ignore…** on a component's row (it asks for a reason
-and shows a warning) means the component **is no longer scanned**: no tool runs on it, it shows in
-the table as "not scanned" and the list marks the item with "the whole component · not scanned".
-Use it for your own apps and the ones you consider trustworthy; it is at your own risk. To scan it
-again, click **Scan again** on its row (or remove the item from the list); it is scanned on the
-next scan. The other ways to ignore (a finding, a rule, a file, levels)
-never skip the scan; they only stop counting what was ignored.
+and shows a warning) means the component **is no longer scanned**: no tool runs on it and it
+**leaves the components table**; it only shows in the ignore list, as "the whole component · not
+scanned". Use it for your own apps and the ones you consider trustworthy; it is at your own risk.
+To scan it again, remove the item from the list: it comes back to the table right away, with a
+note, and is scanned on the next scan. The other ways to ignore (a finding, a rule, a file,
+levels) never skip the scan; they only stop counting what was ignored.
 
 **Remove…** on a component's row is for components you have already removed from HA whose files
 stayed on disk (removing an integration in **Settings → Devices & services** deletes only its

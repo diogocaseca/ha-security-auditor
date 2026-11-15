@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.23.0
+
+- **Componentes ignorados saem da tabela de componentes.** Quem foi ignorado com **Ignorar…**
+  (fora da varredura) aparece só na lista de ignorados. Para voltar a analisar, remova o item da
+  lista: o componente volta para a tabela na hora, com um aviso, e é analisado na próxima
+  varredura.
+- O botão **Voltar a analisar** (0.22.1) saiu, porque a lista de ignorados já faz isso.
+
 ## 0.22.2
 
 - **Correção:** o botão da linha do componente (**Ignorar…** ou **Voltar a analisar**) agora segue

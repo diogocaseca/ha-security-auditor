@@ -139,7 +139,8 @@
                   {% if viewing_latest %}<th></th>{% endif %}</tr>
             </thead>
             <tbody>
-              {% for c in result.components if c.component_type != 'rede' %}
+              {# Componentes ignorados (fora da varredura) não aparecem: ficam só na lista de ignorados. #}
+              {% for c in result.components if c.component_type != 'rede' and not (viewing_latest and is_skipped(c.name)) %}
                 <tr class="comp-row" data-type="{{ c.component_type }}"
                     data-blocklist="{{ ('forte' if c.metadata.lista_negra.forte else 'possivel') if c.metadata.lista_negra else '' }}" data-github="{{ c.metadata.repositorio or '' }}"
                     data-image="{{ c.metadata.imagem or '' }}" data-sevs="{% for sev in severities if c.counts.get(sev.key, 0) %}{{ sev.key }} {% endfor %}">
@@ -156,14 +157,13 @@
                     {% if details %}<div class="comp-meta">{{ details | join(' · ') }}</div>{% endif %}
                     {# A lista mudou depois deste relatório: avisa até a próxima varredura. #}
                     {% set was_skipped = (c.metadata.verificacao or '').startswith('não verificado') %}
-                    {% if viewing_latest and was_skipped and not is_skipped(c.name) %}<div class="comp-meta"><strong>{{ _("Não está mais ignorado: volta a ser analisado na próxima varredura.") }}</strong></div>
-                    {% elif viewing_latest and not was_skipped and is_skipped(c.name) %}<div class="comp-meta"><strong>{{ _("Ignorado: deixa de ser analisado a partir da próxima varredura.") }}</strong></div>{% endif %}
+                    {% if viewing_latest and was_skipped %}<div class="comp-meta"><strong>{{ _("Não está mais ignorado: volta a ser analisado na próxima varredura.") }}</strong></div>{% endif %}
                   </td>
                   <td>{{ _(type_label(c.component_type)) }}</td>
                   <td class="num"><span class="score score-{{ 'high' if c.score >= 40 else ('mid' if c.score >= 10 else 'low') }}">{{ c.score }}</span></td>
                   {% for sev in severities %}<td class="num">{{ c.counts.get(sev.key, 0) or '' }}</td>{% endfor %}
                   {% if viewing_latest %}
-                    <td class="comp-actions"><div class="comp-actions-stack">{% if c.counts.values() | sum %}<button type="button" class="btn btn-ghost btn-sm" data-ignore-findings="{{ c.name }}">{{ _("Ignorar achados…") }}</button>{% endif %}{% if not is_skipped(c.name) %}<button type="button" class="btn btn-ghost btn-sm" data-ignore-component="{{ c.name }}">{{ _("Ignorar…") }}</button>{% else %}<button type="button" class="btn btn-ghost btn-sm" data-unskip-component="{{ c.name }}">{{ _("Voltar a analisar") }}</button>{% endif %}{% if c.component_type in ('integracao', 'frontend', 'addon') and c.name != 'www' %}<button type="button" class="btn btn-ghost btn-sm" data-exclude-type="{{ c.component_type }}" data-exclude-component="{{ c.name }}">{{ _("Excluir…") }}</button>{% endif %}</div></td>
+                    <td class="comp-actions"><div class="comp-actions-stack">{% if c.counts.values() | sum %}<button type="button" class="btn btn-ghost btn-sm" data-ignore-findings="{{ c.name }}">{{ _("Ignorar achados…") }}</button>{% endif %}<button type="button" class="btn btn-ghost btn-sm" data-ignore-component="{{ c.name }}">{{ _("Ignorar…") }}</button>{% if c.component_type in ('integracao', 'frontend', 'addon') and c.name != 'www' %}<button type="button" class="btn btn-ghost btn-sm" data-exclude-type="{{ c.component_type }}" data-exclude-component="{{ c.name }}">{{ _("Excluir…") }}</button>{% endif %}</div></td>
                   {% endif %}
                 </tr>
               {% endfor %}

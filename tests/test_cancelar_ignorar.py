@@ -524,32 +524,6 @@ async def test_ignore_all_levels_everywhere_hides_only_current(ignore_client):
     assert [f.rule_id for f in result.findings if not f.suppressed] == ["auditor.novo"]
 
 
-async def test_unskip_component_from_row(ignore_client, paths, masker):
-    """"Voltar a analisar" na linha de um componente ignorado remove o item que pula a varredura."""
-    client, token, storage, engine, _ = ignore_client
-    storage.add_ignored(component="minha_integracao", rule="*", reason="É meu", created_at="t", skip=True)
-    storage.add_ignored(component="outr*", rule="*", reason="curinga", created_at="t", skip=True)
-    # Um relatório que já mostra o componente como não verificado (como gera a varredura).
-    latest = storage.load_latest()
-    for c in latest.components:
-        if c.name in ("minha_integracao", "outra"):
-            c.metadata["verificacao"] = "não verificado: marcado para não ser analisado (É meu)"
-    storage.save_scan(latest)
-    html = await (await client.get("/")).text()
-    assert 'data-unskip-component="minha_integracao"' in html and 'data-ignore-component="minha_integracao"' not in html
-    assert "Scan again" in html
-
-    assert (await client.post("/api/componentes/analisar", json={"nome": "minha_integracao"})).status == 403
-    resp = await client.post("/api/componentes/analisar", headers={CSRF_HEADER: token}, json={"nome": "minha_integracao"})
-    assert resp.status == 200 and (await resp.json())["removidos"] == 1
-    assert not any(e.skip and e.component == "minha_integracao" for e in storage.ignore_entries())
-    # Pulado por um curinga: não remove (pegaria outros componentes) e explica.
-    resp = await client.post("/api/componentes/analisar", headers={CSRF_HEADER: token}, json={"nome": "outra"})
-    assert resp.status == 409 and "outr*" in (await resp.json())["error"]
-    resp = await client.post("/api/componentes/analisar", headers={CSRF_HEADER: token}, json={"nome": "limpa"})
-    assert resp.status == 404
-
-
 async def test_row_follows_current_ignore_list_not_old_report(ignore_client):
     """Relatório antigo diz "não verificado", mas o item já saiu da lista: mostra "Ignorar…" e avisa."""
     client, token, storage, *_ = ignore_client
@@ -559,11 +533,11 @@ async def test_row_follows_current_ignore_list_not_old_report(ignore_client):
             c.metadata["verificacao"] = "não verificado: ignorado por completo (É meu (lista de ignorados))"
     storage.save_scan(latest)
     html = await (await client.get("/")).text()
-    assert 'data-ignore-component="minha_integracao"' in html and 'data-unskip-component="minha_integracao"' not in html
+    assert 'data-ignore-component="minha_integracao"' in html
     assert "No longer ignored: it is scanned again on the next scan." in html
 
-    # O contrário: ignorado agora, relatório ainda do tempo em que era analisado.
+    # O contrário: ignorado agora (relatório ainda do tempo em que era analisado): some da tabela.
+    assert 'data-filter-component="outra"' in html
     storage.add_ignored(component="outra", rule="*", reason="meu", created_at="t", skip=True)
     html = await (await client.get("/")).text()
-    assert 'data-unskip-component="outra"' in html
-    assert "Ignored: it stops being scanned from the next scan on." in html
+    assert 'data-filter-component="outra"' not in html and 'data-ignore-component="outra"' not in html
