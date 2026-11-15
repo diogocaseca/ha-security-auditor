@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.22.2
+
+- **Correção:** o botão da linha do componente (**Ignorar…** ou **Voltar a analisar**) agora segue
+  a lista de ignorados atual, e não o relatório da última varredura. Antes, um componente que já
+  tinha saído da lista ainda mostrava **Voltar a analisar**, e o botão dava "Este componente não
+  está ignorado". Enquanto a próxima varredura não roda, a linha avisa que a mudança está pendente.
+
 ## 0.22.1
 
 - **Voltar a analisar:** componentes ignorados (fora da varredura) mostram este botão na linha, no

@@ -242,6 +242,7 @@ def create_app(
             ai={"label": ai["label"], "modelo": ai["modelo"]} if ai else None,
             dns_ai=await asyncio.to_thread(storage.dns_ai) if ai else None,
             excluded=await asyncio.to_thread(storage.list_excluded),
+            skip_entries=config_allowlist + tuple(await asyncio.to_thread(storage.ignore_entries)),
         )
         return web.Response(text=html, content_type="text/html", charset="utf-8")
 

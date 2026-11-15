@@ -500,6 +500,10 @@ EN: dict[str, str] = {
     "Ignorar componente": "Ignore component",
     "Ignorar achados…": "Ignore findings…",
     "Voltar a analisar": "Scan again",
+    "Não está mais ignorado: volta a ser analisado na próxima varredura.":
+        "No longer ignored: it is scanned again on the next scan.",
+    "Ignorado: deixa de ser analisado a partir da próxima varredura.":
+        "Ignored: it stops being scanned from the next scan on.",
     "Voltar a analisar {nome}? O item sai da lista de ignorados e o componente é analisado na próxima varredura.":
         "Scan {nome} again? The item leaves the ignore list and the component is scanned on the next scan.",
     "Na próxima varredura": "On the next scan",

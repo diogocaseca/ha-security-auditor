@@ -9,6 +9,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, pass_context, select_autoescape
 
+from ..allowlist import skip_entry_for
 from ..i18n import HTML_LANG, Translator, normalize
 from ..models import ComponentType, ScanResult, Severity
 from ..scanners.dns import is_ignored
@@ -119,6 +120,7 @@ def render_html(
     ai: dict[str, Any] | None = None,
     dns_ai: dict[str, dict[str, str]] | None = None,
     excluded: list[dict[str, str]] | None = None,
+    skip_entries: tuple = (),
 ) -> str:
     dns_patterns = [e["pattern"] for e in dns_ignored or []]
     lang = normalize(lang)
@@ -145,6 +147,8 @@ def render_html(
         ai=ai,  # None = botão "Perguntar à IA" escondido (ia_provedor: desligado)
         dns_ai=dns_ai or {},
         excluded=excluded or [],  # componentes tirados da tabela com "Excluir…"
+        # Ignorado (fora da varredura) pela lista ATUAL: o relatório pode ser de antes de uma mudança na lista.
+        is_skipped=lambda name: skip_entry_for(name, tuple(skip_entries)) is not None,
         ai_verdicts={"malicioso": tr.t("Malicioso"), "suspeito": tr.t("Suspeito"),
                      "provavelmente_seguro": tr.t("Provavelmente seguro"), "desconhecido": tr.t("Desconhecido")},
         ai_badge={"malicioso": "sev-critical", "suspeito": "sev-medium"},
