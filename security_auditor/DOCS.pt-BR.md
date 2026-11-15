@@ -421,12 +421,16 @@ juntos:
 
 Também dá para ignorar a partir da **tabela de componentes**:
 
+- **Ignorar achados…** na linha de um componente ignora **os achados atuais do componente** nos
+  níveis que você marcar (um, vários ou **Todos os níveis**). Um achado igual a um deles continua
+  escondido; achados novos continuam aparecendo, e o componente continua sendo analisado. Os níveis
+  marcados nos cartões já vêm selecionados.
 - **Ignorar…** na linha de um componente tira o componente **da varredura** (veja abaixo).
 - Com um ou mais níveis marcados nos cartões, aparece **Ignorar estes níveis…**. Ele ignora **os
   achados que existem agora** nos níveis escolhidos, em todos os componentes, num único item da
   lista ("37 achados atuais"). Um achado igual a um deles continua escondido nas próximas
-  varreduras, mas **achados novos nesses níveis continuam aparecendo**. Pede confirmação. Ignorar
-  todos os níveis de uma vez não é aceito. (Itens de nível criados antes da 0.21.0 são regras e
+  varreduras, mas **achados novos nesses níveis continuam aparecendo**. Pede confirmação. **Todos
+  os níveis** também é aceito (todos os achados atuais). (Itens de nível criados antes da 0.21.0 são regras e
   escondem também os achados futuros; remova e ignore de novo para mudar.)
 
 Itens restritos a níveis mostram os níveis na coluna **Alcance** da lista.

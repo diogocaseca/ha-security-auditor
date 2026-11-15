@@ -378,6 +378,7 @@
       levels: T("Ignorar níveis inteiros"),
       manual: T("Incluir na lista de ignorados"),
       skip: T("Ignorar componente"),
+      findings: T("Ignorar achados do componente"),
     };
     document.getElementById("ignore-title").textContent = titles[k];
     document.getElementById("ignore-scope").hidden = k !== "finding";
@@ -392,7 +393,8 @@
     // Os níveis marcados nos cartões já vêm selecionados.
     levelBoxes.forEach((b) => { b.checked = k !== "manual" && k !== "finding" && state.sev.has(b.value); });
     // Ignorar todos os níveis em todos os componentes ignoraria tudo: a opção não aparece nesse modo.
-    document.getElementById("level-all-wrap")?.toggleAttribute("hidden", k === "levels");
+    // "Todos os níveis" aparece também em "Ignorar estes níveis": só os achados de agora são ignorados.
+    document.getElementById("level-all-wrap")?.toggleAttribute("hidden", false);
     syncLevelAll();
     const fileOpt = form.querySelector('input[value="file"]');
     if (fileOpt) fileOpt.parentElement.hidden = !(k === "finding" && mode.el.dataset.file);
@@ -401,6 +403,7 @@
       levels: () => T("Os achados atuais destes níveis, em todos os componentes. Achados novos continuam aparecendo."),
       manual: () => T("Use * como curinga (ex.: semgrep.* ou */vendor/*)."),
       skip: () => T("Componente {nome}.", { nome: mode.name }),
+      findings: () => T("Componente {nome}: os achados atuais nos níveis marcados abaixo. Achados novos continuam aparecendo e o componente continua sendo analisado.", { nome: mode.name }),
     };
     document.getElementById("ignore-subject").textContent = subject[k]();
     dialog.showModal();
@@ -420,6 +423,9 @@
         return { component: "*", rule: "*", reason, severities, achados_atuais: true };
       case "skip":
         return { component: mode.name, rule: "*", reason, nao_analisar: true };
+      // Achados do componente: só os de agora, nos níveis marcados (nenhum = todos).
+      case "findings":
+        return { component: mode.name, rule: "*", reason, severities, achados_atuais: true };
       default: {
         const d = mode.el.dataset;
         const scope = form.elements.scope.value;
@@ -436,13 +442,15 @@
     ev.preventDefault();
     const entry = entryFromForm();
     if (mode.kind === "levels") {
-      if (!entry.severities.length) {
+      // Todos marcados viram "sem restrição" (lista vazia); nenhum marcado é erro.
+      const ticked = levelBoxes.filter((b) => b.checked).map((b) => b.value);
+      if (!ticked.length) {
         errorEl.textContent = T("Marque pelo menos um nível.");
         errorEl.hidden = false;
         return;
       }
       if (!window.confirm(T("Ignorar os achados atuais de nível {niveis} em todos os componentes? Achados novos continuam aparecendo.",
-        { niveis: labelsOf(entry.severities) }))) return;
+        { niveis: labelsOf(ticked) }))) return;
     }
     const submit = document.getElementById("ignore-submit");
     submit.disabled = true;
@@ -464,6 +472,8 @@
   document.getElementById("ignore-levels")?.addEventListener("click", () => openDialog({ kind: "levels" }));
   document.querySelectorAll("[data-ignore]").forEach((b) =>
     b.addEventListener("click", () => openDialog({ kind: "finding", el: b.closest(".finding") })));
+  document.querySelectorAll("[data-ignore-findings]").forEach((b) =>
+    b.addEventListener("click", () => openDialog({ kind: "findings", name: b.dataset.ignoreFindings })));
   // "Ignorar…" do componente: ele deixa de ser analisado (fica na lista de ignorados).
   document.querySelectorAll("[data-ignore-component]").forEach((b) =>
     b.addEventListener("click", () => openDialog({ kind: "skip", name: b.dataset.ignoreComponent })));

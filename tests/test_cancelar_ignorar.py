@@ -486,3 +486,39 @@ async def test_manual_component_rule_hides_future_findings(ignore_client):
                                    make_finding(rule_id="auditor.novo", snippet="exec(z)", line=40)]
     result = await engine.run()
     assert all(f.suppressed for f in result.findings if f.component == "minha_integracao")
+
+
+async def test_ignore_component_findings_by_level(ignore_client):
+    """"Ignorar achados…" na linha: só os achados atuais do componente nos níveis escolhidos."""
+    client, token, storage, engine, _ = ignore_client
+    html = await (await client.get("/")).text()
+    assert 'data-ignore-findings="minha_integracao"' in html and 'data-ignore-findings="limpa"' not in html
+    resp = await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                             json={"component": "minha_integracao", "rule": "*", "severities": ["medium"],
+                                   "reason": "revisado", "achados_atuais": True})
+    assert resp.status == 201
+    latest = storage.load_latest()
+    hidden = {f.rule_id for f in latest.findings if f.suppressed}
+    assert hidden == {"auditor.subprocess"}  # o alto do mesmo componente e o baixo de "outra" continuam
+    # Todos os níveis do componente; um achado novo do componente aparece depois.
+    await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                      json={"component": "minha_integracao", "rule": "*", "reason": "x", "achados_atuais": True})
+    engine.scanners[0].findings = [*engine.scanners[0].findings,
+                                   make_finding(rule_id="auditor.novo", snippet="exec(z)", line=40)]
+    result = await engine.run()
+    visible = {(f.component, f.rule_id) for f in result.findings if not f.suppressed}
+    assert visible == {("minha_integracao", "auditor.novo"), ("outra", "auditor.eval-dinamico")}
+
+
+async def test_ignore_all_levels_everywhere_hides_only_current(ignore_client):
+    """"Ignorar estes níveis" com todos os níveis: todos os achados atuais; os novos aparecem."""
+    client, token, storage, engine, _ = ignore_client
+    resp = await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                             json={"component": "*", "rule": "*", "reason": "tudo revisado", "achados_atuais": True,
+                                   "severities": ["critical", "high", "medium", "low", "info"]})
+    assert resp.status == 201
+    assert sum(storage.load_latest().counts().values()) == 0
+    engine.scanners[0].findings = [*engine.scanners[0].findings,
+                                   make_finding(rule_id="auditor.novo", snippet="exec(z)", line=40)]
+    result = await engine.run()
+    assert [f.rule_id for f in result.findings if not f.suppressed] == ["auditor.novo"]

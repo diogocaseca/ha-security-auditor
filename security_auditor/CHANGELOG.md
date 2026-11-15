@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.22.0
+
+- **Ignorar achados…:** novo botão em cada linha da tabela de componentes (com achados). Ignora os
+  achados atuais do componente nos níveis escolhidos (um, vários ou todos). Achados iguais
+  continuam escondidos, achados novos aparecem, e o componente continua sendo analisado.
+- **Ignorar estes níveis…** agora tem a opção **Todos os níveis** (todos os achados atuais, em
+  todos os componentes; os novos continuam aparecendo).
+
 ## 0.21.0
 
 - **Ignorar estes níveis…** agora ignora só os achados que existem no momento, num único item da

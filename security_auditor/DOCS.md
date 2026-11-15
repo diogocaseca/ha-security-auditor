@@ -418,12 +418,16 @@ choose the scope and write the reason:
 
 You can also ignore from the **components table**:
 
+- **Ignore findings…** on a component's row ignores **the component's current findings** at the
+  levels you tick (one, several or **All levels**). A finding identical to one of them stays hidden;
+  new findings keep showing up, and the component is still scanned. Levels ticked on the cards come
+  pre-selected.
 - **Ignore…** on a component's row takes the component **out of the scan** (see below).
 - With one or more levels ticked on the cards, **Ignore these levels…** appears. It ignores **the
   findings that exist right now** at the chosen levels, in every component, as a single item in the
   list ("37 current findings"). A finding identical to one of them stays hidden in later scans, but
-  **new findings at those levels keep showing up**. It asks for confirmation. Ignoring every level
-  at once is not accepted. (Level items created before 0.21.0 are rules and also hide future
+  **new findings at those levels keep showing up**. It asks for confirmation. **All levels** is
+  accepted too (every current finding). (Level items created before 0.21.0 are rules and also hide future
   findings; remove them and ignore again to switch.)
 
 Items restricted to levels show the levels in the list's **Scope** column.

@@ -159,6 +159,8 @@ JS_KEYS = (
     "Não foi possível excluir: {erro}", "Restaurado: o componente volta à tabela na próxima varredura.",
     "Não foi possível restaurar.",
     "Ignorar componente", "Componente {nome}.", "Ignorar",
+    "Ignorar achados do componente",
+    "Componente {nome}: os achados atuais nos níveis marcados abaixo. Achados novos continuam aparecendo e o componente continua sendo analisado.",
     "Malicioso", "Suspeito", "Provavelmente seguro", "Desconhecido", "Consultando o {provedor}…",
     "Não foi possível consultar a IA (HTTP {status}).", "Não foi possível consultar a IA.",
     "Resposta guardada de {data} · {modelo}", "Consultado agora · {modelo}",
@@ -494,6 +496,11 @@ EN: dict[str, str] = {
     "o componente inteiro": "the whole component",
     "Componente {nome}.": "Component {nome}.",
     "Ignorar componente": "Ignore component",
+    "Ignorar achados…": "Ignore findings…",
+    "Ignorar achados do componente": "Ignore the component's findings",
+    "Componente {nome}: os achados atuais nos níveis marcados abaixo. Achados novos continuam aparecendo e o componente continua sendo analisado.":
+        "Component {nome}: the current findings at the levels ticked below. New findings keep showing up and the "
+        "component is still scanned.",
     "Filtrar por nome…": "Filter by name…",
     "Filtrar componentes pelo nome": "Filter components by name",
     "Ignorar": "Ignore",
