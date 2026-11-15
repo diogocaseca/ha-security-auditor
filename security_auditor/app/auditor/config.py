@@ -33,6 +33,8 @@ class AllowlistEntry:
     entry_id: int | None = None  # id na lista de ignorados; None = allowlist das configurações
     severities: tuple[str, ...] = ()  # só achados destes níveis (critical, high...); vazio = todos
     skip: bool = False  # "Não analisar": o componente deixa de ser varrido (só pela interface)
+    # Foto dos achados no momento do clique (ignorar níveis): só estes; achados novos continuam aparecendo.
+    fingerprints: frozenset[str] = frozenset()
 
 
 DNS_LABELS = {"adguard": "AdGuard Home", "pihole": "Pi-hole"}

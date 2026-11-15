@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.21.0
+
+- **Ignorar estes níveis…** agora ignora só os achados que existem no momento, num único item da
+  lista ("N achados atuais"). Achados iguais a eles continuam escondidos; achados novos nesses
+  níveis aparecem normalmente. Itens de nível antigos continuam valendo como regra.
+- O **Ignorar…** da linha do componente não mudou (continua sendo uma regra, que também esconde
+  achados futuros do componente).
+
 ## 0.20.0
 
 - **Ignorar não tira mais o componente da varredura.** Ignorar todas as regras em todos os níveis

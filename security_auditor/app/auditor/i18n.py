@@ -168,11 +168,11 @@ JS_KEYS = (
     "({a} de {b})", "Com achados de nível: {niveis}",
     "Ignorar achado", "Ignorar achados do componente", "Ignorar níveis inteiros", "Incluir na lista de ignorados",
     "Componente {nome}: todas as regras, nos níveis marcados abaixo.",
-    "Todos os componentes e regras. Os achados continuam visíveis com \"Mostrar suprimidos\".",
+    "Os achados atuais destes níveis, em todos os componentes. Achados novos continuam aparecendo.",
     "Use * como curinga (ex.: semgrep.* ou */vendor/*).",
     "Níveis a ignorar em todos os componentes", "Só estes níveis (nenhum marcado = todos)",
     "Marque pelo menos um nível.",
-    "Ignorar todos os achados de nível {niveis} em todos os componentes?",
+    "Ignorar os achados atuais de nível {niveis} em todos os componentes? Achados novos continuam aparecendo.",
     "Não foi possível incluir (HTTP {status}).", "Não foi possível incluir.",
     "Remover da lista de ignorados? Os achados voltam a contar nos totais.",
     "Não foi possível remover da lista.",
@@ -510,14 +510,16 @@ EN: dict[str, str] = {
     "Incluir na lista de ignorados": "Add to the ignore list",
     "Componente {nome}: todas as regras, nos níveis marcados abaixo.":
         "Component {nome}: all rules, at the levels ticked below.",
-    "Todos os componentes e regras. Os achados continuam visíveis com \"Mostrar suprimidos\".":
-        "All components and rules. The findings stay visible with \"Show suppressed\".",
+    "Os achados atuais destes níveis, em todos os componentes. Achados novos continuam aparecendo.":
+        "The current findings at these levels, in every component. New findings keep showing up.",
     "Use * como curinga (ex.: semgrep.* ou */vendor/*).": "Use * as a wildcard (e.g. semgrep.* or */vendor/*).",
     "Níveis a ignorar em todos os componentes": "Levels to ignore in every component",
     "Só estes níveis (nenhum marcado = todos)": "Only these levels (none ticked = all)",
     "Marque pelo menos um nível.": "Tick at least one level.",
-    "Ignorar todos os achados de nível {niveis} em todos os componentes?":
-        "Ignore every finding of level {niveis} in every component?",
+    "Ignorar os achados atuais de nível {niveis} em todos os componentes? Achados novos continuam aparecendo.":
+        "Ignore the current findings of level {niveis} in every component? New findings keep showing up.",
+    "{n} achado atual": "{n} current finding",
+    "{n} achados atuais": "{n} current findings",
     "Não foi possível incluir (HTTP {status}).": "Could not add (HTTP {status}).",
     "Não foi possível incluir.": "Could not add.",
     "Remover da lista de ignorados? Os achados voltam a contar nos totais.":

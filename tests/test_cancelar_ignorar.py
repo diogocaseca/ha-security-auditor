@@ -408,3 +408,71 @@ def test_old_database_gets_skip_column(tmp_path):
         conn.execute("INSERT INTO ignored (component, rule, reason, created_at) VALUES ('meu_app', '*', 'x', 't')")
     (entry,) = Storage(db, tmp_path / "reports").ignore_entries()
     assert entry.component == "meu_app" and entry.skip is False
+
+
+async def test_ignored_component_without_skip_is_still_scanned(tmp_path, monkeypatch):
+    """Ignorar o componente inteiro (todas as regras e níveis) só esconde os achados: ele continua analisado."""
+    from auditor.scanners import static as static_mod
+    from auditor.scanners.static import StaticAnalysisScanner
+
+    from .conftest import FIXTURES
+    from .test_protecoes import _ctx
+
+    seen = []
+
+    async def fake_run_tool(args, **kw):
+        seen.extend(str(a) for a in args)
+        return __import__("auditor.tools", fromlist=["ToolResult"]).ToolResult(0, '{"results": [], "errors": []}', "")
+
+    monkeypatch.setattr(static_mod, "run_tool", fake_run_tool)
+    ctx = _ctx(tmp_path, config_dir=FIXTURES / "config")
+    ctx.ignore_entries = (AllowlistEntry("ofuscada", "*", "meu app", entry_id=1),)
+    await StaticAnalysisScanner().scan(ctx)
+    assert any("/ofuscada/" in a for a in seen)  # as ferramentas olharam a pasta
+    assert "verificacao" not in ctx.components[("integracao", "ofuscada")]
+
+
+# --- Ignorar níveis: só os achados de agora; os novos continuam aparecendo ------------------------
+
+
+async def test_ignore_levels_hides_only_current_findings(ignore_client):
+    client, token, storage, engine, _ = ignore_client
+    # Achados do cliente: dois altos/médios em minha_integracao e um baixo em "outra".
+    resp = await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                             json={"component": "*", "rule": "*", "severities": ["high", "medium"],
+                                   "reason": "revisados", "achados_atuais": True})
+    assert resp.status == 201
+    (entry,) = [e for e in storage.ignore_entries() if e.fingerprints]
+    assert len(entry.fingerprints) == 2 and entry.severities == ("high", "medium")
+    latest = storage.load_latest()
+    assert latest.counts()["high"] == 0 and latest.counts()["medium"] == 0 and latest.counts()["low"] == 1
+
+    # Próxima varredura: os mesmos achados continuam escondidos; um alto novo aparece.
+    novo = make_finding(rule_id="auditor.novo", snippet="exec(z)", line=40)
+    engine.scanners[0].findings = [*engine.scanners[0].findings, novo]
+    result = await engine.run()
+    visible = [f for f in result.findings if not f.suppressed]
+    assert [f.rule_id for f in visible if f.severity is Severity.HIGH] == ["auditor.novo"]
+    assert sum(1 for f in result.findings if f.suppressed and f.suppressed_by == entry.entry_id) == 2
+
+    html = await (await client.get("/")).text()
+    assert "2 current findings" in html
+
+
+async def test_ignore_levels_without_current_findings(ignore_client):
+    client, token, *_ = ignore_client
+    resp = await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                             json={"component": "*", "rule": "*", "severities": ["critical"], "reason": "x",
+                                   "achados_atuais": True})
+    assert resp.status == 400 and "No current findings" in (await resp.json())["error"]
+
+
+async def test_component_ignore_is_still_a_rule(ignore_client):
+    """O "Ignorar…" do componente continua sendo regra: esconde também achados futuros do componente."""
+    client, token, storage, engine, _ = ignore_client
+    await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                      json={"component": "minha_integracao", "rule": "*", "reason": "x"})
+    engine.scanners[0].findings = [*engine.scanners[0].findings,
+                                   make_finding(rule_id="auditor.novo", snippet="exec(z)", line=40)]
+    result = await engine.run()
+    assert all(f.suppressed for f in result.findings if f.component == "minha_integracao")

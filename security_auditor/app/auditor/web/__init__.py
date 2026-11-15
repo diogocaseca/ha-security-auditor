@@ -49,6 +49,7 @@ CSRF_HEADER = "X-Auditor-CSRF"
 _FINGERPRINT = re.compile(r"^[0-9a-f]{24}$")
 _LIMITS = {"component": 200, "rule": 200, "path": 500, "reason": 500, "title": 300}
 MAX_IGNORED = 500
+MAX_FINGERPRINTS = 5000  # achados guardados num item de "ignorar níveis"
 MAX_BLOCKLIST_ITEMS = 1000
 _BLOCKLIST_FIELDS = ("id", "tipo", "github", "nome", "imagem", "versoes", "nivel", "categoria", "motivo")
 HISTORY_PAGE_SIZE = 10
@@ -132,6 +133,12 @@ def parse_ignore_entry(body: Any) -> dict[str, Any]:
     every_level = not severities or len(severities) == len(_SEVERITY_KEYS)
     if len(severities) == len(_SEVERITY_KEYS):
         severities = ()  # todos os níveis = sem restrição de nível
+    if body.get("achados_atuais") is True:
+        # Ignorar níveis: só os achados de agora (a lista de impressões é montada com o relatório mais recente).
+        if fp or out["path"]:
+            raise InvalidEntryError(Bi("Pedido inválido", "Invalid request"))
+        return {**out, "rule": "*", "path": None, "fingerprint": None, "title": None, "severities": severities,
+                "skip": False, "current": True}
     skip = body.get("nao_analisar") is True
     if skip:
         # "Não analisar": o componente inteiro sai da varredura; não combina com regra, arquivo ou nível.
@@ -139,11 +146,11 @@ def parse_ignore_entry(body: Any) -> dict[str, Any]:
             raise InvalidEntryError(Bi("Informe o nome do componente que não deve ser analisado",
                                        "Provide the name of the component that should not be scanned"))
         return {**out, "rule": "*", "path": None, "fingerprint": None, "title": None, "severities": (),
-                "skip": True}
+                "skip": True, "current": False}
     if out["component"] == "*" and out["rule"] == "*" and not out["path"] and not fp and every_level:
         raise InvalidEntryError(Bi("Componente e regra \"*\" em todos os níveis ignorariam tudo; restrinja algum deles",
                                    "Component and rule \"*\" at every level would ignore everything; narrow one of them"))
-    return {**out, "severities": severities, "skip": False}
+    return {**out, "severities": severities, "skip": False, "current": False}
 
 
 def _allowed_peers() -> set[ipaddress.IPv4Address | ipaddress.IPv6Address]:
@@ -258,6 +265,16 @@ def create_app(
         accepted = scheduler.cancel_scan()
         return web.json_response({"accepted": accepted}, status=202 if accepted else 409)
 
+    def _current_fingerprints(component: str, severities: tuple[str, ...]) -> tuple[str, ...]:
+        """Impressões dos achados visíveis agora no relatório mais recente (componente e níveis)."""
+        result = storage.load_latest()
+        if result is None:
+            return ()
+        found = [f.fingerprint for f in result.findings
+                 if not f.suppressed and (component == "*" or f.component == component)
+                 and (not severities or f.severity.key in severities)]
+        return tuple(dict.fromkeys(found))[:MAX_FINGERPRINTS]
+
     def _refresh_latest() -> None:
         # Aplica a lista atual no relatório mais recente, sem precisar varrer de novo.
         result = storage.load_latest()
@@ -285,6 +302,13 @@ def create_app(
         except (InvalidEntryError, ValueError) as err:
             msg = await _say(err.args[0] if isinstance(err, InvalidEntryError) else Bi("JSON inválido", "Invalid JSON"))
             return web.json_response({"error": msg}, status=400)
+        fingerprints: tuple[str, ...] = ()
+        if entry["current"]:
+            fingerprints = await asyncio.to_thread(_current_fingerprints, entry["component"], entry["severities"])
+            if not fingerprints:
+                return web.json_response({"error": await _say(Bi("Nenhum achado atual para ignorar nesses níveis",
+                                                                 "No current findings to ignore at these levels"))},
+                                         status=400)
         if len(await asyncio.to_thread(storage.list_ignored)) >= MAX_IGNORED:
             return web.json_response({"error": await _say(Bi(f"Limite de {MAX_IGNORED} itens na lista",
                                                              f"Limit of {MAX_IGNORED} items in the list"))}, status=400)
@@ -292,12 +316,16 @@ def create_app(
             lambda: storage.add_ignored(
                 component=entry["component"] or "", rule=entry["rule"] or "", reason=entry["reason"] or "",
                 path=entry["path"], fingerprint=entry["fingerprint"], title=entry["title"],
-                severities=entry["severities"], skip=entry["skip"],
+                severities=entry["severities"], skip=entry["skip"], fingerprints=fingerprints,
                 created_at=datetime.now(UTC).isoformat(timespec="seconds"),
             )
         )
         if entry["skip"]:
             _LOGGER.info("Componente %s marcado para não ser analisado (#%d)", entry["component"], entry_id)
+        elif fingerprints:
+            _LOGGER.info("Ignorados os %d achados atuais de %s %s(#%d); achados novos continuam aparecendo",
+                         len(fingerprints), entry["component"],
+                         f"[{','.join(entry['severities'])}] " if entry["severities"] else "", entry_id)
         else:
             _LOGGER.info("Incluído na lista de ignorados: %s / %s %s(#%d)", entry["component"], entry["rule"],
                          f"[{','.join(entry['severities'])}] " if entry["severities"] else "", entry_id)

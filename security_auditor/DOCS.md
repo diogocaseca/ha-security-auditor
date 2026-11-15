@@ -421,9 +421,12 @@ You can also ignore from the **components table**:
 - **Ignore…** on a component's row ignores its findings for every rule. If levels are ticked on the
   cards (for example Low and Info), they come pre-selected and only those levels are ignored; the
   others keep counting. **All levels** ticks them all at once (the same as ticking none).
-- With one or more levels ticked on the cards, **Ignore these levels…** appears; it ignores the
-  chosen levels **in every component** (for example, the whole Info level). It asks for
-  confirmation. Ignoring every level at once is not accepted.
+- With one or more levels ticked on the cards, **Ignore these levels…** appears. It ignores **the
+  findings that exist right now** at the chosen levels, in every component, as a single item in the
+  list ("37 current findings"). A finding identical to one of them stays hidden in later scans, but
+  **new findings at those levels keep showing up**. It asks for confirmation. Ignoring every level
+  at once is not accepted. (Level items created before 0.21.0 are rules and also hide future
+  findings; remove them and ignore again to switch.)
 
 Items restricted to levels show the levels in the list's **Scope** column.
 

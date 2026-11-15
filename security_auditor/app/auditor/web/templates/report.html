@@ -267,7 +267,7 @@
                 <tr>
                   <td><code>{{ e.component }}</code></td>
                   <td><code>{{ e.rule }}</code></td>
-                  <td class="wrap">{% if e.fingerprint %}{{ _("só o achado “{titulo}”", titulo=(e.title or _("específico"))) }}{% elif e.path %}{{ _("arquivos") }} <code>{{ e.path }}</code>{% elif e.pula_varredura %}{{ _("o componente inteiro") }}{% elif e.rule == '*' %}{{ _("todos os achados") }}{% else %}{{ _("todos os achados da regra") }}{% endif %}{% if e.severities %} · {{ _("níveis: {niveis}", niveis=severity_labels(e.severities)) }}{% endif %}{% if e.pula_varredura %} · <strong>{{ _("não é analisado") }}</strong>{% endif %}</td>
+                  <td class="wrap">{% if e.fingerprints %}{{ _("{n} achado atual", n=(e.fingerprints | length)) if e.fingerprints | length == 1 else _("{n} achados atuais", n=(e.fingerprints | length)) }}{% elif e.fingerprint %}{{ _("só o achado “{titulo}”", titulo=(e.title or _("específico"))) }}{% elif e.path %}{{ _("arquivos") }} <code>{{ e.path }}</code>{% elif e.pula_varredura %}{{ _("o componente inteiro") }}{% elif e.rule == '*' %}{{ _("todos os achados") }}{% else %}{{ _("todos os achados da regra") }}{% endif %}{% if e.severities %} · {{ _("níveis: {niveis}", niveis=severity_labels(e.severities)) }}{% endif %}{% if e.pula_varredura %} · <strong>{{ _("não é analisado") }}</strong>{% endif %}</td>
                   <td class="wrap reason-cell" data-reason="{{ e.reason }}"><span class="reason-text">{{ e.reason or '—' }}</span></td>
                   <td>{{ _("Interface · {data}", data=(e.created_at | dt)) }}</td>
                   <td class="row-actions">

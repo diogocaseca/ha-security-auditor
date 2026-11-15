@@ -396,7 +396,7 @@
     const subject = {
       finding: () => `${mode.el.dataset.title} — ${mode.el.dataset.component} · ${mode.el.dataset.rule}`,
       component: () => T("Componente {nome}: todas as regras, nos níveis marcados abaixo.", { nome: mode.name }),
-      levels: () => T("Todos os componentes e regras. Os achados continuam visíveis com \"Mostrar suprimidos\"."),
+      levels: () => T("Os achados atuais destes níveis, em todos os componentes. Achados novos continuam aparecendo."),
       manual: () => T("Use * como curinga (ex.: semgrep.* ou */vendor/*)."),
       skip: () => T("Componente {nome}.", { nome: mode.name }),
     };
@@ -415,8 +415,9 @@
                  path: form.elements.path.value.trim() || null, reason, severities };
       case "component":
         return { component: mode.name, rule: "*", reason, severities };
+      // Níveis: só os achados de agora; achados novos (diferentes dos ignorados) continuam aparecendo.
       case "levels":
-        return { component: "*", rule: "*", reason, severities };
+        return { component: "*", rule: "*", reason, severities, achados_atuais: true };
       case "skip":
         return { component: mode.name, rule: "*", reason, nao_analisar: true };
       default: {
@@ -440,7 +441,7 @@
         errorEl.hidden = false;
         return;
       }
-      if (!window.confirm(T("Ignorar todos os achados de nível {niveis} em todos os componentes?",
+      if (!window.confirm(T("Ignorar os achados atuais de nível {niveis} em todos os componentes? Achados novos continuam aparecendo.",
         { niveis: labelsOf(entry.severities) }))) return;
     }
     const submit = document.getElementById("ignore-submit");
