@@ -355,9 +355,6 @@
     const n = levelBoxes.filter((b) => b.checked).length;
     levelAll.checked = n === levelBoxes.length;
     levelAll.indeterminate = n > 0 && n < levelBoxes.length;
-    // Componente inteiro em todos os níveis = deixa de ser verificado: avisa antes de confirmar.
-    const note = document.getElementById("ignore-skip-note");
-    if (note) note.hidden = !(mode.kind === "component" && (n === 0 || n === levelBoxes.length));
   }
   levelAll?.addEventListener("change", () => {
     levelBoxes.forEach((b) => { b.checked = levelAll.checked; });
@@ -376,11 +373,15 @@
       component: T("Ignorar achados do componente"),
       levels: T("Ignorar níveis inteiros"),
       manual: T("Incluir na lista de ignorados"),
+      skip: T("Não analisar o componente"),
     };
     document.getElementById("ignore-title").textContent = titles[k];
     document.getElementById("ignore-scope").hidden = k !== "finding";
     document.getElementById("ignore-manual").hidden = k !== "manual";
-    levelsField.hidden = k === "finding";
+    levelsField.hidden = k === "finding" || k === "skip";
+    // "Não analisar": o componente sai da varredura; o aviso fica visível antes de confirmar.
+    document.getElementById("ignore-skip-note").hidden = k !== "skip";
+    document.getElementById("ignore-submit").textContent = k === "skip" ? T("Não analisar") : T("Ignorar");
     document.getElementById("ignore-levels-legend").textContent =
       k === "levels" ? T("Níveis a ignorar em todos os componentes") : T("Só estes níveis (nenhum marcado = todos)");
     form.elements.component.required = k === "manual";
@@ -397,6 +398,7 @@
       component: () => T("Componente {nome}: todas as regras, nos níveis marcados abaixo.", { nome: mode.name }),
       levels: () => T("Todos os componentes e regras. Os achados continuam visíveis com \"Mostrar suprimidos\"."),
       manual: () => T("Use * como curinga (ex.: semgrep.* ou */vendor/*)."),
+      skip: () => T("Componente {nome}.", { nome: mode.name }),
     };
     document.getElementById("ignore-subject").textContent = subject[k]();
     dialog.showModal();
@@ -415,6 +417,8 @@
         return { component: mode.name, rule: "*", reason, severities };
       case "levels":
         return { component: "*", rule: "*", reason, severities };
+      case "skip":
+        return { component: mode.name, rule: "*", reason, nao_analisar: true };
       default: {
         const d = mode.el.dataset;
         const scope = form.elements.scope.value;
@@ -461,6 +465,42 @@
     b.addEventListener("click", () => openDialog({ kind: "finding", el: b.closest(".finding") })));
   document.querySelectorAll("[data-ignore-component]").forEach((b) =>
     b.addEventListener("click", () => openDialog({ kind: "component", name: b.dataset.ignoreComponent })));
+  // "Excluir…": tira o componente da tabela até ele ser reinstalado ou atualizado.
+  document.querySelectorAll("[data-exclude-component]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const nome = b.dataset.excludeComponent;
+      if (!window.confirm(T("Excluir {nome} da tabela? Ele deixa de ser analisado e só volta se for reinstalado ou atualizado. Os arquivos não são apagados.", { nome }))) return;
+      b.disabled = true;
+      try {
+        const resp = await post("api/componentes/excluidos", { tipo: b.dataset.excludeType, nome });
+        if (resp.status === 201) { window.location.reload(); return; }
+        const data = await resp.json().catch(() => ({}));
+        throw new Error(data.error || "HTTP " + resp.status);
+      } catch (e) {
+        b.disabled = false;
+        window.alert(T("Não foi possível excluir: {erro}", { erro: e.message }));
+      }
+    }));
+  document.querySelectorAll("[data-restore-component]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      b.disabled = true;
+      try {
+        const url = "api/componentes/excluidos/" + encodeURIComponent(b.dataset.restoreType) + "/" +
+          encodeURIComponent(b.dataset.restoreComponent);
+        const resp = await post(url, undefined, "DELETE");
+        if (resp.status === 204 || resp.status === 404) {
+          window.alert(T("Restaurado: o componente volta à tabela na próxima varredura."));
+          window.location.reload();
+          return;
+        }
+        throw new Error("HTTP " + resp.status);
+      } catch (e) {
+        b.disabled = false;
+        window.alert(T("Não foi possível restaurar."));
+      }
+    }));
+  document.querySelectorAll("[data-skip-component]").forEach((b) =>
+    b.addEventListener("click", () => openDialog({ kind: "skip", name: b.dataset.skipComponent })));
   document.querySelectorAll("[data-unignore]").forEach((b) =>
     b.addEventListener("click", async () => {
       if (!window.confirm(T("Remover da lista de ignorados? Os achados voltam a contar nos totais."))) return;

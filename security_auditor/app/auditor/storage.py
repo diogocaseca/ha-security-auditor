@@ -73,7 +73,8 @@ CREATE TABLE IF NOT EXISTS ignored (
     severities  TEXT,
     title       TEXT,
     reason      TEXT NOT NULL DEFAULT '',
-    created_at  TEXT NOT NULL
+    created_at  TEXT NOT NULL,
+    skip        INTEGER NOT NULL DEFAULT 0
 );
 -- Domínios que o usuário marcou como conhecidos: saem dos achados de DNS.
 CREATE TABLE IF NOT EXISTS dns_ignored (
@@ -81,6 +82,15 @@ CREATE TABLE IF NOT EXISTS dns_ignored (
     pattern    TEXT NOT NULL UNIQUE,
     reason     TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
+);
+-- Componentes excluídos da tabela ("Excluir…"): saem da análise até mudarem (reinstalação ou
+-- atualização) ou sumirem do disco. "fingerprint" é a foto dos arquivos (ou a versão do add-on).
+CREATE TABLE IF NOT EXISTS excluded (
+    type        TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    PRIMARY KEY (type, name)
 );
 -- Última resposta da IA (opção ia_provedor) para cada domínio consultado na aba DNS.
 CREATE TABLE IF NOT EXISTS dns_ai (
@@ -121,6 +131,10 @@ class Storage:
             cols = {r["name"] for r in conn.execute("PRAGMA table_info(ignored)")}
             if "severities" not in cols:
                 conn.execute("ALTER TABLE ignored ADD COLUMN severities TEXT")
+            # Migração (0.20.0): "Não analisar" virou uma marcação explícita. Itens antigos que
+            # ignoravam o componente em todos os níveis passam a só esconder os achados.
+            if "skip" not in cols:
+                conn.execute("ALTER TABLE ignored ADD COLUMN skip INTEGER NOT NULL DEFAULT 0")
             # Migração (0.17.0): varreduras parciais, feitas ao instalar ou atualizar um componente.
             cols = {r["name"] for r in conn.execute("PRAGMA table_info(scans)")}
             if "kind" not in cols:
@@ -187,16 +201,18 @@ class Storage:
     def list_ignored(self) -> list[dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute("SELECT * FROM ignored ORDER BY id DESC").fetchall()
-        return [{**dict(r), "severities": [s for s in (r["severities"] or "").split(",") if s]} for r in rows]
+        return [{**dict(r), "severities": [s for s in (r["severities"] or "").split(",") if s], "skip": bool(r["skip"])}
+                for r in rows]
 
     def add_ignored(self, *, component: str, rule: str, reason: str, created_at: str,
                     path: str | None = None, fingerprint: str | None = None, title: str | None = None,
-                    severities: tuple[str, ...] = ()) -> int:
+                    severities: tuple[str, ...] = (), skip: bool = False) -> int:
         with self._conn() as conn:
             cur = conn.execute(
-                "INSERT INTO ignored (component, rule, path, fingerprint, severities, title, reason, created_at)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                (component, rule, path, fingerprint, ",".join(severities) or None, title, reason, created_at),
+                "INSERT INTO ignored (component, rule, path, fingerprint, severities, title, reason, created_at, skip)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (component, rule, path, fingerprint, ",".join(severities) or None, title, reason, created_at,
+                 int(skip)),
             )
             return int(cur.lastrowid or 0)
 
@@ -211,7 +227,8 @@ class Storage:
     def ignore_entries(self) -> list[AllowlistEntry]:
         return [
             AllowlistEntry(component=r["component"], rule=r["rule"], reason=r["reason"], path=r["path"],
-                           fingerprint=r["fingerprint"], entry_id=r["id"], severities=tuple(r["severities"]))
+                           fingerprint=r["fingerprint"], entry_id=r["id"], severities=tuple(r["severities"]),
+                           skip=r["skip"])
             for r in self.list_ignored()
         ]
 
@@ -403,6 +420,24 @@ class Storage:
     def known_dns_domains(self) -> set[str]:
         with self._conn() as conn:
             return {r["domain"] for r in conn.execute("SELECT domain FROM dns_domains").fetchall()}
+
+    def list_excluded(self) -> list[dict[str, str]]:
+        with self._conn() as conn:
+            rows = conn.execute("SELECT * FROM excluded ORDER BY created_at DESC").fetchall()
+        return [dict(r) for r in rows]
+
+    def excluded_map(self) -> dict[tuple[str, str], str]:
+        return {(e["type"], e["name"]): e["fingerprint"] for e in self.list_excluded()}
+
+    def add_excluded(self, component_type: str, name: str, fingerprint: str, created_at: str) -> None:
+        with self._conn() as conn:
+            conn.execute("INSERT OR REPLACE INTO excluded VALUES (?, ?, ?, ?)",
+                         (component_type, name, fingerprint, created_at))
+
+    def remove_excluded(self, component_type: str, name: str) -> bool:
+        with self._conn() as conn:
+            return conn.execute("DELETE FROM excluded WHERE type = ? AND name = ?",
+                                (component_type, name)).rowcount > 0
 
     def dns_ai(self, domain: str | None = None) -> dict[str, dict[str, str]]:
         """Respostas guardadas da IA: domínio -> {veredito, explicacao, provedor, modelo, idioma, data}."""

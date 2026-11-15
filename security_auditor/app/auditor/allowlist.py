@@ -5,7 +5,7 @@ from __future__ import annotations
 from fnmatch import fnmatchcase
 
 from .config import AllowlistEntry
-from .models import Finding, ScanResult, Severity
+from .models import Finding, ScanResult
 from .scoring import summarize
 
 
@@ -45,24 +45,14 @@ def apply_allowlist(findings: list[Finding], entries: tuple[AllowlistEntry, ...]
     return suppressed
 
 
-_ALL_LEVELS = frozenset(s.key for s in Severity)
-
-
 def skips_whole_component(entry: AllowlistEntry) -> bool:
-    """Item que ignora um componente por inteiro: todas as regras, todos os níveis, sem
-    restrição de arquivo ou achado, com um nome (ou curinga) que não seja só "*".
+    """Item "Não analisar": o componente deixa de ser varrido (decisão explícita do usuário).
 
-    Componentes cobertos por um item assim são pulados na varredura (decisão do usuário).
+    Ignorar todas as regras em todos os níveis só esconde os achados; o componente continua
+    sendo analisado. Um curinga sozinho ("*", "?") nunca pula nada.
     """
     pattern = entry.component.strip()
-    return (
-        bool(pattern)
-        and not set(pattern) <= {"*", "?"}
-        and entry.rule.strip() in ("", "*")
-        and not entry.path
-        and not entry.fingerprint
-        and (not entry.severities or _ALL_LEVELS <= set(entry.severities))
-    )
+    return entry.skip and bool(pattern) and not set(pattern) <= {"*", "?"}
 
 
 def skip_entry_for(name: str, entries: tuple[AllowlistEntry, ...]) -> AllowlistEntry | None:
@@ -89,4 +79,11 @@ def reapply(result: ScanResult, entries: tuple[AllowlistEntry, ...]) -> None:
         finding.suppressed_by = None
     apply_allowlist(result.findings, entries)
     known = {(c.component_type, c.name): c.metadata for c in result.components}
+    first_seen = {(c.component_type, c.name): c.first_seen for c in result.components}
+    order = [(c.component_type, c.name) for c in result.components]
     result.components = summarize(result.findings, known)
+    # Mantém a data de descoberta e a ordem (mais novos no topo), que o summarize não conhece.
+    for c in result.components:
+        c.first_seen = first_seen.get((c.component_type, c.name))
+    rank = {key: i for i, key in enumerate(order)}
+    result.components.sort(key=lambda c: rank.get((c.component_type, c.name), len(rank)))

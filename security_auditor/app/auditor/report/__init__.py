@@ -118,6 +118,7 @@ def render_html(
     lang: str = "pt",
     ai: dict[str, Any] | None = None,
     dns_ai: dict[str, dict[str, str]] | None = None,
+    excluded: list[dict[str, str]] | None = None,
 ) -> str:
     dns_patterns = [e["pattern"] for e in dns_ignored or []]
     lang = normalize(lang)
@@ -143,6 +144,7 @@ def render_html(
         dns_ignored=dns_ignored or [],
         ai=ai,  # None = botão "Perguntar à IA" escondido (ia_provedor: desligado)
         dns_ai=dns_ai or {},
+        excluded=excluded or [],  # componentes tirados da tabela com "Excluir…"
         ai_verdicts={"malicioso": tr.t("Malicioso"), "suspeito": tr.t("Suspeito"),
                      "provavelmente_seguro": tr.t("Provavelmente seguro"), "desconhecido": tr.t("Desconhecido")},
         ai_badge={"malicioso": "sev-critical", "suspeito": "sev-medium"},

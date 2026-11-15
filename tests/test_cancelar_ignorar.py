@@ -301,19 +301,18 @@ async def test_edit_ignored_reason(ignore_client):
     assert (await client.patch("/api/ignored/999", headers={CSRF_HEADER: token}, json={"reason": "x"})).status == 404
 
 
-# --- Componente ignorado por inteiro: pulado na varredura --------------------------------------
+# --- "Não analisar": só com a marcação explícita o componente é pulado na varredura --------------
 
 
 @pytest.mark.parametrize(("entry", "skips"), [
-    (AllowlistEntry("meu_app", "*", ""), True),
-    (AllowlistEntry("meu_*", "*", ""), True),
-    (AllowlistEntry("meu_app", "*", "", severities=("critical", "high", "medium", "low", "info")), True),
-    (AllowlistEntry("meu_app", "*", "", severities=("low", "info")), False),  # só alguns níveis
-    (AllowlistEntry("meu_app", "auditor.eval-dinamico", ""), False),  # só uma regra
-    (AllowlistEntry("meu_app", "*", "", path="*/vendor/*"), False),
-    (AllowlistEntry("meu_app", "*", "", fingerprint="0" * 24), False),
-    (AllowlistEntry("*", "*", ""), False),  # nunca pula tudo
-    (AllowlistEntry("**", "*", ""), False),
+    (AllowlistEntry("meu_app", "*", "", skip=True), True),
+    (AllowlistEntry("meu_*", "*", "", skip=True), True),
+    # Ignorar todas as regras em todos os níveis só esconde os achados: o componente continua analisado.
+    (AllowlistEntry("meu_app", "*", ""), False),
+    (AllowlistEntry("meu_app", "*", "", severities=("critical", "high", "medium", "low", "info")), False),
+    (AllowlistEntry("meu_app", "*", "", severities=("low", "info")), False),
+    (AllowlistEntry("*", "*", "", skip=True), False),  # nunca pula tudo
+    (AllowlistEntry("**", "*", "", skip=True), False),
 ])
 def test_skips_whole_component(entry, skips):
     from auditor.allowlist import skips_whole_component
@@ -336,12 +335,12 @@ async def test_fully_ignored_integration_is_not_scanned(tmp_path, monkeypatch):
 
     monkeypatch.setattr(static_mod, "run_tool", fake_run_tool)
     ctx = _ctx(tmp_path, config_dir=FIXTURES / "config")
-    ctx.ignore_entries = (AllowlistEntry("ofuscada", "*", "meu app", entry_id=1),)
+    ctx.ignore_entries = (AllowlistEntry("ofuscada", "*", "meu app", entry_id=1, skip=True),)
     await StaticAnalysisScanner().scan(ctx)
     assert seen and not any("/ofuscada/" in a for a in seen)  # nenhuma ferramenta olhou a pasta
     assert any("/adulterada/" in a for a in seen)
     meta = ctx.components[("integracao", "ofuscada")]
-    assert meta["verificacao"].startswith("não verificado: ignorado por completo") and "meu app" in meta["verificacao"]
+    assert meta["verificacao"].startswith("não verificado: marcado para não ser analisado") and "meu app" in meta["verificacao"]
 
 
 async def test_fully_ignored_addon_is_not_scanned(tmp_path, monkeypatch):
@@ -361,7 +360,7 @@ async def test_fully_ignored_addon_is_not_scanned(tmp_path, monkeypatch):
     monkeypatch.setattr(image_mod, "run_tool", fake_run_tool)
     sup = FakeSupervisor([_addon(), _addon(slug="local_meu_app", repository="local", image="local/meu")])
     ctx = _ctx(tmp_path, sup)
-    ctx.ignore_entries = (AllowlistEntry("abc123_*", "*", "confiável"),)
+    ctx.ignore_entries = (AllowlistEntry("abc123_*", "*", "confiável", skip=True),)
     findings = await AddonImageScanner().scan(ctx)
     assert refs == []  # a imagem do add-on ignorado não foi baixada
     assert [f.component for f in findings] == ["local_meu_app"]  # o outro segue normal
@@ -371,8 +370,41 @@ async def test_fully_ignored_addon_is_not_scanned(tmp_path, monkeypatch):
 async def test_ignored_list_marks_entries_that_skip_scan(ignore_client):
     client, token, *_ = ignore_client
     await client.post("/api/ignored", headers={CSRF_HEADER: token},
-                      json={"component": "outra", "rule": "*", "reason": "meu"})
+                      json={"component": "outra", "rule": "*", "reason": "meu", "nao_analisar": True})
+    # Todas as regras em todos os níveis, sem a marcação: só esconde os achados.
+    await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                      json={"component": "terceira", "rule": "*", "reason": "x"})
     await client.post("/api/ignored", headers={CSRF_HEADER: token},
                       json={"component": "minha_integracao", "rule": "*", "severities": ["low"], "reason": "x"})
     html = await (await client.get("/")).text()
     assert html.count("<strong>not scanned</strong>") == 1
+
+
+async def test_skip_entry_via_api(ignore_client):
+    client, token, storage, *_ = ignore_client
+    bad = await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                            json={"component": "*", "rule": "*", "reason": "x", "nao_analisar": True})
+    assert bad.status == 400
+    resp = await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                             json={"component": "meu_app", "rule": "auditor.x", "severities": ["low"], "path": "a/*",
+                                   "reason": "confio", "nao_analisar": True})
+    assert resp.status == 201
+    (entry,) = [e for e in storage.ignore_entries() if e.component == "meu_app"]
+    # A marcação vale para o componente inteiro: regra, arquivo e níveis são descartados.
+    assert entry.skip and (entry.rule, entry.path, entry.severities) == ("*", None, ())
+
+
+def test_old_database_gets_skip_column(tmp_path):
+    """Banco de antes da 0.20.0: os itens antigos ficam sem a marcação (só escondem achados)."""
+    import sqlite3
+
+    from auditor.storage import Storage
+
+    db = tmp_path / "db.sqlite"
+    with sqlite3.connect(db) as conn:
+        conn.execute("CREATE TABLE ignored (id INTEGER PRIMARY KEY AUTOINCREMENT, component TEXT NOT NULL, "
+                     "rule TEXT NOT NULL, path TEXT, fingerprint TEXT, severities TEXT, title TEXT, "
+                     "reason TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)")
+        conn.execute("INSERT INTO ignored (component, rule, reason, created_at) VALUES ('meu_app', '*', 'x', 't')")
+    (entry,) = Storage(db, tmp_path / "reports").ignore_entries()
+    assert entry.component == "meu_app" and entry.skip is False

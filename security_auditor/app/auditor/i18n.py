@@ -155,6 +155,10 @@ class Translator:
 
 # Textos usados pelo app.js (passados para a página como JSON).
 JS_KEYS = (
+    "Excluir {nome} da tabela? Ele deixa de ser analisado e só volta se for reinstalado ou atualizado. Os arquivos não são apagados.",
+    "Não foi possível excluir: {erro}", "Restaurado: o componente volta à tabela na próxima varredura.",
+    "Não foi possível restaurar.",
+    "Não analisar o componente", "Não analisar", "Componente {nome}.", "Ignorar",
     "Malicioso", "Suspeito", "Provavelmente seguro", "Desconhecido", "Consultando o {provedor}…",
     "Não foi possível consultar a IA (HTTP {status}).", "Não foi possível consultar a IA.",
     "Resposta guardada de {data} · {modelo}", "Consultado agora · {modelo}",
@@ -310,7 +314,7 @@ EN: dict[str, str] = {
     "todos os achados": "all findings",
     "todos os achados da regra": "all findings of the rule",
     "níveis: {niveis}": "levels: {niveis}",
-    "não é verificado": "not scanned",
+    "não é analisado": "not scanned",
     "Interface · {data}": "Interface · {data}",
     "Editar": "Edit",
     "Remover": "Remove",
@@ -470,10 +474,29 @@ EN: dict[str, str] = {
     "Arquivo (opcional)": "File (optional)",
     "ex.: */vendor/*": "e.g. */vendor/*",
     "Por que isto pode ser ignorado?": "Why can this be ignored?",
-    "Com todos os níveis, este componente <strong>deixa de ser verificado</strong> nas próximas varreduras "
-    "(nenhuma ferramenta roda nele). Remova da lista para voltar a verificá-lo.":
-        "With all levels, this component <strong>is no longer scanned</strong> in the next scans (no tool runs on "
-        "it). Remove it from the list to scan it again.",
+    "Este componente <strong>deixa de ser analisado</strong> nas próximas varreduras: nenhuma ferramenta roda "
+    "nele e ele aparece como “não verificado”. Remova da lista para voltar a analisá-lo.":
+        "This component <strong>is no longer scanned</strong> in the next scans: no tool runs on it and it shows "
+        "as “not scanned”. Remove it from the list to scan it again.",
+    "Não analisar…": "Don't scan…",
+    "Excluir…": "Remove…",
+    "Componentes excluídos da tabela ({n})": "Components removed from the table ({n})",
+    "Não são analisados enquanto continuarem iguais. Se forem reinstalados ou atualizados, voltam sozinhos.":
+        "They are not scanned while they stay the same. If they are reinstalled or updated, they come back on their "
+        "own.",
+    "excluído em {data}": "removed on {data}",
+    "Restaurar": "Restore",
+    "Excluir {nome} da tabela? Ele deixa de ser analisado e só volta se for reinstalado ou atualizado. Os arquivos não são apagados.":
+        "Remove {nome} from the table? It is no longer scanned and only comes back if it is reinstalled or updated. "
+        "The files are not deleted.",
+    "Não foi possível excluir: {erro}": "Could not remove: {erro}",
+    "Restaurado: o componente volta à tabela na próxima varredura.":
+        "Restored: the component comes back to the table on the next scan.",
+    "Não foi possível restaurar.": "Could not restore.",
+    "o componente inteiro": "the whole component",
+    "Não analisar o componente": "Don't scan the component",
+    "Não analisar": "Don't scan",
+    "Componente {nome}.": "Component {nome}.",
     "Ignorar": "Ignore",
     # --- JavaScript ---
     "Não foi possível iniciar a varredura.": "Could not start the scan.",

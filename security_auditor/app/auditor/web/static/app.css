@@ -235,6 +235,8 @@ dialog input[type="text"] {
 #dns-ai-dialog { max-width: 560px; }
 td.dns-actions { white-space: nowrap; text-align: right; }
 td.dns-actions .btn + .btn { margin-left: 4px; }
+.comp-actions-stack { display: flex; flex-direction: column; align-items: stretch; gap: 4px; }
+.comp-actions-stack .btn { white-space: nowrap; }
 .level-checks { display: flex; flex-wrap: wrap; gap: 4px 14px; }
 
 /* Tela de achados de um componente (?componente=...) */
@@ -334,3 +336,6 @@ body.view-dns main > :not(#dns-view):not(.tabs) { display: none; }
 #dns-view h3 { margin: 0; font-size: 16px; }
 .dns-findings { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 4px 0 16px; }
 .dns-domains { border-top: 1px solid var(--border); padding-top: 12px; }
+.excluded-list { margin-top: 10px; }
+.excluded-list ul { margin: 6px 0 0; padding-left: 18px; }
+.excluded-list li { margin: 4px 0; }

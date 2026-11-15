@@ -32,6 +32,7 @@ class AllowlistEntry:
     fingerprint: str | None = None  # só um achado específico (lista de ignorados da interface)
     entry_id: int | None = None  # id na lista de ignorados; None = allowlist das configurações
     severities: tuple[str, ...] = ()  # só achados destes níveis (critical, high...); vazio = todos
+    skip: bool = False  # "Não analisar": o componente deixa de ser varrido (só pela interface)
 
 
 DNS_LABELS = {"adguard": "AdGuard Home", "pihole": "Pi-hole"}

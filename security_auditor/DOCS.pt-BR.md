@@ -395,8 +395,9 @@ O que saber:
   varredura completa.
 - Arquivos de `www/` fora de `community/` não são vigiados (mudam muito, ex.: fotos de câmera); a
   varredura completa continua verificando-os.
-- Componentes ignorados por inteiro na [lista de ignorados](#lista-de-ignorados-e-allowlist) não
-  são varridos nem avisados.
+- Componentes marcados com **Não analisar** ou tirados da tabela com **Excluir…** (veja a
+  [lista de ignorados](#lista-de-ignorados-e-allowlist)) não são varridos nem avisados, enquanto
+  os arquivos continuarem iguais.
 - Se já houver uma varredura em andamento, a verificação espera ela terminar. Sem um relatório
   completo anterior, a primeira verificação vira uma varredura completa.
 
@@ -430,15 +431,26 @@ Também dá para ignorar a partir da **tabela de componentes**:
 
 Itens restritos a níveis mostram os níveis na coluna **Alcance** da lista.
 
-**Ignorar por completo pula a verificação.** Quando um item cobre um componente inteiro (nome
-do componente ou curinga como `meu_*`, regra `*`, todos os níveis, sem arquivo nem achado
-específico), o componente **deixa de ser varrido**: nenhuma ferramenta roda nele, ele aparece
-na tabela como "não verificado" e a lista marca o item com "não é verificado". Use para os seus
-próprios apps e os que você considera confiáveis; é por sua conta. Para voltar a verificar,
-remova o item da lista. Um curinga sozinho (`*`) nunca pula nada.
+**Ignorar nunca pula a verificação.** Mesmo com todas as regras e todos os níveis ignorados, **o
+componente continua sendo analisado** em toda varredura; o auditor só deixa de contar o que foi
+ignorado. Até a 0.19.x um item assim também tirava o componente da varredura; os itens antigos
+agora só escondem os achados.
 
-Nos outros casos (só alguns níveis, só uma regra, um arquivo ou um achado) **o componente
-continua sendo analisado** em toda varredura; o auditor só deixa de contar o que foi ignorado.
+**Não analisar…** na linha de um componente é o jeito explícito de tirá-lo da varredura: nenhuma
+ferramenta roda nele, ele aparece na tabela como "não verificado" e a lista marca o item com "não
+é analisado". Use para os seus próprios apps e os que você considera confiáveis; é por sua conta.
+Para voltar a analisar, remova o item da lista.
+
+**Excluir…** na linha de um componente serve para componentes que você já removeu do HA, mas cujos
+arquivos ficaram no disco (remover uma integração em **Configurações → Dispositivos e serviços**
+apaga só a configuração; quem apaga os arquivos é o HACS). O componente sai da tabela e da
+varredura sem entrar na lista de ignorados e **volta sozinho** se for reinstalado ou atualizado (os
+arquivos mudam). Se os arquivos sumirem, a exclusão é apagada, e uma instalação futura é analisada
+normalmente. O auditor nunca apaga arquivos: o `/config` é só leitura. Os componentes excluídos
+ficam listados abaixo da tabela de componentes, com **Restaurar**.
+
+Nos outros casos (só alguns níveis, só uma regra, um arquivo ou um achado) vale o mesmo: o
+componente continua sendo analisado e só os achados ignorados deixam de contar.
 Se um achado ignorado com "só este achado" mudar (o trecho de código for alterado, por
 exemplo), ele vira outro achado e volta a contar.
 
@@ -714,7 +726,7 @@ Leia antes de concluir que "está tudo limpo":
 Tudo fica em `/data` do add-on (incluído nos backups do add-on):
 
 - `auditor.db` (SQLite): histórico de varreduras, lista de ignorados, lista negra pessoal da tela, estatísticas dos add-ons (30 dias), picos de
-  tráfego, domínios DNS já vistos, domínios DNS ignorados, as respostas da IA sobre domínios e a data de descoberta de cada
+  tráfego, domínios DNS já vistos, domínios DNS ignorados, as respostas da IA sobre domínios, os componentes excluídos da tabela e a data de descoberta de cada
   componente e achado;
 - `reports/*.json`: os últimos `report_retention` relatórios, os mesmos do botão Exportar JSON;
 - `cache/`: código de referência do GitHub (integridade e add-ons), base do Trivy, cache do

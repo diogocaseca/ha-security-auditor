@@ -64,6 +64,16 @@ def _dir_fingerprint(path: Path) -> str:
     return h.hexdigest()[:24]
 
 
+def component_fingerprint(component_type: str, path: Path) -> str | None:
+    """Foto de uma integração ou card do HACS (a mesma da verificação de instalações).
+
+    None para o componente "www" (resto da pasta www/), que não pode ser excluído da tabela.
+    """
+    if component_type not in (ComponentType.INTEGRATION, ComponentType.FRONTEND) or path.name == "www":
+        return None
+    return _dir_fingerprint(path)
+
+
 def file_snapshot(config_dir: Path) -> Snapshot:
     """Integrações e cards do HACS. Os demais arquivos de www/ ficam de fora (mudam muito)."""
     out: Snapshot = {}

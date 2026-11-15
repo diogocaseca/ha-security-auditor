@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.20.0
+
+- **Ignorar não tira mais o componente da varredura.** Ignorar todas as regras em todos os níveis
+  só esconde os achados; o componente continua sendo analisado. Itens antigos que pulavam o
+  componente passam a só esconder os achados.
+- **Não analisar…:** novo botão na tabela de componentes para tirar um componente da varredura de
+  propósito (fica na lista de ignorados, marcado "não é analisado").
+- **Excluir…:** novo botão na tabela de componentes para componentes removidos do HA cujos
+  arquivos ficaram no disco. O componente sai da tabela e da varredura e volta sozinho se for
+  reinstalado ou atualizado; se os arquivos sumirem, a exclusão é apagada. A lista de excluídos
+  fica abaixo da tabela, com **Restaurar**. O auditor não apaga arquivos.
+- **Correção:** incluir algo na lista de ignorados apagava a data de descoberta dos componentes
+  (e a ordem "mais novos no topo") até a próxima varredura.
+
 ## 0.19.3
 
 - **Quadro "Ignorados":** o texto agora é só "Ignorados", com a quantidade de itens da lista no

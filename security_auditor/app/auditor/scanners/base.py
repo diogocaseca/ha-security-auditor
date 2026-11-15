@@ -48,16 +48,16 @@ class ScanContext:
         return self.only is None or (component_type, name) in self.only
 
     def skipped(self, component_type: str, name: str, **metadata: Any) -> bool:
-        """True se o componente está ignorado por inteiro; registra-o como "não verificado"."""
+        """True se o componente está marcado com "Não analisar"; registra-o como "não verificado"."""
         from ..allowlist import describe, skip_entry_for
 
         entry = skip_entry_for(name, self.ignore_entries)
         if entry is None:
             return False
         self.register_component(component_type, name, **metadata,
-                                verificacao=f"não verificado: ignorado por completo ({describe(entry)})",
-                                verificacao_en=f"not scanned: fully ignored ({entry.reason or 'no reason given'})")
-        self.logger.info("Componente %s pulado: ignorado por completo", name)
+                                verificacao=f"não verificado: marcado para não ser analisado ({describe(entry)})",
+                                verificacao_en=f"not scanned: marked as don't scan ({entry.reason or 'no reason given'})")
+        self.logger.info("Componente %s pulado: marcado para não ser analisado", name)
         return True
 
     async def wait_resources(self, label: str, need_mb: float | None = None) -> str | None:
@@ -72,15 +72,51 @@ class ScanContext:
         if self.profile.pause_seconds:
             await asyncio.sleep(self.profile.pause_seconds)
 
+    _excluded: Any = None
+
+    def excluded(self) -> dict[tuple[str, str], str]:
+        """Componentes excluídos da tabela ("Excluir…"): (tipo, nome) -> foto guardada."""
+        if self._excluded is None:
+            self._excluded = self.storage.excluded_map() if self.storage is not None else {}
+        return self._excluded
+
+    def is_excluded(self, component_type: str, name: str, fingerprint: str | None) -> bool:
+        """True se o componente continua excluído (a foto não mudou).
+
+        Se mudou (reinstalado ou atualizado), a exclusão é apagada e ele volta a ser analisado.
+        """
+        saved = self.excluded().get((component_type, name))
+        if saved is None:
+            return False
+        if fingerprint is not None and fingerprint == saved:
+            return True
+        self.storage.remove_excluded(component_type, name)
+        self._excluded.pop((component_type, name), None)
+        self.logger.info("Componente %s voltou a ser analisado: mudou desde que foi excluído da tabela", name)
+        return False
+
+    def forget_missing_excluded(self, component_type: str, present: set[str]) -> None:
+        """Excluídos que sumiram (desinstalados): a exclusão some; se voltarem, são analisados."""
+        for ctype, name in list(self.excluded()):
+            if ctype == component_type and name not in present:
+                self.storage.remove_excluded(ctype, name)
+                self._excluded.pop((ctype, name), None)
+                self.logger.info("Componente excluído %s não está mais instalado: exclusão apagada", name)
+
     _inventory: Any = None
 
     def inventory(self) -> Any:
         """Inventário de /config, calculado uma vez por varredura e compartilhado."""
         if self._inventory is None:
             from ..inventory import discover
+            from ..watcher import component_fingerprint
 
             inv = discover(self.paths.config_dir)
+            for ctype, comps in (("integracao", inv.integrations), ("frontend", inv.frontend)):
+                self.forget_missing_excluded(ctype, {c.name for c in comps})
             keep = lambda c: (self.wants(c.component_type, c.name)  # noqa: E731
+                              and not self.is_excluded(c.component_type, c.name,
+                                                       component_fingerprint(c.component_type, c.path))
                               and not self.skipped(c.component_type, c.name, **c.metadata()))
             inv.integrations = [c for c in inv.integrations if keep(c)]
             inv.frontend = [c for c in inv.frontend if keep(c)]
@@ -103,7 +139,11 @@ class ScanContext:
                 from ..addons import collect
 
                 found = await collect(self.supervisor, include=lambda slug: self.wants("addon", slug))
-                self._addons = [a for a in found if not self.skipped("addon", a.slug, **a.metadata())]
+                if not self.partial:
+                    self.forget_missing_excluded("addon", {a.slug for a in found})
+                self._addons = [a for a in found
+                                if not self.is_excluded("addon", a.slug, a.version or "")
+                                and not self.skipped("addon", a.slug, **a.metadata())]
                 for a in self._addons:
                     self.register_component("addon", a.slug, **a.metadata())
         return self._addons

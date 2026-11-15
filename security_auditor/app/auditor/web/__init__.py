@@ -132,10 +132,18 @@ def parse_ignore_entry(body: Any) -> dict[str, Any]:
     every_level = not severities or len(severities) == len(_SEVERITY_KEYS)
     if len(severities) == len(_SEVERITY_KEYS):
         severities = ()  # todos os níveis = sem restrição de nível
+    skip = body.get("nao_analisar") is True
+    if skip:
+        # "Não analisar": o componente inteiro sai da varredura; não combina com regra, arquivo ou nível.
+        if set(out["component"]) <= {"*", "?"}:
+            raise InvalidEntryError(Bi("Informe o nome do componente que não deve ser analisado",
+                                       "Provide the name of the component that should not be scanned"))
+        return {**out, "rule": "*", "path": None, "fingerprint": None, "title": None, "severities": (),
+                "skip": True}
     if out["component"] == "*" and out["rule"] == "*" and not out["path"] and not fp and every_level:
         raise InvalidEntryError(Bi("Componente e regra \"*\" em todos os níveis ignorariam tudo; restrinja algum deles",
                                    "Component and rule \"*\" at every level would ignore everything; narrow one of them"))
-    return {**out, "severities": severities}
+    return {**out, "severities": severities, "skip": False}
 
 
 def _allowed_peers() -> set[ipaddress.IPv4Address | ipaddress.IPv6Address]:
@@ -158,6 +166,7 @@ def create_app(
     blocklist_cache_dir: Path | None = None,  # onde fica a lista comunitária baixada
     community_enabled: bool = True,
     ai: dict[str, Any] | None = None,  # {"label", "modelo", "ask": async (dominio, idioma) -> resposta}
+    config_dir: Path | None = None,  # /config (só leitura): foto dos arquivos ao excluir um componente
 ) -> web.Application:
     dns = dns_state if dns_state is not None else {"configurado": False, "testando": False, "resultados": []}
     peers = allowed_peers if allowed_peers is not None else _allowed_peers()
@@ -224,6 +233,7 @@ def create_app(
             lang=lang,
             ai={"label": ai["label"], "modelo": ai["modelo"]} if ai else None,
             dns_ai=await asyncio.to_thread(storage.dns_ai) if ai else None,
+            excluded=await asyncio.to_thread(storage.list_excluded),
         )
         return web.Response(text=html, content_type="text/html", charset="utf-8")
 
@@ -282,12 +292,15 @@ def create_app(
             lambda: storage.add_ignored(
                 component=entry["component"] or "", rule=entry["rule"] or "", reason=entry["reason"] or "",
                 path=entry["path"], fingerprint=entry["fingerprint"], title=entry["title"],
-                severities=entry["severities"],
+                severities=entry["severities"], skip=entry["skip"],
                 created_at=datetime.now(UTC).isoformat(timespec="seconds"),
             )
         )
-        _LOGGER.info("Incluído na lista de ignorados: %s / %s %s(#%d)", entry["component"], entry["rule"],
-                     f"[{','.join(entry['severities'])}] " if entry["severities"] else "", entry_id)
+        if entry["skip"]:
+            _LOGGER.info("Componente %s marcado para não ser analisado (#%d)", entry["component"], entry_id)
+        else:
+            _LOGGER.info("Incluído na lista de ignorados: %s / %s %s(#%d)", entry["component"], entry["rule"],
+                         f"[{','.join(entry['severities'])}] " if entry["severities"] else "", entry_id)
         await _changed()
         return web.json_response({"id": entry_id}, status=201)
 
@@ -415,6 +428,61 @@ def create_app(
         await asyncio.to_thread(storage.save_dns_ai, domain, answer, lang, now)
         return web.json_response({**answer, "idioma": lang, "data": now, "dominio": domain, "guardada": False})
 
+    # --- Componentes excluídos da tabela ("Excluir…") ---------------------------------
+
+    def _exclude(component_type: str, name: str) -> str | None:
+        """Exclui o componente do relatório mais recente e guarda a foto. Devolve erro ou None."""
+        from ..watcher import component_fingerprint
+
+        result = storage.load_latest()
+        comp = next((c for c in (result.components if result else [])
+                     if c.component_type == component_type and c.name == name), None)
+        if comp is None:
+            return "nao_encontrado"
+        if component_type == "addon":
+            fingerprint = str(comp.metadata.get("versao") or "")
+        else:
+            folder = {"integracao": "custom_components", "frontend": "www/community"}[component_type]
+            path = (config_dir / folder / name) if config_dir else None
+            if path is None or name == "www" or not path.is_dir() or path.is_symlink():
+                return "sem_pasta"
+            fingerprint = component_fingerprint(component_type, path)
+        storage.add_excluded(component_type, name, fingerprint or "", datetime.now(UTC).isoformat(timespec="seconds"))
+        # Sai do relatório na hora (achados e linha da tabela), sem esperar a próxima varredura.
+        result.components = [c for c in result.components if c is not comp]
+        result.findings = [f for f in result.findings if (f.component_type, f.component) != (component_type, name)]
+        storage.save_scan(result)
+        return None
+
+    async def exclude_component(request: web.Request) -> web.Response:
+        try:
+            body = await request.json()
+            component_type, name = body.get("tipo"), body.get("nome")
+        except (ValueError, AttributeError):
+            return web.json_response({"error": await _say(Bi("JSON inválido", "Invalid JSON"))}, status=400)
+        if component_type not in ("integracao", "frontend", "addon") or not isinstance(name, str) \
+                or not re.fullmatch(r"[A-Za-z0-9_.-]{1,200}", name) or name in (".", ".."):
+            return web.json_response({"error": await _say(Bi("Componente inválido", "Invalid component"))}, status=400)
+        error = await asyncio.to_thread(_exclude, component_type, name)
+        if error == "nao_encontrado":
+            return web.json_response({"error": await _say(Bi("Componente não está no relatório mais recente",
+                                                             "Component is not in the latest report"))}, status=404)
+        if error == "sem_pasta":
+            return web.json_response({"error": await _say(Bi("Este componente não pode ser excluído da tabela",
+                                                             "This component cannot be removed from the table"))},
+                                     status=400)
+        _LOGGER.info("Componente %s (%s) excluído da tabela: só volta a ser analisado se for reinstalado ou "
+                     "atualizado", name, component_type)
+        await _changed()
+        return web.json_response({"tipo": component_type, "nome": name}, status=201)
+
+    async def restore_component(request: web.Request) -> web.Response:
+        component_type, name = request.match_info["tipo"], request.match_info["nome"]
+        if not await asyncio.to_thread(storage.remove_excluded, component_type, name):
+            raise web.HTTPNotFound(text="Item não encontrado")
+        _LOGGER.info("Componente %s (%s) restaurado: volta a ser analisado na próxima varredura", name, component_type)
+        return web.Response(status=204)
+
     # --- Idioma da interface (guardado no add-on: vale em qualquer navegador) ---------
 
     async def set_language(request: web.Request) -> web.Response:
@@ -512,6 +580,8 @@ def create_app(
             web.patch("/api/dns/ignorados/{entry_id}", edit_dns_ignored),
             web.delete("/api/dns/ignorados/{entry_id}", remove_dns_ignored),
             web.post("/api/dns/ia", ask_ai),
+            web.post("/api/componentes/excluidos", exclude_component),
+            web.delete("/api/componentes/excluidos/{tipo}/{nome}", restore_component),
             web.post("/api/idioma", set_language),
             web.get("/api/lista-negra", blocklist_list),
             web.post("/api/lista-negra", blocklist_add),

@@ -96,3 +96,15 @@ def test_ignored_card_counts_list_items(storage):
     html = render_html(result, status={}, history=[], csrf_token="t", lang="en", ignored=[])
     card = html.split('id="toggle-ignored"')[1].split("</button>")[0]
     assert '<span class="card-count">0</span>' in card and '<span class="card-label">Ignored</span>' in card
+
+
+async def test_reapply_keeps_discovery_date_and_order(paths, storage, masker):
+    """Incluir algo na lista de ignorados (ou excluir um componente) não apaga a data de descoberta."""
+    from auditor.allowlist import reapply
+
+    await _engine(paths, storage, masker, Options(), [Scanner(["antiga"], [_f("antiga")])]).run()
+    r2 = await _engine(paths, storage, masker, Options(),
+                       [Scanner(["antiga", "nova"], [_f("antiga"), _f("nova")])]).run()
+    before = [(c.name, c.first_seen) for c in r2.components]
+    reapply(r2, ())
+    assert [(c.name, c.first_seen) for c in r2.components] == before and all(d for _, d in before)
