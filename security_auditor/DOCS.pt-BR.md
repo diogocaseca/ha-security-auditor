@@ -425,6 +425,8 @@ Também dá para ignorar a partir da **tabela de componentes**:
   níveis que você marcar (um, vários ou **Todos os níveis**). Um achado igual a um deles continua
   escondido; achados novos continuam aparecendo, e o componente continua sendo analisado. Os níveis
   marcados nos cartões já vêm selecionados.
+  A mesma opção fica na tela de achados do componente, como **Ignorar achados por nível…** no topo
+  da lista.
 - **Ignorar…** na linha de um componente tira o componente **da varredura** (veja abaixo).
 - Com um ou mais níveis marcados nos cartões, aparece **Ignorar estes níveis…**. Ele ignora **os
   achados que existem agora** nos níveis escolhidos, em todos os componentes, num único item da

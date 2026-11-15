@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.1
+
+- **Ignorar achados por nível…:** botão único no topo da lista de achados (tela de um componente).
+  Abre a escolha de níveis e ignora os achados atuais do componente nesses níveis; achados novos
+  continuam aparecendo. Os níveis marcados nos chips já vêm selecionados.
+
 ## 0.23.0
 
 - **Componentes ignorados saem da tabela de componentes.** Quem foi ignorado com **Ignorar…**

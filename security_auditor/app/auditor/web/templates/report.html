@@ -211,6 +211,7 @@
           <label><input type="checkbox" id="filter-new"> {{ _("Só novos") }}</label>
           <label><input type="checkbox" id="filter-suppressed"> {{ _("Mostrar suprimidos") }}</label>
           <button type="button" class="btn btn-ghost btn-sm" id="filter-clear">{{ _("Limpar filtros") }}</button>
+          {% if viewing_latest %}<button type="button" class="btn btn-ghost btn-sm" id="ignore-view-levels">{{ _("Ignorar achados por nível…") }}</button>{% endif %}
         </div>
       </div>
       <div id="findings">

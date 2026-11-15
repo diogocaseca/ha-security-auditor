@@ -422,6 +422,8 @@ You can also ignore from the **components table**:
   levels you tick (one, several or **All levels**). A finding identical to one of them stays hidden;
   new findings keep showing up, and the component is still scanned. Levels ticked on the cards come
   pre-selected.
+  The same option is in the component's findings view, as **Ignore findings by level…** at the top
+  of the list.
 - **Ignore…** on a component's row takes the component **out of the scan** (see below).
 - With one or more levels ticked on the cards, **Ignore these levels…** appears. It ignores **the
   findings that exist right now** at the chosen levels, in every component, as a single item in the

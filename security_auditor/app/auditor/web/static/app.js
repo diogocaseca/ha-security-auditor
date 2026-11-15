@@ -124,6 +124,7 @@
       document.title = "Security Auditor";
     }
     document.getElementById("component-empty")?.toggleAttribute("hidden", !inComponent || total > 0);
+    document.getElementById("ignore-view-levels")?.toggleAttribute("hidden", !inComponent || total === 0);
     document.getElementById("no-match")?.toggleAttribute("hidden", !inComponent || total === 0 || visible > 0);
     // Tabela de componentes: com níveis selecionados, só os que têm achados em algum deles;
     // com "Esconder componentes sem achados", some quem não tem nenhum achado (fora os ignorados).
@@ -478,6 +479,10 @@
   document.getElementById("ignore-levels")?.addEventListener("click", () => openDialog({ kind: "levels" }));
   document.querySelectorAll("[data-ignore]").forEach((b) =>
     b.addEventListener("click", () => openDialog({ kind: "finding", el: b.closest(".finding") })));
+  // Tela de achados de um componente: botão único que ignora os achados atuais dele por nível.
+  document.getElementById("ignore-view-levels")?.addEventListener("click", () => {
+    if (state.component) openDialog({ kind: "findings", name: state.component });
+  });
   document.querySelectorAll("[data-ignore-findings]").forEach((b) =>
     b.addEventListener("click", () => openDialog({ kind: "findings", name: b.dataset.ignoreFindings })));
   // "Ignorar…" do componente: ele deixa de ser analisado (fica na lista de ignorados).

@@ -497,6 +497,7 @@ EN: dict[str, str] = {
     "Componente {nome}.": "Component {nome}.",
     "Ignorar componente": "Ignore component",
     "Ignorar achados…": "Ignore findings…",
+    "Ignorar achados por nível…": "Ignore findings by level…",
     "Não está mais ignorado: volta a ser analisado na próxima varredura.":
         "No longer ignored: it is scanned again on the next scan.",
     "Ignorar achados do componente": "Ignore the component's findings",
