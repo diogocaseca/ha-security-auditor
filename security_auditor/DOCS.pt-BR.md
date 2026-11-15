@@ -439,7 +439,8 @@ Itens restritos a níveis mostram os níveis na coluna **Alcance** da lista.
 motivo e mostra um aviso) faz o componente **deixar de ser analisado**: nenhuma ferramenta roda
 nele, ele aparece na tabela como "não verificado" e a lista marca o item com "o componente inteiro
 · não é analisado". Use para os seus próprios apps e os que você considera confiáveis; é por sua
-conta. Para voltar a analisar, remova o item da lista. Os outros jeitos de ignorar (um achado, uma
+conta. Para voltar a analisar, clique em **Voltar a analisar** na linha dele (ou remova o item da
+lista); ele é analisado na próxima varredura. Os outros jeitos de ignorar (um achado, uma
 regra, um arquivo, níveis) nunca pulam a verificação; só deixam de contar o que foi ignorado.
 
 **Excluir…** na linha de um componente serve para componentes que você já removeu do HA, mas cujos

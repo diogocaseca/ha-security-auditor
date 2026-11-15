@@ -10,6 +10,7 @@ import re
 import secrets
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
+from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
 
@@ -456,6 +457,35 @@ def create_app(
         await asyncio.to_thread(storage.save_dns_ai, domain, answer, lang, now)
         return web.json_response({**answer, "idioma": lang, "data": now, "dominio": domain, "guardada": False})
 
+    async def unskip_component(request: web.Request) -> web.Response:
+        """"Voltar a analisar": remove os itens da lista que tiram o componente ({"nome"}) da varredura."""
+        try:
+            body = await request.json()
+            name = body.get("nome") if isinstance(body, dict) else None
+        except ValueError:
+            name = None
+        if not isinstance(name, str) or not name.strip() or len(name) > 200:
+            return web.json_response({"error": await _say(Bi("Componente inválido", "Invalid component"))}, status=400)
+        entries = [e for e in await asyncio.to_thread(storage.ignore_entries)
+                   if skips_whole_component(e) and fnmatchcase(name, e.component.strip())]
+        exact = [e for e in entries if e.component.strip() == name]
+        if not entries:
+            return web.json_response({"error": await _say(Bi("Este componente não está ignorado",
+                                                             "This component is not ignored"))}, status=404)
+        if len(exact) < len(entries):
+            # Um curinga (ex.: meu_*) também pega outros componentes: só pela lista de ignorados.
+            pattern = next(e.component for e in entries if e.component.strip() != name)
+            return web.json_response({"error": await _say(Bi(
+                f"Ignorado pelo item {pattern}, que vale para outros componentes; remova-o na lista de ignorados",
+                f"Ignored by the item {pattern}, which also covers other components; remove it in the ignore list"))},
+                status=409)
+        for e in exact:
+            await asyncio.to_thread(storage.remove_ignored, e.entry_id)
+        _LOGGER.info("Componente %s volta a ser analisado na próxima varredura (%d item(ns) removido(s) da lista)",
+                     name, len(exact))
+        await _changed()
+        return web.json_response({"nome": name, "removidos": len(exact)})
+
     # --- Componentes excluídos da tabela ("Excluir…") ---------------------------------
 
     def _exclude(component_type: str, name: str) -> str | None:
@@ -608,6 +638,7 @@ def create_app(
             web.patch("/api/dns/ignorados/{entry_id}", edit_dns_ignored),
             web.delete("/api/dns/ignorados/{entry_id}", remove_dns_ignored),
             web.post("/api/dns/ia", ask_ai),
+            web.post("/api/componentes/analisar", unskip_component),
             web.post("/api/componentes/excluidos", exclude_component),
             web.delete("/api/componentes/excluidos/{tipo}/{nome}", restore_component),
             web.post("/api/idioma", set_language),

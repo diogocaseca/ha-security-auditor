@@ -474,6 +474,22 @@
     b.addEventListener("click", () => openDialog({ kind: "finding", el: b.closest(".finding") })));
   document.querySelectorAll("[data-ignore-findings]").forEach((b) =>
     b.addEventListener("click", () => openDialog({ kind: "findings", name: b.dataset.ignoreFindings })));
+  // "Voltar a analisar": tira da lista o item que pula o componente; vale a partir da próxima varredura.
+  document.querySelectorAll("[data-unskip-component]").forEach((b) =>
+    b.addEventListener("click", async () => {
+      const nome = b.dataset.unskipComponent;
+      if (!window.confirm(T("Voltar a analisar {nome}? O item sai da lista de ignorados e o componente é analisado na próxima varredura.", { nome }))) return;
+      b.disabled = true;
+      try {
+        const resp = await post("api/componentes/analisar", { nome });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) throw new Error(data.error || "HTTP " + resp.status);
+        b.textContent = T("Na próxima varredura");
+      } catch (e) {
+        b.disabled = false;
+        window.alert(T("Não foi possível voltar a analisar: {erro}", { erro: e.message }));
+      }
+    }));
   // "Ignorar…" do componente: ele deixa de ser analisado (fica na lista de ignorados).
   document.querySelectorAll("[data-ignore-component]").forEach((b) =>
     b.addEventListener("click", () => openDialog({ kind: "skip", name: b.dataset.ignoreComponent })));

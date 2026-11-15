@@ -160,6 +160,8 @@ JS_KEYS = (
     "Não foi possível restaurar.",
     "Ignorar componente", "Componente {nome}.", "Ignorar",
     "Ignorar achados do componente",
+    "Voltar a analisar {nome}? O item sai da lista de ignorados e o componente é analisado na próxima varredura.",
+    "Na próxima varredura", "Não foi possível voltar a analisar: {erro}",
     "Componente {nome}: os achados atuais nos níveis marcados abaixo. Achados novos continuam aparecendo e o componente continua sendo analisado.",
     "Malicioso", "Suspeito", "Provavelmente seguro", "Desconhecido", "Consultando o {provedor}…",
     "Não foi possível consultar a IA (HTTP {status}).", "Não foi possível consultar a IA.",
@@ -497,6 +499,11 @@ EN: dict[str, str] = {
     "Componente {nome}.": "Component {nome}.",
     "Ignorar componente": "Ignore component",
     "Ignorar achados…": "Ignore findings…",
+    "Voltar a analisar": "Scan again",
+    "Voltar a analisar {nome}? O item sai da lista de ignorados e o componente é analisado na próxima varredura.":
+        "Scan {nome} again? The item leaves the ignore list and the component is scanned on the next scan.",
+    "Na próxima varredura": "On the next scan",
+    "Não foi possível voltar a analisar: {erro}": "Could not scan again: {erro}",
     "Ignorar achados do componente": "Ignore the component's findings",
     "Componente {nome}: os achados atuais nos níveis marcados abaixo. Achados novos continuam aparecendo e o componente continua sendo analisado.":
         "Component {nome}: the current findings at the levels ticked below. New findings keep showing up and the "

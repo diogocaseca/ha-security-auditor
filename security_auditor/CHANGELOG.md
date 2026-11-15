@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.22.1
+
+- **Voltar a analisar:** componentes ignorados (fora da varredura) mostram este botão na linha, no
+  lugar de **Ignorar…**. Ele remove o item da lista de ignorados e o componente volta a ser
+  analisado na próxima varredura. Se o componente estiver ignorado por um curinga (ex.: `meu_*`),
+  o auditor explica e pede para remover pela lista, porque o item vale para outros componentes.
+
 ## 0.22.0
 
 - **Ignorar achados…:** novo botão em cada linha da tabela de componentes (com achados). Ignora os
