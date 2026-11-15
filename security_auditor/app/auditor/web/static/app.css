@@ -303,6 +303,11 @@ body.view-history main > :not(#history):not(.tabs) { display: none; }
 .dns-fail { background: var(--sev-critical-bg); color: var(--sev-critical); }
 
 /* Filtro de tipo na tabela de componentes */
+.comp-search {
+  width: 200px; padding: 4px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-2); color: var(--text); font: inherit; font-size: 14px;
+}
+@media (max-width: 640px) { .comp-search { width: 100%; } }
 .type-filter { display: inline-flex; gap: 6px; align-items: center; }
 .type-filter select {
   padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-2);

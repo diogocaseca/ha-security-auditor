@@ -494,6 +494,8 @@ EN: dict[str, str] = {
     "o componente inteiro": "the whole component",
     "Componente {nome}.": "Component {nome}.",
     "Ignorar componente": "Ignore component",
+    "Filtrar por nome…": "Filter by name…",
+    "Filtrar componentes pelo nome": "Filter components by name",
     "Ignorar": "Ignore",
     # --- JavaScript ---
     "Não foi possível iniciar a varredura.": "Could not start the scan.",

@@ -112,6 +112,8 @@
           <h2>{{ _("Componentes") }} <span class="muted" id="comp-count"></span></h2>
           <div class="actions">
             {% set comp_types = result.components | rejectattr('component_type', 'equalto', 'rede') | map(attribute='component_type') | unique | sort | list %}
+            <input type="search" id="filter-comp-name" class="comp-search" maxlength="200"
+                   placeholder="{{ _('Filtrar por nome…') }}" aria-label="{{ _('Filtrar componentes pelo nome') }}">
             <label class="small type-filter">{{ _("Tipo") }}
               <select id="filter-type" aria-label="{{ _('Filtrar componentes por tipo') }}">
                 <option value="">{{ _("Todos") }}</option>

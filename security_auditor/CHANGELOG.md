@@ -9,6 +9,8 @@
   0.19.x), agora sem escolha de níveis e para qualquer componente. O botão **Não analisar…** da
   0.20.0 saiu, porque fazia a mesma coisa. Itens antigos de componente inteiro (regra `*`, todos
   os níveis) voltam a tirar o componente da varredura.
+- **Busca por nome** na tabela de componentes: a caixa "Filtrar por nome…" mostra só os componentes
+  cujo nome contém o texto, inclusive os sem achados.
 
 ## 0.20.0
 

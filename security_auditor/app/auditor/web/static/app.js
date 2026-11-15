@@ -23,7 +23,7 @@
   });
   const SEV_KEYS = Object.keys(sevLabels);
   const state = { sev: new Set(), component: null, view: null, text: "", onlyNew: false, suppressed: false,
-                  hideEmpty: true, type: "", onlyBlocklist: false };
+                  hideEmpty: true, type: "", onlyBlocklist: false, compName: "" };
   const onlyBlocklist = document.getElementById("only-blocklist");
   const typeSelect = document.getElementById("filter-type");
   const TYPES = typeSelect ? Array.from(typeSelect.options).map((o) => o.value).filter(Boolean) : [];
@@ -127,12 +127,14 @@
     document.getElementById("no-match")?.toggleAttribute("hidden", !inComponent || total === 0 || visible > 0);
     // Tabela de componentes: com níveis selecionados, só os que têm achados em algum deles;
     // com "Esconder componentes sem achados", some quem não tem nenhum achado (fora os ignorados).
+    // Busca por nome: acha o componente mesmo sem achados (ignora "Esconder componentes sem achados").
     let compVisible = 0;
     for (const row of compRows) {
       const sevs = row.dataset.sevs.split(" ").filter(Boolean);
+      const name = (row.querySelector("[data-filter-component]")?.dataset.filterComponent || "").toLowerCase();
       const show = (state.sev.size === 0 || sevs.some((s) => state.sev.has(s))) &&
-        (!state.hideEmpty || sevs.length > 0) && (!state.type || row.dataset.type === state.type) &&
-        (!state.onlyBlocklist || row.dataset.blocklist !== "");
+        (!state.hideEmpty || state.compName || sevs.length > 0) && (!state.type || row.dataset.type === state.type) &&
+        (!state.onlyBlocklist || row.dataset.blocklist !== "") && (!state.compName || name.includes(state.compName));
       row.hidden = !show;
       if (show) compVisible++;
     }
@@ -234,6 +236,9 @@
     saveLevels();
     apply();
   });
+
+  const compName = document.getElementById("filter-comp-name");
+  compName?.addEventListener("input", () => { state.compName = compName.value.trim().toLowerCase(); apply(); });
 
   const hideEmpty = document.getElementById("hide-empty");
   if (hideEmpty) hideEmpty.checked = state.hideEmpty;
