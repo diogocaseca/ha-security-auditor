@@ -370,18 +370,16 @@
     const k = mode.kind;
     const titles = {
       finding: T("Ignorar achado"),
-      component: T("Ignorar achados do componente"),
       levels: T("Ignorar níveis inteiros"),
       manual: T("Incluir na lista de ignorados"),
-      skip: T("Não analisar o componente"),
+      skip: T("Ignorar componente"),
     };
     document.getElementById("ignore-title").textContent = titles[k];
     document.getElementById("ignore-scope").hidden = k !== "finding";
     document.getElementById("ignore-manual").hidden = k !== "manual";
     levelsField.hidden = k === "finding" || k === "skip";
-    // "Não analisar": o componente sai da varredura; o aviso fica visível antes de confirmar.
+    // Componente: deixa de ser analisado; o aviso fica visível antes de confirmar.
     document.getElementById("ignore-skip-note").hidden = k !== "skip";
-    document.getElementById("ignore-submit").textContent = k === "skip" ? T("Não analisar") : T("Ignorar");
     document.getElementById("ignore-levels-legend").textContent =
       k === "levels" ? T("Níveis a ignorar em todos os componentes") : T("Só estes níveis (nenhum marcado = todos)");
     form.elements.component.required = k === "manual";
@@ -395,7 +393,6 @@
     if (fileOpt) fileOpt.parentElement.hidden = !(k === "finding" && mode.el.dataset.file);
     const subject = {
       finding: () => `${mode.el.dataset.title} — ${mode.el.dataset.component} · ${mode.el.dataset.rule}`,
-      component: () => T("Componente {nome}: todas as regras, nos níveis marcados abaixo.", { nome: mode.name }),
       levels: () => T("Os achados atuais destes níveis, em todos os componentes. Achados novos continuam aparecendo."),
       manual: () => T("Use * como curinga (ex.: semgrep.* ou */vendor/*)."),
       skip: () => T("Componente {nome}.", { nome: mode.name }),
@@ -413,8 +410,6 @@
       case "manual":
         return { component: form.elements.component.value.trim(), rule: form.elements.rule.value.trim(),
                  path: form.elements.path.value.trim() || null, reason, severities };
-      case "component":
-        return { component: mode.name, rule: "*", reason, severities };
       // Níveis: só os achados de agora; achados novos (diferentes dos ignorados) continuam aparecendo.
       case "levels":
         return { component: "*", rule: "*", reason, severities, achados_atuais: true };
@@ -464,8 +459,9 @@
   document.getElementById("ignore-levels")?.addEventListener("click", () => openDialog({ kind: "levels" }));
   document.querySelectorAll("[data-ignore]").forEach((b) =>
     b.addEventListener("click", () => openDialog({ kind: "finding", el: b.closest(".finding") })));
+  // "Ignorar…" do componente: ele deixa de ser analisado (fica na lista de ignorados).
   document.querySelectorAll("[data-ignore-component]").forEach((b) =>
-    b.addEventListener("click", () => openDialog({ kind: "component", name: b.dataset.ignoreComponent })));
+    b.addEventListener("click", () => openDialog({ kind: "skip", name: b.dataset.ignoreComponent })));
   // "Excluir…": tira o componente da tabela até ele ser reinstalado ou atualizado.
   document.querySelectorAll("[data-exclude-component]").forEach((b) =>
     b.addEventListener("click", async () => {
@@ -500,8 +496,6 @@
         window.alert(T("Não foi possível restaurar."));
       }
     }));
-  document.querySelectorAll("[data-skip-component]").forEach((b) =>
-    b.addEventListener("click", () => openDialog({ kind: "skip", name: b.dataset.skipComponent })));
   document.querySelectorAll("[data-unignore]").forEach((b) =>
     b.addEventListener("click", async () => {
       if (!window.confirm(T("Remover da lista de ignorados? Os achados voltam a contar nos totais."))) return;

@@ -251,7 +251,8 @@ async def test_component_rows_have_ignore_button(ignore_client):
     client, *_ = ignore_client
     html = await (await client.get("/")).text()
     assert 'data-ignore-component="minha_integracao"' in html and 'data-ignore-component="outra"' in html
-    assert 'data-ignore-component="limpa"' not in html  # componente sem achados
+    # Ignorar o componente tira ele da varredura: vale também para componentes sem achados.
+    assert 'data-ignore-component="limpa"' in html and 'data-skip-component' not in html
     assert 'id="ignore-levels"' in html
 
 
@@ -395,7 +396,7 @@ async def test_skip_entry_via_api(ignore_client):
 
 
 def test_old_database_gets_skip_column(tmp_path):
-    """Banco de antes da 0.20.0: os itens antigos ficam sem a marcação (só escondem achados)."""
+    """Banco de antes da 0.20.0: o item de componente inteiro volta a tirar o componente da varredura."""
     import sqlite3
 
     from auditor.storage import Storage
@@ -405,9 +406,18 @@ def test_old_database_gets_skip_column(tmp_path):
         conn.execute("CREATE TABLE ignored (id INTEGER PRIMARY KEY AUTOINCREMENT, component TEXT NOT NULL, "
                      "rule TEXT NOT NULL, path TEXT, fingerprint TEXT, severities TEXT, title TEXT, "
                      "reason TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL)")
-        conn.execute("INSERT INTO ignored (component, rule, reason, created_at) VALUES ('meu_app', '*', 'x', 't')")
-    (entry,) = Storage(db, tmp_path / "reports").ignore_entries()
-    assert entry.component == "meu_app" and entry.skip is False
+        conn.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+        for component, rule, sevs in (("meu_app", "*", None), ("parcial", "*", "low"), ("todos", "*", None),
+                                      ("regra", "auditor.x", None)):
+            conn.execute("INSERT INTO ignored (component, rule, severities, reason, created_at) VALUES (?, ?, ?, 'x', 't')",
+                         (component, rule, sevs))
+        conn.execute("UPDATE ignored SET component = '*' WHERE component = 'todos'")
+    storage = Storage(db, tmp_path / "reports")
+    skips = {e.component: e.skip for e in storage.ignore_entries()}
+    assert skips == {"meu_app": True, "parcial": False, "*": False, "regra": False}
+    # Roda uma vez só: um item criado depois, mesmo igual, não é alterado ao reabrir.
+    storage.add_ignored(component="outro", rule="*", reason="x", created_at="t")
+    assert {e.component: e.skip for e in Storage(db, tmp_path / "reports").ignore_entries()}["outro"] is False
 
 
 async def test_ignored_component_without_skip_is_still_scanned(tmp_path, monkeypatch):
@@ -467,8 +477,8 @@ async def test_ignore_levels_without_current_findings(ignore_client):
     assert resp.status == 400 and "No current findings" in (await resp.json())["error"]
 
 
-async def test_component_ignore_is_still_a_rule(ignore_client):
-    """O "Ignorar…" do componente continua sendo regra: esconde também achados futuros do componente."""
+async def test_manual_component_rule_hides_future_findings(ignore_client):
+    """Item manual (componente, regra "*", sem "Não analisar") é regra: esconde também os achados futuros."""
     client, token, storage, engine, _ = ignore_client
     await client.post("/api/ignored", headers={CSRF_HEADER: token},
                       json={"component": "minha_integracao", "rule": "*", "reason": "x"})

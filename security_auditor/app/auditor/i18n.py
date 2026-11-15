@@ -158,7 +158,7 @@ JS_KEYS = (
     "Excluir {nome} da tabela? Ele deixa de ser analisado e só volta se for reinstalado ou atualizado. Os arquivos não são apagados.",
     "Não foi possível excluir: {erro}", "Restaurado: o componente volta à tabela na próxima varredura.",
     "Não foi possível restaurar.",
-    "Não analisar o componente", "Não analisar", "Componente {nome}.", "Ignorar",
+    "Ignorar componente", "Componente {nome}.", "Ignorar",
     "Malicioso", "Suspeito", "Provavelmente seguro", "Desconhecido", "Consultando o {provedor}…",
     "Não foi possível consultar a IA (HTTP {status}).", "Não foi possível consultar a IA.",
     "Resposta guardada de {data} · {modelo}", "Consultado agora · {modelo}",
@@ -166,8 +166,7 @@ JS_KEYS = (
     "Não foi possível iniciar a varredura.", "Não foi possível cancelar a varredura.",
     "Cancelar a varredura em andamento? O que já foi analisado fica salvo como relatório cancelado.",
     "({a} de {b})", "Com achados de nível: {niveis}",
-    "Ignorar achado", "Ignorar achados do componente", "Ignorar níveis inteiros", "Incluir na lista de ignorados",
-    "Componente {nome}: todas as regras, nos níveis marcados abaixo.",
+    "Ignorar achado", "Ignorar níveis inteiros", "Incluir na lista de ignorados",
     "Os achados atuais destes níveis, em todos os componentes. Achados novos continuam aparecendo.",
     "Use * como curinga (ex.: semgrep.* ou */vendor/*).",
     "Níveis a ignorar em todos os componentes", "Só estes níveis (nenhum marcado = todos)",
@@ -478,7 +477,6 @@ EN: dict[str, str] = {
     "nele e ele aparece como “não verificado”. Remova da lista para voltar a analisá-lo.":
         "This component <strong>is no longer scanned</strong> in the next scans: no tool runs on it and it shows "
         "as “not scanned”. Remove it from the list to scan it again.",
-    "Não analisar…": "Don't scan…",
     "Excluir…": "Remove…",
     "Componentes excluídos da tabela ({n})": "Components removed from the table ({n})",
     "Não são analisados enquanto continuarem iguais. Se forem reinstalados ou atualizados, voltam sozinhos.":
@@ -494,9 +492,8 @@ EN: dict[str, str] = {
         "Restored: the component comes back to the table on the next scan.",
     "Não foi possível restaurar.": "Could not restore.",
     "o componente inteiro": "the whole component",
-    "Não analisar o componente": "Don't scan the component",
-    "Não analisar": "Don't scan",
     "Componente {nome}.": "Component {nome}.",
+    "Ignorar componente": "Ignore component",
     "Ignorar": "Ignore",
     # --- JavaScript ---
     "Não foi possível iniciar a varredura.": "Could not start the scan.",
@@ -505,11 +502,8 @@ EN: dict[str, str] = {
         "Cancel the running scan? What has been analysed so far is saved as a cancelled report.",
     "({a} de {b})": "({a} of {b})",
     "Com achados de nível: {niveis}": "With findings of level: {niveis}",
-    "Ignorar achados do componente": "Ignore the component's findings",
     "Ignorar níveis inteiros": "Ignore whole levels",
     "Incluir na lista de ignorados": "Add to the ignore list",
-    "Componente {nome}: todas as regras, nos níveis marcados abaixo.":
-        "Component {nome}: all rules, at the levels ticked below.",
     "Os achados atuais destes níveis, em todos os componentes. Achados novos continuam aparecendo.":
         "The current findings at these levels, in every component. New findings keep showing up.",
     "Use * como curinga (ex.: semgrep.* ou */vendor/*).": "Use * as a wildcard (e.g. semgrep.* or */vendor/*).",

@@ -395,9 +395,9 @@ O que saber:
   varredura completa.
 - Arquivos de `www/` fora de `community/` não são vigiados (mudam muito, ex.: fotos de câmera); a
   varredura completa continua verificando-os.
-- Componentes marcados com **Não analisar** ou tirados da tabela com **Excluir…** (veja a
-  [lista de ignorados](#lista-de-ignorados-e-allowlist)) não são varridos nem avisados, enquanto
-  os arquivos continuarem iguais.
+- Componentes ignorados com **Ignorar…** na linha deles não são varridos nem avisados; os
+  tirados da tabela com **Excluir…** também não, enquanto os arquivos continuarem iguais (veja a
+  [lista de ignorados](#lista-de-ignorados-e-allowlist)).
 - Se já houver uma varredura em andamento, a verificação espera ela terminar. Sem um relatório
   completo anterior, a primeira verificação vira uma varredura completa.
 
@@ -421,10 +421,7 @@ juntos:
 
 Também dá para ignorar a partir da **tabela de componentes**:
 
-- **Ignorar…** na linha de um componente ignora os achados dele em todas as regras. Se houver
-  níveis marcados nos cartões (por exemplo Baixa e Informativa), eles já vêm selecionados e só
-  esses níveis são ignorados; os outros continuam contando. **Todos os níveis** marca todos de
-  uma vez (o mesmo que não marcar nenhum).
+- **Ignorar…** na linha de um componente tira o componente **da varredura** (veja abaixo).
 - Com um ou mais níveis marcados nos cartões, aparece **Ignorar estes níveis…**. Ele ignora **os
   achados que existem agora** nos níveis escolhidos, em todos os componentes, num único item da
   lista ("37 achados atuais"). Um achado igual a um deles continua escondido nas próximas
@@ -434,15 +431,12 @@ Também dá para ignorar a partir da **tabela de componentes**:
 
 Itens restritos a níveis mostram os níveis na coluna **Alcance** da lista.
 
-**Ignorar nunca pula a verificação.** Mesmo com todas as regras e todos os níveis ignorados, **o
-componente continua sendo analisado** em toda varredura; o auditor só deixa de contar o que foi
-ignorado. Até a 0.19.x um item assim também tirava o componente da varredura; os itens antigos
-agora só escondem os achados.
-
-**Não analisar…** na linha de um componente é o jeito explícito de tirá-lo da varredura: nenhuma
-ferramenta roda nele, ele aparece na tabela como "não verificado" e a lista marca o item com "não
-é analisado". Use para os seus próprios apps e os que você considera confiáveis; é por sua conta.
-Para voltar a analisar, remova o item da lista.
+**Ignorar o componente pula a verificação.** **Ignorar…** na linha de um componente (pede um
+motivo e mostra um aviso) faz o componente **deixar de ser analisado**: nenhuma ferramenta roda
+nele, ele aparece na tabela como "não verificado" e a lista marca o item com "o componente inteiro
+· não é analisado". Use para os seus próprios apps e os que você considera confiáveis; é por sua
+conta. Para voltar a analisar, remova o item da lista. Os outros jeitos de ignorar (um achado, uma
+regra, um arquivo, níveis) nunca pulam a verificação; só deixam de contar o que foi ignorado.
 
 **Excluir…** na linha de um componente serve para componentes que você já removeu do HA, mas cujos
 arquivos ficaram no disco (remover uma integração em **Configurações → Dispositivos e serviços**

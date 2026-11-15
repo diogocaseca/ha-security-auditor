@@ -139,6 +139,21 @@ class Storage:
             # Migração (0.21.0): ignorar níveis guarda a foto dos achados atuais (lista de impressões).
             if "fingerprints" not in cols:
                 conn.execute("ALTER TABLE ignored ADD COLUMN fingerprints TEXT")
+            # Migração (0.21.0): "Ignorar…" do componente voltou a tirar o componente da varredura.
+            # Itens de componente inteiro (regra "*", todos os níveis, sem arquivo nem achado) ganham a
+            # marcação "não analisar", como eram até a 0.19.x. Roda uma vez só.
+            done = conn.execute("SELECT 1 FROM settings WHERE key = 'migracao_ignorar_componente'").fetchone()
+            if not done:
+                rows = conn.execute(
+                    "SELECT id, component, severities FROM ignored WHERE skip = 0 AND rule IN ('*', '')"
+                    " AND path IS NULL AND fingerprint IS NULL AND fingerprints IS NULL").fetchall()
+                every = {"critical", "high", "medium", "low", "info"}
+                for r in rows:
+                    levels = {x for x in (r["severities"] or "").split(",") if x}
+                    pattern = (r["component"] or "").strip()
+                    if pattern and not set(pattern) <= {"*", "?"} and (not levels or every <= levels):
+                        conn.execute("UPDATE ignored SET skip = 1 WHERE id = ?", (r["id"],))
+                conn.execute("INSERT INTO settings (key, value) VALUES ('migracao_ignorar_componente', '1')")
             # Migração (0.17.0): varreduras parciais, feitas ao instalar ou atualizar um componente.
             cols = {r["name"] for r in conn.execute("PRAGMA table_info(scans)")}
             if "kind" not in cols:

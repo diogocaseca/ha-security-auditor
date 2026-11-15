@@ -60,7 +60,7 @@ async def test_exclude_hides_until_reinstalled(client, paths, storage):
     c, h, engine = client
     html = await (await c.get("/")).text()
     assert 'data-exclude-component="removida"' in html and "Remove…" in html
-    assert 'data-skip-component="removida"' in html and "Don&#39;t scan…" in html
+    assert 'data-ignore-component="removida"' in html and "data-skip-component" not in html
 
     assert (await c.post("/api/componentes/excluidos", json={"tipo": "integracao", "nome": "removida"})).status == 403
     resp = await c.post("/api/componentes/excluidos", headers=h, json={"tipo": "integracao", "nome": "removida"})

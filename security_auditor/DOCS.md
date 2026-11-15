@@ -393,9 +393,9 @@ What to know:
   integrity, add-on permissions, code and image). DNS and traffic spikes stay for the full scan.
 - Files in `www/` outside `community/` are not watched (they change often, e.g. camera snapshots);
   the full scan still checks them.
-- Components marked **Don't scan** or removed with **Remove…** (see
-  [Ignore list](#ignore-list-and-allowlist)) are not scanned or notified, as long as their files
-  stay the same.
+- Components ignored with **Ignore…** on their row are not scanned or notified; the ones removed
+  with **Remove…** are not either, as long as their files stay the same (see
+  [Ignore list](#ignore-list-and-allowlist)).
 - If a scan is already running, the check waits for it to finish. Without a previous full report,
   the first check becomes a full scan.
 
@@ -418,9 +418,7 @@ choose the scope and write the reason:
 
 You can also ignore from the **components table**:
 
-- **Ignore…** on a component's row ignores its findings for every rule. If levels are ticked on the
-  cards (for example Low and Info), they come pre-selected and only those levels are ignored; the
-  others keep counting. **All levels** ticks them all at once (the same as ticking none).
+- **Ignore…** on a component's row takes the component **out of the scan** (see below).
 - With one or more levels ticked on the cards, **Ignore these levels…** appears. It ignores **the
   findings that exist right now** at the chosen levels, in every component, as a single item in the
   list ("37 current findings"). A finding identical to one of them stays hidden in later scans, but
@@ -430,14 +428,12 @@ You can also ignore from the **components table**:
 
 Items restricted to levels show the levels in the list's **Scope** column.
 
-**Ignoring never skips the scan.** Even with every rule and every level ignored, **the component is
-still analysed** on every scan; the auditor only stops counting what was ignored. Before 0.20.0, an
-item like that also stopped the scan; existing items now only hide the findings.
-
-**Don't scan…** on a component's row is the explicit way to take it out of the scan: no tool runs
-on it, it shows in the table as "not scanned" and the list marks the item with "not scanned". Use
-it for your own apps and the ones you consider trustworthy; it is at your own risk. To scan it
-again, remove the item from the list.
+**Ignoring a component skips the scan.** **Ignore…** on a component's row (it asks for a reason
+and shows a warning) means the component **is no longer scanned**: no tool runs on it, it shows in
+the table as "not scanned" and the list marks the item with "the whole component · not scanned".
+Use it for your own apps and the ones you consider trustworthy; it is at your own risk. To scan it
+again, remove the item from the list. The other ways to ignore (a finding, a rule, a file, levels)
+never skip the scan; they only stop counting what was ignored.
 
 **Remove…** on a component's row is for components you have already removed from HA whose files
 stayed on disk (removing an integration in **Settings → Devices & services** deletes only its
