@@ -7,6 +7,8 @@
   lista: o componente volta para a tabela na hora, com um aviso, e é analisado na próxima
   varredura.
 - O botão **Voltar a analisar** (0.22.1) saiu, porque a lista de ignorados já faz isso.
+- Com o quadro **Ignorados** aberto, clicar num quadro de nível fecha a lista de ignorados e mostra
+  o resumo filtrado por aquele nível.
 
 ## 0.22.2
 

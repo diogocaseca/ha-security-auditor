@@ -157,6 +157,12 @@
   document.querySelectorAll("[data-filter-sev]").forEach((btn) =>
     btn.addEventListener("click", () => {
       const key = btn.dataset.filterSev;
+      // Com "Ignorados" aberto, clicar num nível fecha a lista e volta ao resumo filtrado por ele.
+      if (state.view === "ignorados") {
+        state.view = null;
+        try { history.replaceState({}, "", urlFor(null, null)); } catch (e) { /* sem histórico */ }
+        state.sev.clear();
+      }
       state.sev.has(key) ? state.sev.delete(key) : state.sev.add(key);
       saveLevels();
       apply();
