@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.25.1
+
+- **DNS:** com "Mostrar domínios ignorados" marcado, os botões **Ignorar todos…** e **Perguntar à
+  IA sobre todos…** ficam escondidos (eles valem para a tabela de domínios consultados).
+
 ## 0.25.0
 
 - **Perguntar à IA nos achados:** quando o trecho de código de um achado tem uma URL ou um IP, ele

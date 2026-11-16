@@ -660,9 +660,14 @@
     (domain || dnsMany ? dnsForm.elements.reason : dnsForm.elements.domain).focus();
   }
   // Sem domínio para ignorar (todos já ignorados), o botão some.
-  document.querySelectorAll(".dns-ignore-all").forEach((b) => {
-    b.hidden = !b.closest(".dns-domains").querySelector("[data-dns-ignore]");
-  });
+  const syncDnsBulk = (showingIgnored) => {
+    document.querySelectorAll(".dns-ignore-all").forEach((b) => {
+      b.hidden = showingIgnored || !b.closest(".dns-domains").querySelector("[data-dns-ignore]");
+    });
+    // Com "Mostrar domínios ignorados", os botões em massa da tabela principal somem.
+    document.querySelectorAll(".dns-ai-all").forEach((b) => { b.hidden = showingIgnored; });
+  };
+  syncDnsBulk(false);
   document.querySelectorAll(".dns-ignore-all").forEach((b) =>
     b.addEventListener("click", () => {
       const list = Array.from(b.closest(".dns-domains").querySelectorAll("[data-dns-ignore]"))
@@ -711,6 +716,7 @@
   function syncDnsView() {
     const on = showIgnored.checked;
     document.querySelectorAll(".dns-main-table").forEach((t) => { t.hidden = on; });
+    syncDnsBulk(on);
     document.getElementById("dns-ignored").hidden = !on;
     try { sessionStorage.setItem("dnsIgnorados", on ? "1" : "0"); } catch (e) { /* sem armazenamento */ }
   }
