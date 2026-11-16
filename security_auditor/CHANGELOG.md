@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.23.2
+
+- **Realce da linha clicada** nas tabelas de componentes e de domínios do DNS. Clicar em outra
+  linha move o realce; clicar de novo na mesma tira. Botões e links da linha funcionam como antes.
+
 ## 0.23.1
 
 - **Ignorar achados por nível…:** botão único no topo da lista de achados (tela de um componente).

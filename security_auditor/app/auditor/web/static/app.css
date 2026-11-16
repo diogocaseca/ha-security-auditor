@@ -159,6 +159,9 @@ th, td { padding: 7px 10px; border-bottom: 1px solid var(--border); text-align: 
 th { color: var(--muted); font-weight: 600; font-size: 13px; }
 td.num, th.num { text-align: right; }
 tr.current td { background: var(--surface-2); }
+/* Linha clicada nas tabelas de componentes e de domínios: realce até clicar em outra (ou nela de novo). */
+tr.row-selected td { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+tr.row-selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 .score { display: inline-block; min-width: 34px; text-align: center; border-radius: 6px; padding: 1px 6px; font-weight: 700; }
 .score-high { background: var(--sev-critical-bg); color: var(--sev-critical); }
 .score-mid { background: var(--sev-medium-bg); color: var(--sev-medium); }

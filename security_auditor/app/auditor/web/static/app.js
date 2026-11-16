@@ -169,6 +169,17 @@
       apply();
     }));
 
+  // --- Realce da linha clicada (tabela de componentes e tabela de domínios do DNS) -------
+  // Um clique realça a linha; outro clique nela tira o realce. Botões e links da linha seguem normais.
+  document.querySelectorAll("#components tbody, .dns-main-table tbody").forEach((body) =>
+    body.addEventListener("click", (ev) => {
+      const row = ev.target.closest("tr");
+      if (!row || ev.target.closest("button, a, input, select, label")) return;
+      const on = !row.classList.contains("row-selected");
+      body.querySelectorAll("tr.row-selected").forEach((r) => r.classList.remove("row-selected"));
+      row.classList.toggle("row-selected", on);
+    }));
+
   // --- Navegação entre o resumo e a tela de um componente --------------------------
   if ("scrollRestoration" in history) history.scrollRestoration = "manual";
 
