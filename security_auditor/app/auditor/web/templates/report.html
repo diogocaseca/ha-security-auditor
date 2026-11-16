@@ -262,14 +262,17 @@
       {% if result %}<button type="button" class="btn btn-ghost btn-sm" id="back-from-ignored">{{ _("← Voltar para o resumo") }}</button>{% endif %}
       <div class="panel-head">
         <h2>{{ _("Lista de ignorados") }} <span class="muted">({{ ignored | length + config_allowlist | length }})</span></h2>
-        <button type="button" class="btn btn-ghost btn-sm" id="ignore-add">{{ _("Incluir na lista…") }}</button>
+        <div class="actions">
+          {% if ignored or config_allowlist %}<input type="search" class="table-search" data-table-search="ignored" maxlength="200" placeholder="{{ _('Filtrar…') }}" aria-label="{{ _('Filtrar a tabela') }}">{% endif %}
+          <button type="button" class="btn btn-ghost btn-sm" id="ignore-add">{{ _("Incluir na lista…") }}</button>
+        </div>
       </div>
       <p class="muted small">{{ _("Achados ignorados continuam no relatório (marque \"Mostrar suprimidos\"), mas não contam nos totais, nas notas nem nos sensores. A mudança vale na hora para o relatório mais recente e nas próximas varreduras.") }}</p>
       {% if ignored or config_allowlist %}
         <div class="table-wrap">
           <table>
             <thead><tr><th>{{ _("Componente") }}</th><th>{{ _("Regra") }}</th><th>{{ _("Alcance") }}</th><th>{{ _("Motivo") }}</th><th>{{ _("Origem") }}</th><th></th></tr></thead>
-            <tbody>
+            <tbody data-search-body="ignored">
               {% for e in ignored %}
                 <tr>
                   <td><code>{{ e.component }}</code></td>
@@ -358,12 +361,15 @@
         <p class="muted small">{{ _("Clientes considerados: {clientes}.", clientes=(c.metadata.clientes | join(', '))) }}
           {% if c.metadata.dominios_total > c.metadata.dominios | length %}{{ _("Mostrando os {n} mais recentes de {total}.", n=(c.metadata.dominios | length), total=c.metadata.dominios_total) }}{% endif %}</p>
         {# Marcada: mostra a lista de domínios ignorados no lugar da tabela de domínios consultados. #}
-        <label class="small"><input type="checkbox" id="dns-show-ignored"> {{ _("Mostrar domínios ignorados ({n})", n=(dns_ignored | length)) }}</label>
+        <div class="table-tools">
+          <label class="small"><input type="checkbox" id="dns-show-ignored"> {{ _("Mostrar domínios ignorados ({n})", n=(dns_ignored | length)) }}</label>
+          <span class="dns-main-table"><input type="search" class="table-search" data-table-search="dns-domains" maxlength="200" placeholder="{{ _('Filtrar…') }}" aria-label="{{ _('Filtrar a tabela') }}"></span>
+        </div>
         <div class="table-wrap dns-main-table">
           <table>
             {% set multi = (c.metadata.servidores or []) | length > 1 %}
             <thead><tr><th>{{ _("Domínio") }}</th>{% if multi %}<th>{{ _("Servidor") }}</th>{% endif %}<th class="num">{{ _("Consultas") }}</th><th class="num">{{ _("Bloqueadas") }}</th><th>{{ _("Descoberto em") }}</th><th>{{ _("Última") }}</th><th></th></tr></thead>
-            <tbody>
+            <tbody data-search-body="dns-domains">
               {% for d in c.metadata.dominios %}
                 {% set ign = dns_is_ignored(d.dominio) %}
                 <tr{% if ign %} class="dns-ignored-row" hidden{% endif %}>
@@ -386,7 +392,10 @@
     <div class="dns-ignored" id="dns-ignored"{% if has_domains %} hidden{% endif %}>
       <div class="panel-head">
         <h3>{{ _("Domínios ignorados") }} <span class="muted">({{ dns_ignored | length }})</span></h3>
-        {% if not has_domains %}<button type="button" class="btn btn-ghost btn-sm dns-ignore-add">{{ _("Ignorar domínio…") }}</button>{% endif %}
+        <div class="actions">
+          {% if dns_ignored %}<input type="search" class="table-search" data-table-search="dns-ignored" maxlength="200" placeholder="{{ _('Filtrar…') }}" aria-label="{{ _('Filtrar a tabela') }}">{% endif %}
+          {% if not has_domains %}<button type="button" class="btn btn-ghost btn-sm dns-ignore-add">{{ _("Ignorar domínio…") }}</button>{% endif %}
+        </div>
       </div>
       <p class="muted small">{{ _h("Domínios que você reconhece saem dos achados de DNS (aleatórios, bloqueados, novos e suspeitos) a partir da <strong>próxima varredura</strong> e não aparecem na tabela de domínios consultados.") }}</p>
       {% if not dns_ignored %}<p class="muted">{{ _("Nenhum domínio ignorado.") }}</p>{% endif %}
@@ -394,7 +403,7 @@
         <div class="table-wrap">
           <table>
             <thead><tr><th>{{ _("Domínio") }}</th><th>{{ _("Motivo") }}</th><th>{{ _("Incluído em") }}</th><th></th></tr></thead>
-            <tbody>
+            <tbody data-search-body="dns-ignored">
               {% for e in dns_ignored %}
                 <tr>
                   <td><code>{{ e.pattern }}</code></td>

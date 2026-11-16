@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.3
+
+- **Busca e realce da linha** também na lista de ignorados, na tabela de domínios do DNS e na lista
+  de domínios ignorados. A caixa "Filtrar…" mostra só as linhas com o texto digitado (em qualquer
+  coluna); clicar numa linha realça ela.
+
 ## 0.23.2
 
 - **Realce da linha clicada** nas tabelas de componentes e de domínios do DNS. Clicar em outra

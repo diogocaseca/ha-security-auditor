@@ -505,6 +505,8 @@ EN: dict[str, str] = {
         "Component {nome}: the current findings at the levels ticked below. New findings keep showing up and the "
         "component is still scanned.",
     "Filtrar por nome…": "Filter by name…",
+    "Filtrar…": "Filter…",
+    "Filtrar a tabela": "Filter the table",
     "Filtrar componentes pelo nome": "Filter components by name",
     "Ignorar": "Ignore",
     # --- JavaScript ---

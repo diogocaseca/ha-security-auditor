@@ -171,13 +171,24 @@
 
   // --- Realce da linha clicada (tabela de componentes e tabela de domínios do DNS) -------
   // Um clique realça a linha; outro clique nela tira o realce. Botões e links da linha seguem normais.
-  document.querySelectorAll("#components tbody, .dns-main-table tbody").forEach((body) =>
+  document.querySelectorAll("#components tbody, [data-search-body]").forEach((body) =>
     body.addEventListener("click", (ev) => {
       const row = ev.target.closest("tr");
       if (!row || ev.target.closest("button, a, input, select, label")) return;
       const on = !row.classList.contains("row-selected");
       body.querySelectorAll("tr.row-selected").forEach((r) => r.classList.remove("row-selected"));
       row.classList.toggle("row-selected", on);
+    }));
+
+  // --- Busca nas tabelas (lista de ignorados, domínios do DNS e domínios ignorados) --------
+  // Esconde as linhas sem o texto (classe própria: não mexe nas linhas escondidas por outro motivo).
+  document.querySelectorAll("[data-table-search]").forEach((input) =>
+    input.addEventListener("input", () => {
+      const q = input.value.trim().toLowerCase();
+      document.querySelectorAll(`[data-search-body="${input.dataset.tableSearch}"]`).forEach((body) => {
+        body.querySelectorAll("tr").forEach((row) =>
+          row.classList.toggle("search-hidden", !!q && !row.textContent.toLowerCase().includes(q)));
+      });
     }));
 
   // --- Navegação entre o resumo e a tela de um componente --------------------------
