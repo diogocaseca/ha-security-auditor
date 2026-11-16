@@ -9,6 +9,7 @@ from typing import Any
 
 from jinja2 import Environment, FileSystemLoader, pass_context, select_autoescape
 
+from ..ai import finding_hosts
 from ..allowlist import skip_entry_for
 from ..i18n import HTML_LANG, Translator, normalize
 from ..models import ComponentType, ScanResult, Severity
@@ -145,6 +146,7 @@ def render_html(
         severity_labels=lambda keys: ", ".join(tr.t(sev_labels.get(k, k)) for k in keys),
         dns_ignored=dns_ignored or [],
         ai=ai,  # None = botão "Perguntar à IA" escondido (ia_provedor: desligado)
+        finding_hosts=finding_hosts,  # hosts de URLs e IPs nos trechos (botão "Perguntar à IA" nos achados)
         dns_ai=dns_ai or {},
         excluded=excluded or [],  # componentes tirados da tabela com "Excluir…"
         # Ignorado (fora da varredura) pela lista ATUAL: o relatório pode ser de antes de uma mudança na lista.

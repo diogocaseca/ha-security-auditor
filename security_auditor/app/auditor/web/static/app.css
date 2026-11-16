@@ -354,3 +354,5 @@ body.view-dns main > :not(#dns-view):not(.tabs) { display: none; }
 .excluded-list { margin-top: 10px; }
 .excluded-list ul { margin: 6px 0 0; padding-left: 18px; }
 .excluded-list li { margin: 4px 0; }
+.finding-hosts { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 6px 0; }
+.finding-host { display: inline-flex; gap: 6px; align-items: center; }

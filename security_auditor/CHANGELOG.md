@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.25.0
+
+- **Perguntar à IA nos achados:** quando o trecho de código de um achado tem uma URL ou um IP, ele
+  ganha o botão **Perguntar à IA sobre <host>** (um por host, até 5). A resposta usa a mesma
+  janela e o mesmo cache da aba DNS e aparece como selo "IA: …" no achado.
+- Só o host sai do add-on: da URL, caminho, query (onde ficam tokens) e usuário/senha ficam de
+  fora. IPs da rede local, nomes locais e endereços de documentação não são oferecidos. A API só
+  aceita domínios vistos no DNS ou hosts dos achados do relatório mais recente.
+
 ## 0.24.0
 
 - **Perguntar à IA sobre todos…:** novo botão no topo da tabela de domínios do DNS (com a IA

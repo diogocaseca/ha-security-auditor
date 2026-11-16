@@ -16,7 +16,7 @@ from typing import Any
 from aiohttp import web
 
 from .. import blocklist_update
-from ..ai import AiError, check_domain
+from ..ai import AiError, check_domain, finding_hosts
 from ..allowlist import reapply, skips_whole_component
 from ..blocklist import BlocklistError, validate_item
 from ..config import AllowlistEntry
@@ -422,6 +422,10 @@ def create_app(
         _LOGGER.info("Domínio removido da lista de ignorados do DNS: #%d", entry_id)
         return web.Response(status=204)
 
+    def _finding_hosts() -> set[str]:
+        result = storage.load_latest()
+        return {h for f in (result.findings if result else []) for h in finding_hosts(f.snippet)}
+
     async def ask_ai(request: web.Request) -> web.Response:
         """Pergunta à IA sobre um domínio da tabela de DNS ({"dominio", "refazer"}).
 
@@ -436,10 +440,13 @@ def create_app(
         except ValueError as err:
             msg = err.args[0] if err.args and isinstance(err.args[0], Bi) else Bi("JSON inválido", "Invalid JSON")
             return web.json_response({"error": await _say(msg)}, status=400)
-        # Só domínios que o auditor viu nas consultas do HA: o botão não vira um consultor genérico.
-        if domain not in await asyncio.to_thread(storage.known_dns_domains):
-            return web.json_response({"error": await _say(Bi("Este domínio não está na tabela de DNS",
-                                                             "This domain is not in the DNS table"))}, status=404)
+        # Só domínios que o auditor viu nas consultas do HA ou hosts dos achados do relatório mais recente:
+        # o botão não vira um consultor genérico.
+        if domain not in await asyncio.to_thread(storage.known_dns_domains) \
+                and domain not in await asyncio.to_thread(_finding_hosts):
+            return web.json_response({"error": await _say(Bi("Este domínio ou IP não está no DNS nem nos achados",
+                                                             "This domain or IP is not in DNS or in the findings"))},
+                                     status=404)
         cached = (await asyncio.to_thread(storage.dns_ai, domain)).get(domain)
         if cached and not body.get("refazer"):
             return web.json_response({**cached, "dominio": domain, "guardada": True})

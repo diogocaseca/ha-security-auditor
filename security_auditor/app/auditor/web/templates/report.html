@@ -242,6 +242,13 @@
               <div><dt>{{ _("Regra") }}</dt><dd><code>{{ f.rule_id }}</code> <span class="muted">· {% for src in (f.extra.sources or [f.source]) %}{{ src_label(src) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></dd></div>
             </dl>
             {% if f.snippet %}<pre class="snippet"><code>{{ ftext(f, 'snippet') }}</code></pre>{% endif %}
+            {% if ai and viewing_latest %}{% set hosts = finding_hosts(f.snippet) %}{% if hosts %}
+              <p class="finding-hosts small">
+                {% for h in hosts %}{% set q = dns_ai.get(h) %}
+                  <span class="finding-host"><button type="button" class="btn btn-ghost btn-sm" data-dns-ai="{{ h }}"{% if q %} data-ai-saved="1"{% endif %}>{{ _("Perguntar à IA sobre {host}", host=h) }}</button>{% if q %}<span class="badge {{ ai_badge.get(q.veredito, 'badge-muted') }}" title="{{ _('Opinião da IA ({modelo})', modelo=q.modelo) }}">{{ _("IA:") }} {{ ai_verdicts.get(q.veredito, q.veredito) }}</span>{% endif %}</span>
+                {% endfor %}
+              </p>
+            {% endif %}{% endif %}
             <p class="why"><strong>{{ _("Por que é suspeito:") }}</strong> {{ ftext(f, 'explanation') }}</p>
             <p class="todo"><strong>{{ _("O que fazer:") }}</strong> {{ ftext(f, 'recommendation') }}</p>
             {% if f.extra.evidencias %}
@@ -625,7 +632,7 @@
       <p class="muted small" id="dns-ai-meta"></p>
     </div>
     <p class="error small" id="dns-ai-error" hidden></p>
-    <p class="notice small">{{ _("Só o nome do domínio é enviado ao {provedor}, e só quando você pede. A resposta é a opinião de um modelo de linguagem: pode errar e não substitui a sua verificação.", provedor=ai.label) }}</p>
+    <p class="notice small">{{ _("Só o host (nome do domínio ou IP) é enviado ao {provedor}, e só quando você pede. A resposta é a opinião de um modelo de linguagem: pode errar e não substitui a sua verificação.", provedor=ai.label) }}</p>
     <div class="dialog-actions">
       <button type="button" class="btn btn-ghost" id="dns-ai-again">{{ _("Perguntar de novo") }}</button>
       <button type="button" class="btn btn-primary" id="dns-ai-close">{{ _("Fechar") }}</button>

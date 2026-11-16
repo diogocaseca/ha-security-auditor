@@ -1,5 +1,5 @@
 name: HA Security Auditor
-version: "0.24.0"
+version: "0.25.0"
 slug: security_auditor
 description: >-
   Audita integrações customizadas (HACS) e add-ons instalados e gera um

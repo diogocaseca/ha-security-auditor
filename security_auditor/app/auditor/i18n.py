@@ -424,8 +424,10 @@ EN: dict[str, str] = {
     "Perguntar de novo": "Ask again",
     "Ignorados": "Ignored",
     "Fechar": "Close",
-    "Só o nome do domínio é enviado ao {provedor}, e só quando você pede. A resposta é a opinião de um modelo de linguagem: pode errar e não substitui a sua verificação.":
-        "Only the domain name is sent to {provedor}, and only when you ask. The answer is a language model's opinion: it can be wrong and does not replace your own check.",
+    "Só o host (nome do domínio ou IP) é enviado ao {provedor}, e só quando você pede. A resposta é a opinião de um modelo de linguagem: pode errar e não substitui a sua verificação.":
+        "Only the host (domain name or IP) is sent to {provedor}, and only when you ask. The answer is a language "
+        "model's opinion: it can be wrong and does not replace your own check.",
+    "Perguntar à IA sobre {host}": "Ask the AI about {host}",
     "Consultando o {provedor}…": "Asking {provedor}…",
     "Não foi possível consultar a IA (HTTP {status}).": "Could not ask the AI (HTTP {status}).",
     "Não foi possível consultar a IA.": "Could not ask the AI.",

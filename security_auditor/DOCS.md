@@ -259,8 +259,9 @@ verdict with a short explanation. It is the only feature that sends something ou
 so it follows strict rules:
 
 - it is **off by default** and only runs when you click the button;
-- it sends **only the domain name** (no IPs, counts, components or configuration), and only for
-  domains the auditor saw in HA's queries;
+- it sends **only the host** (a domain name or an IP; no counts, components, paths, tokens or
+  configuration), and only for domains the auditor saw in HA's queries or hosts that appear in the
+  findings;
 - the connection only accepts the chosen provider's host, and the key never shows in logs.
 
 The answer is saved and shows as an "AI: …" badge on the domain's row; clicking again shows the
@@ -271,6 +272,13 @@ by clicking it again, and stops at the first error. The answer is a language
 model's opinion, based on what it learned during training (it does not browse the web): it can be
 wrong, it does not know very new domains, and it does not create findings or decide anything on its
 own. Usage is billed by the provider to your account.
+
+The same button shows up **in the findings**: when a finding's code snippet has a URL or an IP, it
+gets **Ask the AI about <host>**, one button per host (up to 5). Only the host leaves the add-on:
+from `https://user:pass@api.example.com/v1?token=…` only `api.example.com` is sent; the path, the
+query string (where tokens hide) and the user/password stay out. Local network IPs (192.168.x,
+10.x, 127.x…), local names (`.local`, `localhost`…) and documentation addresses are not offered.
+For loose IPs the answer is usually "unknown", because IPs change owners often.
 
 Pi-hole v5 is not supported (old API).
 
@@ -669,7 +677,7 @@ outbound connections are downloads and queries to vulnerability databases, plus 
 | Image registries (`ghcr.io`, Docker Hub and whichever registry each add-on uses) | Download image manifests and layers | Trivy |
 | `mirror.gcr.io`, `ghcr.io` | Download Trivy's vulnerability database | Trivy |
 | The `adguard_url` and `pihole_url` hosts | Read your DNS servers' query log (optional) | Auditor (Python) |
-| `generativelanguage.googleapis.com` (Gemini) or `api.anthropic.com` (Claude) | Only with `ia_provedor` set and only when you click **Ask the AI**: sends **only the domain name** | Auditor (Python) |
+| `generativelanguage.googleapis.com` (Gemini) or `api.anthropic.com` (Claude) | Only with `ia_provedor` set and only when you click **Ask the AI**: sends **only the host (domain or IP) name** | Auditor (Python) |
 
 In the Python code, every connection goes through a single client that requires HTTPS and checks
 the host of every request **and every redirect** against the list above. The GitHub token is only

@@ -264,8 +264,9 @@ mostra o veredito com uma explicação curta. É o único recurso que manda algo
 por isso segue regras estritas:
 
 - vem **desligado** e só roda quando você clica no botão;
-- envia **só o nome do domínio** (nada de IPs, contagens, componentes ou configuração), e só de
-  domínios que o auditor viu nas consultas do HA;
+- envia **só o host** (nome de domínio ou IP; nada de contagens, componentes, caminhos, tokens ou
+  configuração), e só de domínios que o auditor viu nas consultas do HA ou de hosts que aparecem
+  nos achados;
 - a conexão só aceita o host do provedor escolhido, e a chave nunca aparece nos logs.
 
 A resposta fica guardada e aparece como selo "IA: …" na linha do domínio; clicar de novo mostra a
@@ -276,6 +277,13 @@ pode ser interrompido clicando nele de novo e para no primeiro erro. A resposta 
 opinião de um modelo de linguagem, baseada no que ele aprendeu no treinamento (não navega na
 internet): pode errar, não conhece domínios muito novos e não gera achados nem decide nada
 sozinha. O uso é cobrado pelo provedor, na sua conta.
+
+O mesmo botão aparece **nos achados**: quando o trecho de código de um achado tem uma URL ou um IP,
+ele ganha **Perguntar à IA sobre <host>**, um botão por host (até 5). Só o host sai do add-on: de
+`https://usuario:senha@api.exemplo.com/v1?token=…` sai só `api.exemplo.com`; caminho, query (onde
+ficam tokens) e usuário/senha ficam de fora. IPs da rede local (192.168.x, 10.x, 127.x…), nomes
+locais (`.local`, `localhost`…) e endereços de documentação não são oferecidos. Para IP solto a
+resposta costuma ser "desconhecido", porque IPs mudam de dono com frequência.
 
 O Pi-hole v5 não é suportado (API antiga).
 
@@ -669,7 +677,7 @@ O auditor **nunca envia dados da sua instalação para serviços externos por co
 | Registros das imagens (`ghcr.io`, Docker Hub e o registro que cada add-on usar) | Baixar manifesto e camadas das imagens | Trivy |
 | `mirror.gcr.io`, `ghcr.io` | Baixar a base de vulnerabilidades do Trivy | Trivy |
 | Os hosts de `adguard_url` e `pihole_url` | Ler o log de consultas dos seus servidores DNS (Fase 3, opcional) | Auditor (Python) |
-| `generativelanguage.googleapis.com` (Gemini) ou `api.anthropic.com` (Claude) | Só com `ia_provedor` preenchido e só quando você clica em **Perguntar à IA**: envia **só o nome do domínio** | Auditor (Python) |
+| `generativelanguage.googleapis.com` (Gemini) ou `api.anthropic.com` (Claude) | Só com `ia_provedor` preenchido e só quando você clica em **Perguntar à IA**: envia **só o host (domínio ou IP)** | Auditor (Python) |
 
 No código Python, toda conexão passa por um cliente único que exige HTTPS e confere o host de
 cada requisição **e de cada redirecionamento** contra a lista acima. O token do GitHub só é

