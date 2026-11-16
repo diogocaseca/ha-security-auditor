@@ -355,6 +355,7 @@
           <div class="actions">
             <button type="button" class="btn btn-ghost btn-sm dns-ignore-add">{{ _("Ignorar domínio…") }}</button>
             <button type="button" class="btn btn-ghost btn-sm dns-ignore-all">{{ _("Ignorar todos…") }}</button>
+            {% if ai %}<button type="button" class="btn btn-ghost btn-sm dns-ai-all" data-provider="{{ ai.label }}">{{ _("Perguntar à IA sobre todos…") }}</button>{% endif %}
           </div>
         </div>
         <p class="notice notice-warn">{{ mtext(c.metadata, 'aviso') }}</p>
@@ -380,7 +381,7 @@
                   <td class="num">{{ d.bloqueadas or '' }}</td>
                   <td>{{ d.descoberto | dt }}</td>
                   <td>{{ d.ultima | dt }}</td>
-                  <td class="dns-actions">{% if ai %}<button type="button" class="btn btn-ghost btn-sm" data-dns-ai="{{ d.dominio }}">{{ _("Perguntar à IA") }}</button>{% endif %}{% if not ign %}<button type="button" class="btn btn-ghost btn-sm" data-dns-ignore="{{ d.dominio }}">{{ _("Ignorar…") }}</button>{% endif %}</td>
+                  <td class="dns-actions">{% if ai %}<button type="button" class="btn btn-ghost btn-sm" data-dns-ai="{{ d.dominio }}"{% if dns_ai.get(d.dominio) %} data-ai-saved="1"{% endif %}>{{ _("Perguntar à IA") }}</button>{% endif %}{% if not ign %}<button type="button" class="btn btn-ghost btn-sm" data-dns-ignore="{{ d.dominio }}">{{ _("Ignorar…") }}</button>{% endif %}</td>
                 </tr>
               {% endfor %}
             </tbody>

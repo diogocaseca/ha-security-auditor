@@ -763,6 +763,47 @@
       againBtn.disabled = false;
     }
   }
+  // "Perguntar à IA sobre todos": uma pergunta por vez, só domínios visíveis e ainda sem resposta.
+  // Clicar de novo durante as perguntas para depois da atual.
+  document.querySelectorAll(".dns-ai-all").forEach((all) => {
+    const label = all.textContent;
+    let running = false;
+    let stop = false;
+    all.addEventListener("click", async () => {
+      if (running) { stop = true; all.textContent = T("Parando…"); return; }
+      const table = all.closest(".dns-domains");
+      const pending = Array.from(table.querySelectorAll("[data-dns-ai]"))
+        .filter((b) => !b.dataset.aiSaved && !b.closest("tr").hidden && !b.closest("tr").classList.contains("search-hidden"))
+        .map((b) => b.dataset.dnsAi);
+      if (!pending.length) {
+        window.alert(T("Todos os domínios visíveis já têm resposta da IA."));
+        return;
+      }
+      if (!window.confirm(T("Perguntar ao {provedor} sobre {n} domínio(s)? Só o nome de cada domínio é enviado, uma pergunta por vez. O uso é cobrado pelo provedor, na sua conta.",
+        { provedor: all.dataset.provider, n: pending.length }))) return;
+      running = true;
+      stop = false;
+      let done = 0;
+      let error = null;
+      for (const dominio of pending) {
+        if (stop) break;
+        all.textContent = T("Perguntando {i} de {n}… (clique para parar)", { i: done + 1, n: pending.length });
+        try {
+          const resp = await post("api/dns/ia", { dominio });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) { error = data.error || "HTTP " + resp.status; break; }
+          done++;
+        } catch (e) {
+          error = e.message;
+          break;
+        }
+      }
+      running = false;
+      all.textContent = label;
+      if (error) window.alert(T("Parou depois de {n} resposta(s): {erro}", { n: done, erro: error }));
+      if (done) window.location.reload();
+    });
+  });
   document.querySelectorAll("[data-dns-ai]").forEach((b) =>
     b.addEventListener("click", () => askAi(b.dataset.dnsAi, false)));
   document.getElementById("dns-ai-again")?.addEventListener("click", () => { if (aiDomain) askAi(aiDomain, true); });

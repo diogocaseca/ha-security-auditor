@@ -264,7 +264,10 @@ so it follows strict rules:
 - the connection only accepts the chosen provider's host, and the key never shows in logs.
 
 The answer is saved and shows as an "AI: …" badge on the domain's row; clicking again shows the
-saved answer at no cost, and **Ask again** queries the provider again. The answer is a language
+saved answer at no cost, and **Ask again** queries the provider again. **Ask the AI about all…** at
+the top of the table asks about every visible domain (it follows the table filter) that has no
+saved answer yet, one at a time: it says how many first and asks for confirmation, can be stopped
+by clicking it again, and stops at the first error. The answer is a language
 model's opinion, based on what it learned during training (it does not browse the web): it can be
 wrong, it does not know very new domains, and it does not create findings or decide anything on its
 own. Usage is billed by the provider to your account.

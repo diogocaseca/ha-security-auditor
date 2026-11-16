@@ -269,7 +269,10 @@ por isso segue regras estritas:
 - a conexão só aceita o host do provedor escolhido, e a chave nunca aparece nos logs.
 
 A resposta fica guardada e aparece como selo "IA: …" na linha do domínio; clicar de novo mostra a
-resposta guardada sem custo, e **Perguntar de novo** consulta o provedor outra vez. A resposta é a
+resposta guardada sem custo, e **Perguntar de novo** consulta o provedor outra vez. **Perguntar à IA
+sobre todos…**, no topo da tabela, pergunta por todos os domínios visíveis (respeita o filtro da
+tabela) que ainda não têm resposta guardada, um por vez: antes diz quantos são e pede confirmação,
+pode ser interrompido clicando nele de novo e para no primeiro erro. A resposta é a
 opinião de um modelo de linguagem, baseada no que ele aprendeu no treinamento (não navega na
 internet): pode errar, não conhece domínios muito novos e não gera achados nem decide nada
 sozinha. O uso é cobrado pelo provedor, na sua conta.

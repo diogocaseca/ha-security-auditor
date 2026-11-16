@@ -155,6 +155,9 @@ class Translator:
 
 # Textos usados pelo app.js (passados para a página como JSON).
 JS_KEYS = (
+    "Parando…", "Todos os domínios visíveis já têm resposta da IA.",
+    "Perguntar ao {provedor} sobre {n} domínio(s)? Só o nome de cada domínio é enviado, uma pergunta por vez. O uso é cobrado pelo provedor, na sua conta.",
+    "Perguntando {i} de {n}… (clique para parar)", "Parou depois de {n} resposta(s): {erro}",
     "Excluir {nome} da tabela? Ele deixa de ser analisado e só volta se for reinstalado ou atualizado. Os arquivos não são apagados.",
     "Não foi possível excluir: {erro}", "Restaurado: o componente volta à tabela na próxima varredura.",
     "Não foi possível restaurar.",
@@ -403,6 +406,14 @@ EN: dict[str, str] = {
     "verificação de instalação/atualização": "install/update check",
     "verificação de DNS": "DNS check",
     "Perguntar à IA": "Ask the AI",
+    "Perguntar à IA sobre todos…": "Ask the AI about all…",
+    "Parando…": "Stopping…",
+    "Todos os domínios visíveis já têm resposta da IA.": "Every visible domain already has an AI answer.",
+    "Perguntar ao {provedor} sobre {n} domínio(s)? Só o nome de cada domínio é enviado, uma pergunta por vez. O uso é cobrado pelo provedor, na sua conta.":
+        "Ask {provedor} about {n} domain(s)? Only each domain name is sent, one question at a time. Usage is billed "
+        "by the provider, to your account.",
+    "Perguntando {i} de {n}… (clique para parar)": "Asking {i} of {n}… (click to stop)",
+    "Parou depois de {n} resposta(s): {erro}": "Stopped after {n} answer(s): {erro}",
     "Opinião da IA": "AI opinion",
     "Opinião da IA ({modelo})": "AI opinion ({modelo})",
     "IA:": "AI:",

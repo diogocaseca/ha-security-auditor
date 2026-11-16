@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.24.0
+
+- **Perguntar à IA sobre todos…:** novo botão no topo da tabela de domínios do DNS (com a IA
+  configurada). Pergunta pelos domínios visíveis que ainda não têm resposta guardada, um por vez,
+  depois de mostrar quantos são e pedir confirmação. Dá para parar clicando de novo; para no
+  primeiro erro (chave recusada, limite de uso etc.).
+
 ## 0.23.3
 
 - **Busca e realce da linha** também na lista de ignorados, na tabela de domínios do DNS e na lista

@@ -158,7 +158,7 @@ def test_page_button_only_when_configured():
 
     result = _result_with(["pool.supportxmr.com", "outro.com"])
     off = render_html(result, status={}, history=[], csrf_token="t", lang="en")
-    assert "data-dns-ai=" not in off and "dns-ai-dialog" not in off
+    assert "data-dns-ai=" not in off and "dns-ai-dialog" not in off and "dns-ai-all" not in off
     cached = {"pool.supportxmr.com": {"veredito": "malicioso", "explicacao": "x", "provedor": "claude",
                                       "modelo": "claude-opus-5-5", "idioma": "pt", "data": "2026-11-13"}}
     on = render_html(result, status={}, history=[], csrf_token="t", lang="en",
@@ -166,6 +166,9 @@ def test_page_button_only_when_configured():
     assert 'data-dns-ai="outro.com"' in on and "Ask the AI" in on
     assert 'class="badge sev-critical"' in on and "AI: Malicious" in on
     assert "Only the domain name is sent to Claude" in on
+    # "Perguntar sobre todos" pula quem já tem resposta guardada.
+    assert 'class="btn btn-ghost btn-sm dns-ai-all" data-provider="Claude">Ask the AI about all…' in on
+    assert 'data-dns-ai="pool.supportxmr.com" data-ai-saved="1"' in on and 'data-dns-ai="outro.com">' in on
 
 
 @pytest.fixture
