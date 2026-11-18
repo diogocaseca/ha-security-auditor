@@ -155,6 +155,9 @@ class Translator:
 
 # Textos usados pelo app.js (passados para a página como JSON).
 JS_KEYS = (
+    "Ignorar selecionados ({n})…", "Os {n} domínios selecionados: {lista}", "Ignorar domínios selecionados",
+    "Ignorar achados selecionados",
+    "{n} achado(s) selecionado(s) de {nome}. Achados iguais continuam escondidos; achados novos continuam aparecendo.",
     "Parando…", "Todos os domínios visíveis já têm resposta da IA.",
     "Perguntar ao {provedor} sobre {n} domínio(s)? Só o nome de cada domínio é enviado, uma pergunta por vez. O uso é cobrado pelo provedor, na sua conta.",
     "Perguntando {i} de {n}… (clique para parar)", "Parou depois de {n} resposta(s): {erro}",
@@ -510,6 +513,16 @@ EN: dict[str, str] = {
     "Componente {nome}.": "Component {nome}.",
     "Ignorar componente": "Ignore component",
     "Ignorar achados…": "Ignore findings…",
+    "Selecionar todos os domínios visíveis": "Select all visible domains",
+    "Selecionar {dominio}": "Select {dominio}",
+    "Ignorar selecionados ({n})…": "Ignore selected ({n})…",
+    "Os {n} domínios selecionados: {lista}": "The {n} selected domains: {lista}",
+    "Ignorar domínios selecionados": "Ignore selected domains",
+    "Selecionar todos": "Select all",
+    "Selecionar este achado": "Select this finding",
+    "Ignorar achados selecionados": "Ignore selected findings",
+    "{n} achado(s) selecionado(s) de {nome}. Achados iguais continuam escondidos; achados novos continuam aparecendo.":
+        "{n} selected finding(s) of {nome}. Identical findings stay hidden; new findings keep showing up.",
     "Ignorar achados por nível…": "Ignore findings by level…",
     "Não está mais ignorado: volta a ser analisado na próxima varredura.":
         "No longer ignored: it is scanned again on the next scan.",

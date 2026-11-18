@@ -356,3 +356,6 @@ body.view-dns main > :not(#dns-view):not(.tabs) { display: none; }
 .excluded-list li { margin: 4px 0; }
 .finding-hosts { display: flex; flex-wrap: wrap; gap: 6px 12px; margin: 6px 0; }
 .finding-host { display: inline-flex; gap: 6px; align-items: center; }
+th.col-select, td.col-select { width: 28px; padding-right: 0; }
+.col-select input { margin: 0; cursor: pointer; }
+.finding header .finding-select { margin: 0 2px 0 0; cursor: pointer; }

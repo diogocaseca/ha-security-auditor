@@ -212,6 +212,8 @@
           <label><input type="checkbox" id="filter-suppressed"> {{ _("Mostrar suprimidos") }}</label>
           <button type="button" class="btn btn-ghost btn-sm" id="filter-clear">{{ _("Limpar filtros") }}</button>
           {% if viewing_latest %}<button type="button" class="btn btn-ghost btn-sm" id="ignore-view-levels">{{ _("Ignorar achados por nível…") }}</button>{% endif %}
+          {% if viewing_latest %}<label class="small" id="findings-select-all-wrap"><input type="checkbox" id="findings-select-all"> {{ _("Selecionar todos") }}</label>
+          <button type="button" class="btn btn-primary btn-sm" id="findings-ignore-selected" hidden></button>{% endif %}
         </div>
       </div>
       <div id="findings">
@@ -222,6 +224,7 @@
                    data-rule="{{ f.rule_id }}" data-file="{{ f.file or '' }}" data-fingerprint="{{ f.fingerprint }}"
                    data-title="{{ ftext(f, 'title') }}">
             <header>
+              {% if viewing_latest and not f.suppressed %}<input type="checkbox" class="finding-select" value="{{ f.fingerprint }}" aria-label="{{ _('Selecionar este achado') }}">{% endif %}
               <span class="badge sev-{{ f.severity.key }}">{{ _(f.severity.label) }}</span>
               {% if f.is_new %}<span class="badge badge-new">{{ _("Novo") }}</span>{% endif %}
               {% if f.suppressed %}<span class="badge badge-muted">{{ _("Suprimido") }}</span>{% endif %}
@@ -361,6 +364,7 @@
           </div>
           <div class="actions">
             <button type="button" class="btn btn-ghost btn-sm dns-ignore-add">{{ _("Ignorar domínio…") }}</button>
+            <button type="button" class="btn btn-primary btn-sm dns-ignore-selected" hidden></button>
             <button type="button" class="btn btn-ghost btn-sm dns-ignore-all">{{ _("Ignorar todos…") }}</button>
             {% if ai %}<button type="button" class="btn btn-ghost btn-sm dns-ai-all" data-provider="{{ ai.label }}">{{ _("Perguntar à IA sobre todos…") }}</button>{% endif %}
           </div>
@@ -376,11 +380,12 @@
         <div class="table-wrap dns-main-table">
           <table>
             {% set multi = (c.metadata.servidores or []) | length > 1 %}
-            <thead><tr><th>{{ _("Domínio") }}</th>{% if multi %}<th>{{ _("Servidor") }}</th>{% endif %}<th class="num">{{ _("Consultas") }}</th><th class="num">{{ _("Bloqueadas") }}</th><th>{{ _("Descoberto em") }}</th><th>{{ _("Última") }}</th><th></th></tr></thead>
+            <thead><tr><th class="col-select"><input type="checkbox" class="dns-select-all" aria-label="{{ _('Selecionar todos os domínios visíveis') }}"></th><th>{{ _("Domínio") }}</th>{% if multi %}<th>{{ _("Servidor") }}</th>{% endif %}<th class="num">{{ _("Consultas") }}</th><th class="num">{{ _("Bloqueadas") }}</th><th>{{ _("Descoberto em") }}</th><th>{{ _("Última") }}</th><th></th></tr></thead>
             <tbody data-search-body="dns-domains">
               {% for d in c.metadata.dominios %}
                 {% set ign = dns_is_ignored(d.dominio) %}
                 <tr{% if ign %} class="dns-ignored-row" hidden{% endif %}>
+                  <td class="col-select">{% if not ign %}<input type="checkbox" class="dns-select" value="{{ d.dominio }}" aria-label="{{ _('Selecionar {dominio}', dominio=d.dominio) }}">{% endif %}</td>
                   <td><code>{{ d.dominio }}</code>{% if d.novo %} <span class="badge badge-new">{{ _("Novo") }}</span>{% endif %}
                     {% set q = dns_ai.get(d.dominio) %}{% if q %} <span class="badge {{ ai_badge.get(q.veredito, 'badge-muted') }}" title="{{ _('Opinião da IA ({modelo})', modelo=q.modelo) }}">{{ _("IA:") }} {{ ai_verdicts.get(q.veredito, q.veredito) }}</span>{% endif %}</td>
                   {% if multi %}<td>{{ _('ambos') if (d.servidores or []) | length > 1 else (d.servidores or ['—']) | first }}</td>{% endif %}

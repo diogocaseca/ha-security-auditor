@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.27.0
+
+- **Seleção para ignorar** na tabela de domínios do DNS e na lista de achados: caixa de seleção em
+  cada linha/achado, caixa para selecionar todos os visíveis (respeita a busca e os filtros) e o
+  botão **Ignorar selecionados (n)…**, com um motivo só.
+- Os achados selecionados viram um único item da lista de ignorados; cada um funciona como "Só
+  este achado" (achados iguais continuam escondidos e os novos aparecem).
+
 ## 0.26.0
 
 - **Integridade com manifest desatualizado:** quando o HACS não informa a versão instalada e os

@@ -225,7 +225,9 @@ segundo só vê o primeiro como cliente e essas consultas não entram de novo.
 
 Com **Ignorar todos…** (ao lado do título da tabela), todos os domínios da tabela que ainda não
 estão ignorados vão para a lista de uma vez, com um motivo só. Confira a lista antes: domínios
-ignorados deixam de gerar achados, inclusive de mineração e exfiltração.
+ignorados deixam de gerar achados, inclusive de mineração e exfiltração. Para ignorar só alguns,
+marque as caixas deles (a caixa do cabeçalho marca todas as linhas visíveis) e use **Ignorar
+selecionados (n)…**.
 
 A tabela de domínios mostra **primeiro os descobertos por último** (data da primeira consulta que
 o auditor viu), com os mais consultados como desempate, até 150 domínios.
@@ -434,6 +436,11 @@ juntos:
 | Esta regra neste arquivo | Todos os achados da regra naquele arquivo. |
 | Esta regra em todo o componente | Todos os achados da regra no componente. |
 | Esta regra em todos os componentes | A regra inteira, em qualquer componente. |
+
+Para ignorar vários achados de uma vez, marque as caixas deles na tela de achados do componente
+(**Selecionar todos** marca os visíveis) e use **Ignorar selecionados (n)…**: eles viram um único
+item da lista, e cada um funciona como "Só este achado" (achados iguais continuam escondidos; os
+novos aparecem).
 
 Também dá para ignorar a partir da **tabela de componentes**:
 

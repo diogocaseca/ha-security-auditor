@@ -541,3 +541,27 @@ async def test_row_follows_current_ignore_list_not_old_report(ignore_client):
     storage.add_ignored(component="outra", rule="*", reason="meu", created_at="t", skip=True)
     html = await (await client.get("/")).text()
     assert 'data-filter-component="outra"' not in html and 'data-ignore-component="outra"' not in html
+
+
+async def test_ignore_selected_findings(ignore_client):
+    """Achados escolhidos nas caixas de seleção viram um item só; os iguais seguem escondidos."""
+    client, token, storage, engine, _ = ignore_client
+    latest = storage.load_latest()
+    mine = [f for f in latest.findings if f.component == "minha_integracao"]
+    other = next(f for f in latest.findings if f.component == "outra")
+    html = await (await client.get("/")).text()
+    assert f'class="finding-select" value="{mine[0].fingerprint}"' in html and 'id="findings-select-all"' in html
+
+    bad = await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                            json={"component": "minha_integracao", "rule": "*", "reason": "x", "achados": ["xyz"]})
+    assert bad.status == 400
+    # Achado de outro componente não entra num item deste componente.
+    resp = await client.post("/api/ignored", headers={CSRF_HEADER: token},
+                             json={"component": "minha_integracao", "rule": "*", "reason": "revisados",
+                                   "achados": [mine[0].fingerprint, other.fingerprint]})
+    assert resp.status == 201
+    (entry,) = [e for e in storage.ignore_entries() if e.fingerprints]
+    assert entry.fingerprints == frozenset({mine[0].fingerprint})
+    result = await engine.run()
+    hidden = {f.fingerprint for f in result.findings if f.suppressed}
+    assert hidden == {mine[0].fingerprint}

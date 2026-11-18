@@ -133,12 +133,20 @@ def parse_ignore_entry(body: Any) -> dict[str, Any]:
     every_level = not severities or len(severities) == len(_SEVERITY_KEYS)
     if len(severities) == len(_SEVERITY_KEYS):
         severities = ()  # todos os níveis = sem restrição de nível
+    chosen = body.get("achados")
+    if chosen is not None:
+        # Achados escolhidos na lista (caixas de seleção): um item com as impressões deles.
+        if (not isinstance(chosen, list) or not chosen or len(chosen) > MAX_FINGERPRINTS
+                or not all(isinstance(x, str) and _FINGERPRINT.match(x) for x in chosen)):
+            raise InvalidEntryError(Bi("Lista de achados inválida", "Invalid list of findings"))
+        return {**out, "rule": "*", "path": None, "fingerprint": None, "severities": (), "skip": False,
+                "current": False, "chosen": tuple(dict.fromkeys(chosen))}
     if body.get("achados_atuais") is True:
         # Ignorar níveis: só os achados de agora (a lista de impressões é montada com o relatório mais recente).
         if fp or out["path"]:
             raise InvalidEntryError(Bi("Pedido inválido", "Invalid request"))
         return {**out, "rule": "*", "path": None, "fingerprint": None, "title": None, "severities": severities,
-                "skip": False, "current": True}
+                "skip": False, "current": True, "chosen": ()}
     skip = body.get("nao_analisar") is True
     if skip:
         # "Não analisar": o componente inteiro sai da varredura; não combina com regra, arquivo ou nível.
@@ -146,11 +154,11 @@ def parse_ignore_entry(body: Any) -> dict[str, Any]:
             raise InvalidEntryError(Bi("Informe o nome do componente que não deve ser analisado",
                                        "Provide the name of the component that should not be scanned"))
         return {**out, "rule": "*", "path": None, "fingerprint": None, "title": None, "severities": (),
-                "skip": True, "current": False}
+                "skip": True, "current": False, "chosen": ()}
     if out["component"] == "*" and out["rule"] == "*" and not out["path"] and not fp and every_level:
         raise InvalidEntryError(Bi("Componente e regra \"*\" em todos os níveis ignorariam tudo; restrinja algum deles",
                                    "Component and rule \"*\" at every level would ignore everything; narrow one of them"))
-    return {**out, "severities": severities, "skip": False, "current": False}
+    return {**out, "severities": severities, "skip": False, "current": False, "chosen": ()}
 
 
 def _allowed_peers() -> set[ipaddress.IPv4Address | ipaddress.IPv6Address]:
@@ -266,6 +274,13 @@ def create_app(
         accepted = scheduler.cancel_scan()
         return web.json_response({"accepted": accepted}, status=202 if accepted else 409)
 
+    def _present_fingerprints(component: str, chosen: tuple[str, ...]) -> tuple[str, ...]:
+        """Das impressões escolhidas, só as de achados visíveis do componente no relatório mais recente."""
+        result = storage.load_latest()
+        present = {f.fingerprint for f in (result.findings if result else [])
+                   if not f.suppressed and (component == "*" or f.component == component)}
+        return tuple(fp for fp in chosen if fp in present)
+
     def _current_fingerprints(component: str, severities: tuple[str, ...]) -> tuple[str, ...]:
         """Impressões dos achados visíveis agora no relatório mais recente (componente e níveis)."""
         result = storage.load_latest()
@@ -304,6 +319,12 @@ def create_app(
             msg = await _say(err.args[0] if isinstance(err, InvalidEntryError) else Bi("JSON inválido", "Invalid JSON"))
             return web.json_response({"error": msg}, status=400)
         fingerprints: tuple[str, ...] = ()
+        if entry["chosen"]:
+            fingerprints = await asyncio.to_thread(_present_fingerprints, entry["component"], entry["chosen"])
+            if not fingerprints:
+                return web.json_response({"error": await _say(Bi("Nenhum dos achados escolhidos está no relatório mais "
+                                                                 "recente", "None of the chosen findings is in the "
+                                                                 "latest report"))}, status=400)
         if entry["current"]:
             fingerprints = await asyncio.to_thread(_current_fingerprints, entry["component"], entry["severities"])
             if not fingerprints:

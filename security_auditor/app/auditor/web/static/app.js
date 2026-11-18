@@ -24,6 +24,7 @@
   const SEV_KEYS = Object.keys(sevLabels);
   const state = { sev: new Set(), component: null, view: null, text: "", onlyNew: false, suppressed: false,
                   hideEmpty: true, type: "", onlyBlocklist: false, compName: "" };
+  let afterApply = null; // ligado depois (seleção de achados), quando as variáveis dela já existem
   const onlyBlocklist = document.getElementById("only-blocklist");
   const typeSelect = document.getElementById("filter-type");
   const TYPES = typeSelect ? Array.from(typeSelect.options).map((o) => o.value).filter(Boolean) : [];
@@ -125,6 +126,7 @@
     }
     document.getElementById("component-empty")?.toggleAttribute("hidden", !inComponent || total > 0);
     document.getElementById("ignore-view-levels")?.toggleAttribute("hidden", !inComponent || total === 0);
+    if (afterApply) afterApply();
     document.getElementById("no-match")?.toggleAttribute("hidden", !inComponent || total === 0 || visible > 0);
     // Tabela de componentes: com níveis selecionados, só os que têm achados em algum deles;
     // com "Esconder componentes sem achados", some quem não tem nenhum achado (fora os ignorados).
@@ -408,11 +410,12 @@
       manual: T("Incluir na lista de ignorados"),
       skip: T("Ignorar componente"),
       findings: T("Ignorar achados do componente"),
+      selected: T("Ignorar achados selecionados"),
     };
     document.getElementById("ignore-title").textContent = titles[k];
     document.getElementById("ignore-scope").hidden = k !== "finding";
     document.getElementById("ignore-manual").hidden = k !== "manual";
-    levelsField.hidden = k === "finding" || k === "skip";
+    levelsField.hidden = k === "finding" || k === "skip" || k === "selected";
     // Componente: deixa de ser analisado; o aviso fica visível antes de confirmar.
     document.getElementById("ignore-skip-note").hidden = k !== "skip";
     document.getElementById("ignore-levels-legend").textContent =
@@ -433,6 +436,7 @@
       manual: () => T("Use * como curinga (ex.: semgrep.* ou */vendor/*)."),
       skip: () => T("Componente {nome}.", { nome: mode.name }),
       findings: () => T("Componente {nome}: os achados atuais nos níveis marcados abaixo. Achados novos continuam aparecendo e o componente continua sendo analisado.", { nome: mode.name }),
+      selected: () => T("{n} achado(s) selecionado(s) de {nome}. Achados iguais continuam escondidos; achados novos continuam aparecendo.", { n: mode.chosen.length, nome: mode.name }),
     };
     document.getElementById("ignore-subject").textContent = subject[k]();
     dialog.showModal();
@@ -455,6 +459,8 @@
       // Achados do componente: só os de agora, nos níveis marcados (nenhum = todos).
       case "findings":
         return { component: mode.name, rule: "*", reason, severities, achados_atuais: true };
+      case "selected":
+        return { component: mode.name, rule: "*", reason, achados: mode.chosen };
       default: {
         const d = mode.el.dataset;
         const scope = form.elements.scope.value;
@@ -501,6 +507,41 @@
   document.getElementById("ignore-levels")?.addEventListener("click", () => openDialog({ kind: "levels" }));
   document.querySelectorAll("[data-ignore]").forEach((b) =>
     b.addEventListener("click", () => openDialog({ kind: "finding", el: b.closest(".finding") })));
+  // Seleção de achados na tela do componente: caixa por achado, "Selecionar todos" (os visíveis)
+  // e "Ignorar selecionados".
+  const selectAll = document.getElementById("findings-select-all");
+  const ignoreSelected = document.getElementById("findings-ignore-selected");
+  const findingBoxes = () => Array.from(document.querySelectorAll(".finding-select"))
+    .filter((b) => b.closest(".finding").dataset.component === state.component);
+  const visibleFinding = (b) => !b.closest(".finding").hidden;
+  function syncFindingSelection() {
+    const chosen = findingBoxes().filter((b) => b.checked);
+    if (ignoreSelected) {
+      ignoreSelected.hidden = chosen.length === 0;
+      ignoreSelected.textContent = T("Ignorar selecionados ({n})…", { n: chosen.length });
+    }
+    const shown = findingBoxes().filter(visibleFinding);
+    if (selectAll) {
+      const n = shown.filter((b) => b.checked).length;
+      selectAll.checked = shown.length > 0 && n === shown.length;
+      selectAll.indeterminate = n > 0 && n < shown.length;
+      document.getElementById("findings-select-all-wrap").hidden = shown.length === 0;
+    }
+  }
+  selectAll?.addEventListener("change", () => {
+    findingBoxes().filter(visibleFinding).forEach((b) => { b.checked = selectAll.checked; });
+    syncFindingSelection();
+  });
+  document.getElementById("findings")?.addEventListener("change", (ev) => {
+    if (ev.target.classList.contains("finding-select")) syncFindingSelection();
+  });
+  afterApply = syncFindingSelection;
+  syncFindingSelection();
+  ignoreSelected?.addEventListener("click", () => {
+    const chosen = findingBoxes().filter((b) => b.checked).map((b) => b.value);
+    if (chosen.length && state.component) openDialog({ kind: "selected", name: state.component, chosen });
+  });
+
   // Tela de achados de um componente: botão único que ignora os achados atuais dele por nível.
   document.getElementById("ignore-view-levels")?.addEventListener("click", () => {
     if (state.component) openDialog({ kind: "findings", name: state.component });
@@ -642,7 +683,7 @@
   const dnsForm = document.getElementById("dns-ignore-form");
   const dnsError = document.getElementById("dns-ignore-error");
   let dnsMany = null; // "Ignorar todos": lista de domínios da tabela
-  function openDnsIgnore(domain, many) {
+  function openDnsIgnore(domain, many, selected) {
     dnsForm.reset();
     dnsError.hidden = true;
     dnsMany = many || null;
@@ -653,9 +694,12 @@
     const manyEl = document.getElementById("dns-ignore-many");
     manyEl.hidden = !dnsMany;
     document.getElementById("dns-ignore-many-warn").hidden = !dnsMany;
-    if (dnsMany) manyEl.textContent = T("Todos os {n} domínios da tabela que ainda não estão ignorados: {lista}",
-      { n: dnsMany.length, lista: dnsMany.slice(0, 8).join(", ") + (dnsMany.length > 8 ? ", …" : "") });
-    document.getElementById("dns-ignore-title").textContent = dnsMany ? T("Ignorar todos os domínios") : T("Ignorar domínio");
+    const lista = dnsMany ? dnsMany.slice(0, 8).join(", ") + (dnsMany.length > 8 ? ", …" : "") : "";
+    if (dnsMany) manyEl.textContent = selected
+      ? T("Os {n} domínios selecionados: {lista}", { n: dnsMany.length, lista })
+      : T("Todos os {n} domínios da tabela que ainda não estão ignorados: {lista}", { n: dnsMany.length, lista });
+    document.getElementById("dns-ignore-title").textContent = dnsMany
+      ? (selected ? T("Ignorar domínios selecionados") : T("Ignorar todos os domínios")) : T("Ignorar domínio");
     dnsDialog.showModal();
     (domain || dnsMany ? dnsForm.elements.reason : dnsForm.elements.domain).focus();
   }
@@ -666,6 +710,9 @@
     });
     // Com "Mostrar domínios ignorados", os botões em massa da tabela principal somem.
     document.querySelectorAll(".dns-ai-all").forEach((b) => { b.hidden = showingIgnored; });
+    document.querySelectorAll(".dns-ignore-selected").forEach((b) => {
+      b.hidden = showingIgnored || !b.closest(".dns-domains").querySelector(".dns-select:checked");
+    });
   };
   syncDnsBulk(false);
   document.querySelectorAll(".dns-ignore-all").forEach((b) =>
@@ -674,6 +721,38 @@
         .map((x) => x.dataset.dnsIgnore);
       if (list.length) openDnsIgnore("", list);
     }));
+  // Seleção de domínios: caixa por linha, "selecionar todos" (só linhas visíveis) e "Ignorar selecionados".
+  document.querySelectorAll(".dns-domains").forEach((table) => {
+    const button = table.querySelector(".dns-ignore-selected");
+    const all = table.querySelector(".dns-select-all");
+    const boxes = () => Array.from(table.querySelectorAll(".dns-select"));
+    const visible = (b) => !b.closest("tr").hidden && !b.closest("tr").classList.contains("search-hidden");
+    const sync = () => {
+      const chosen = boxes().filter((b) => b.checked);
+      if (button) {
+        button.hidden = chosen.length === 0 || !!document.getElementById("dns-show-ignored")?.checked;
+        button.textContent = T("Ignorar selecionados ({n})…", { n: chosen.length });
+      }
+      const shown = boxes().filter(visible);
+      if (all) {
+        const n = shown.filter((b) => b.checked).length;
+        all.checked = shown.length > 0 && n === shown.length;
+        all.indeterminate = n > 0 && n < shown.length;
+      }
+    };
+    all?.addEventListener("change", () => {
+      boxes().filter(visible).forEach((b) => { b.checked = all.checked; });
+      sync();
+    });
+    table.addEventListener("change", (ev) => { if (ev.target.classList.contains("dns-select")) sync(); });
+    // A busca muda o que é "visível": atualiza o estado da caixa do cabeçalho.
+    table.querySelectorAll("[data-table-search]").forEach((i) => i.addEventListener("input", sync));
+    button?.addEventListener("click", () => {
+      const chosen = boxes().filter((b) => b.checked).map((b) => b.value);
+      if (chosen.length) openDnsIgnore("", chosen, true);
+    });
+    sync();
+  });
   document.querySelectorAll(".dns-ignore-add").forEach((b) => b.addEventListener("click", () => openDnsIgnore("")));
   document.querySelectorAll("[data-dns-ignore]").forEach((b) =>
     b.addEventListener("click", () => openDnsIgnore(b.dataset.dnsIgnore)));

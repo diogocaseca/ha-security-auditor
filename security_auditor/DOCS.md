@@ -221,7 +221,8 @@ those queries are not counted again.
 
 With **Ignore all…** (next to the table title) every domain in the table that is not ignored yet
 goes to the list at once, with a single reason. Check the list first: ignored domains no longer
-create findings, including mining and exfiltration ones.
+create findings, including mining and exfiltration ones. To ignore only some of them, tick their
+boxes (the box in the header ticks every visible row) and use **Ignore selected (n)…**.
 
 The domain table shows the **most recently discovered domains first** (date of the first query the
 auditor saw), with the most queried as tie-breaker, up to 150 domains.
@@ -430,6 +431,10 @@ choose the scope and write the reason:
 | This rule in this file | Every finding of the rule in that file. |
 | This rule in the whole component | Every finding of the rule in the component. |
 | This rule in every component | The whole rule, in any component. |
+
+To ignore several findings at once, tick their boxes in the component's findings view (**Select
+all** ticks the visible ones) and use **Ignore selected (n)…**: they become a single list item, and
+each one works like "Only this finding" (identical findings stay hidden; new ones show up).
 
 You can also ignore from the **components table**:
 
