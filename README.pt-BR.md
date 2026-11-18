@@ -18,7 +18,7 @@ em inglês ou português (seletor EN | PT na interface), para **revisão humana*
 |---|---|
 | **Código das integrações e do `www/`** | Semgrep com 24 regras próprias (ofuscação, `eval`/`exec`, comandos do sistema, download e execução, leitura de `secrets.yaml` e `.storage/auth`, roubo do token no navegador, destinos suspeitos) + Bandit |
 | **Dependências** | pip-audit contra a base OSV, sem instalar nada |
-| **Integridade** | Compara cada arquivo com a release oficial no GitHub (SHA-256); arquivo alterado ou extra = Alta |
+| **Integridade** | Compara cada arquivo das integrações e dos cards do HACS com a release oficial no GitHub (SHA-256); arquivo alterado ou extra = Alta |
 | **Permissões dos add-ons** | `docker_api`, `full_access`, `host_network`, capacidades, AppArmor, papel no Supervisor, modo de proteção, nota de segurança, atualizações |
 | **Imagens dos add-ons** | Trivy em modo remoto (sem Docker): CVEs e segredos embutidos |
 | **Código dos add-ons** | Dockerfile e scripts do GitHub: `curl \| sh`, shell reverso, `SUPERVISOR_TOKEN` enviado para fora, `map` com escrita em `/config` |
@@ -100,6 +100,13 @@ uv venv -p 3.12 .venv && uv pip install -p .venv/bin/python -r requirements-dev.
 ```
 ```bash
 .venv/bin/python -m pytest
+```
+
+Os testes do JavaScript da interface (`app.js`) rodam com Node 18+ e jsdom, sobre páginas geradas
+pelo template real; sem `npm install` eles são pulados:
+
+```bash
+npm install
 ```
 ```bash
 docker build -t local/security_auditor:dev security_auditor

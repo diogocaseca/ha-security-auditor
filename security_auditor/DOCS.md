@@ -146,6 +146,14 @@ installed version from GitHub and compares it file by file with SHA-256:
   report; missing file = Low;
 - no identifiable repository (manual install) = Low; version not found in the repository = Info.
 
+**HACS cards** (`www/community/<repository>`) are checked too, against the version HACS recorded.
+Each installed file is compared with the file of the same name in the release assets, in `dist/` or
+in the repository root (where HACS takes it from). The `.js.gz` copies HACS creates are unpacked and
+compared with their `.js`: Home Assistant serves the `.gz` instead of the original, so a different
+`.gz` would swap the code that runs in the browser. Modified file, extra JavaScript file or
+different `.gz` = High; other extra file = Low. Cards not registered in HACS are not compared (the
+row says why).
+
 ### Other add-ons (through the Supervisor API)
 
 The Security Auditor itself is left out (permissions, code, image and traffic): it identifies itself
@@ -283,7 +291,9 @@ gets **Ask the AI about <host>**, one button per host (up to 5). Only the host l
 from `https://user:pass@api.example.com/v1?token=…` only `api.example.com` is sent; the path, the
 query string (where tokens hide) and the user/password stay out. Local network IPs (192.168.x,
 10.x, 127.x…), local names (`.local`, `localhost`…) and documentation addresses are not offered.
-For loose IPs the answer is usually "unknown", because IPs change owners often.
+For loose IPs the answer is usually "unknown", because IPs change owners often. With `ia_pesquisa_web` on,
+the AI first searches the web for the host (the provider's own search: Anthropic's for Claude, Google
+for Gemini), which helps with new domains and IPs; the saved answer shows "+ web" next to the model.
 
 Pi-hole v5 is not supported (old API).
 
@@ -320,6 +330,7 @@ language.
 | `ia_provedor` | `desligado` | AI used by the **Ask the AI** button in the DNS tab: `desligado` (off), `gemini` or `claude`. See [DNS](#dns-optional-adguard-home-andor-pi-hole-v6). |
 | `ia_chave_api` | | API key from Google AI Studio (Gemini) or the Claude Console (Claude). Usage is billed by the provider to your account. |
 | `ia_modelo` | | Model to use; empty = `gemini-3.5-flash-lite` (Gemini) or `claude-opus-5-5` (Claude). |
+| `ia_pesquisa_web` | `false` | The AI searches the web for the host before answering (abuse reports, blocklists, who operates it). Better answers for new domains and IPs, but each query costs more. The search is done by the provider, which only receives the host. |
 | `intervalo_dns_minutos` | `120` | How often (0 to 1440 minutes) the auditor runs the [DNS check](#dns-optional-adguard-home-andor-pi-hole-v6) on its own, between full scans. `0` = DNS only runs with the full scan. |
 | `allowlist` | `[]` | Exceptions; see below. |
 

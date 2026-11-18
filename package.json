@@ -1,0 +1,12 @@
+{
+  "name": "ha-security-auditor-dev",
+  "private": true,
+  "description": "Só para desenvolvimento: testes do JavaScript da interface (não vai para o add-on).",
+  "type": "module",
+  "scripts": {
+    "test:ui": "node --test tests/js/"
+  },
+  "devDependencies": {
+    "jsdom": "24.1.3"
+  }
+}

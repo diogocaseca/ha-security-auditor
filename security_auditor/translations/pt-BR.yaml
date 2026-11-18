@@ -92,6 +92,12 @@ configuration:
     name: Modelo da IA (opcional)
     description: >-
       Vazio = padrão do provedor (gemini-3.5-flash-lite no Gemini, claude-opus-5-5 no Claude).
+  ia_pesquisa_web:
+    name: IA pesquisa na web
+    description: >-
+      Antes de responder, a IA pesquisa o host na web (relatórios de abuso, listas de bloqueio, quem o
+      opera). Respostas melhores para domínios e IPs novos, mas cada consulta custa mais. A busca é feita
+      pelo próprio provedor, que só recebe o host. Desligado por padrão.
   lista_comunitaria:
     name: Lista negra comunitária
     description: >-

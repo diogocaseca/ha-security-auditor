@@ -207,11 +207,12 @@ def _ai_settings(options) -> dict | None:
     except AiError as err:
         _LOGGER.warning("Consulta à IA desligada: %s", err.args[0] if err.args else err)
         return None
-    _LOGGER.info("Consulta de domínios à IA ativa: %s (%s). Só o nome do domínio é enviado, e só quando o "
-                 "usuário clica em Perguntar à IA", label, model)
+    _LOGGER.info("Consulta à IA ativa: %s (%s%s). Só o host (domínio ou IP) é enviado, e só quando o "
+                 "usuário clica em Perguntar à IA", label, model, ", com pesquisa na web" if options.ai_web_search else "")
 
     async def ask(domain: str, lang: str) -> dict:
-        return await ask_domain(options.ai_provider, options.ai_api_key, model, domain, lang)
+        return await ask_domain(options.ai_provider, options.ai_api_key, model, domain, lang,
+                                web=options.ai_web_search)
 
     return {"label": label, "modelo": model, "ask": ask}
 

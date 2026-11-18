@@ -106,6 +106,7 @@ class Options:
     ai_provider: str = "desligado"  # desligado | gemini | claude (botão "Perguntar à IA" no DNS)
     ai_api_key: str | None = None
     ai_model: str | None = None  # vazio = modelo padrão do provedor
+    ai_web_search: bool = False  # a IA pesquisa na web antes de responder (custa mais por consulta)
     community_blocklist: bool = True  # baixar a lista negra comunitária (assinada)
     watch_installs: bool = True  # varrer logo depois de instalar/atualizar um componente
     watch_interval_minutes: int = 2  # intervalo da conferência do que está instalado
@@ -158,6 +159,7 @@ class Options:
             ai_provider=_ai_provider(raw.get("ia_provedor")),
             ai_api_key=(str(raw.get("ia_chave_api") or "").strip() or None),
             ai_model=(str(raw.get("ia_modelo") or "").strip() or None),
+            ai_web_search=bool(raw.get("ia_pesquisa_web", False)),
             community_blocklist=bool(raw.get("lista_comunitaria", True)),
             watch_installs=bool(raw.get("verificar_instalacoes", True)),
             watch_interval_minutes=max(1, min(60, int(raw.get("intervalo_verificacao_minutos", 2)))),

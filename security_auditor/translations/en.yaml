@@ -59,6 +59,9 @@ configuration:
   ia_modelo:
     name: AI model (optional)
     description: Empty = the provider's default (gemini-3.5-flash-lite for Gemini, claude-opus-5-5 for Claude).
+  ia_pesquisa_web:
+    name: AI searches the web
+    description: Before answering, the AI searches the web for the host (abuse reports, blocklists, who operates it). Better answers for new domains and IPs, but each query costs more. The search is done by the provider itself, which only receives the host. Off by default.
   lista_comunitaria:
     name: Community blocklist
     description: Downloads the signed list of reported components from GitHub and compares it locally. Nothing about your installation is sent.

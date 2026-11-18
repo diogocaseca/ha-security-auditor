@@ -123,7 +123,42 @@ class IntegrityScanner:
                 findings.append(_not_verified(comp, reason, reason_en))
             ctx.register_component(comp.component_type, comp.name, integridade=str(status),
                                    integridade_en=english(status))
+        for comp in inv.frontend:
+            if comp.name == "www":
+                continue  # resto da pasta www/ (fotos, arquivos do usuário): não vem do HACS
+            await ctx.pause()
+            ctx.set_progress(self.name, comp.name)
+            found, status = await self._check_card(ctx, comp)
+            findings.extend(found)
+            ctx.register_component(comp.component_type, comp.name, integridade=str(status),
+                                   integridade_en=english(status))
         return findings
+
+    async def _check_card(self, ctx: ScanContext, comp: Component) -> tuple[list[Finding], Bi]:
+        """Card do HACS: compara com a versão registrada pelo HACS (anexos da release, dist/ ou raiz)."""
+        from .card_integrity import CardNotVerifiable, card_refs, compare_card, fetch_card_sources
+
+        if comp.hacs is None or "/" not in comp.hacs.full_name:
+            return [], Bi("não verificada: card sem registro no HACS", "not verified: card not registered in HACS")
+        refs = card_refs(comp)
+        if not refs:
+            return [], Bi("não verificada: o HACS não registrou a versão", "not verified: HACS did not record the version")
+        owner, name = comp.hacs.owner_repo
+        try:
+            ref, sources = await fetch_card_sources(ctx, owner, name, refs)
+            found = await asyncio.to_thread(compare_card, comp, sources, ref, f"{owner}/{name}", _diff)
+        except CardNotVerifiable as err:
+            return [], Bi(f"não verificada: {err}", f"not verified: {err.en}")
+        except (HttpError, EgressDeniedError, DownloadTooLargeError, UnsafeArchiveError,
+                aiohttp.ClientError, TimeoutError, OSError, json.JSONDecodeError) as err:
+            reason, reason_en = _describe_error(err)
+            return [], Bi(f"não verificada: {reason}", f"not verified: {reason_en}")
+        status = f"verificada contra {owner}/{name}@{ref}"
+        status_en = f"verified against {owner}/{name}@{ref}"
+        if found:
+            status += f" ({len(found)} diferença(s))"
+            status_en += f" ({len(found)} difference(s))"
+        return found, Bi(status, status_en)
 
     async def _check(self, ctx: ScanContext, inv: Inventory, comp: Component) -> tuple[list[Finding], str]:
         repo = comp.github_repo()

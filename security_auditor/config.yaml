@@ -1,5 +1,5 @@
 name: HA Security Auditor
-version: "0.27.0"
+version: "0.28.0"
 slug: security_auditor
 description: >-
   Audita integrações customizadas (HACS) e add-ons instalados e gera um
@@ -66,6 +66,7 @@ options:
   ia_provedor: desligado
   ia_chave_api: ""
   ia_modelo: ""
+  ia_pesquisa_web: false
   lista_comunitaria: true
   verificar_instalacoes: true
   intervalo_verificacao_minutos: 2
@@ -100,6 +101,7 @@ schema:
   ia_provedor: list(desligado|gemini|claude)
   ia_chave_api: password?
   ia_modelo: str?
+  ia_pesquisa_web: bool
   lista_comunitaria: bool
   verificar_instalacoes: bool
   intervalo_verificacao_minutos: int(1,60)

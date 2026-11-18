@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.28.0
+
+- **Integridade dos cards do HACS** (`www/community`): cada arquivo é comparado com a release
+  oficial (anexos da release, `dist/` ou raiz do repositório) na versão que o HACS registrou, e
+  cada `.js.gz` criado pelo HACS é conferido contra o `.js` dele (o HA serve o `.gz` no lugar do
+  original). Arquivo alterado, JavaScript extra ou `.gz` diferente = Alta.
+- **Pesquisa na web para a IA:** nova opção `ia_pesquisa_web` (padrão `false`). Com ela, a IA
+  pesquisa o host antes de responder (busca do próprio provedor); a resposta guardada mostra
+  "+ web" no modelo. Cada consulta custa mais.
+- **Testes do JavaScript da interface** (desenvolvimento): o `app.js` roda em jsdom sobre páginas
+  geradas pelo template real e é testado em busca, realce, seleção, filtros, janelas e chamadas à
+  API.
+
 ## 0.27.0
 
 - **Seleção para ignorar** na tabela de domínios do DNS e na lista de achados: caixa de seleção em

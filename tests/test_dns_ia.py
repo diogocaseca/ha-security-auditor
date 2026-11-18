@@ -296,3 +296,82 @@ async def test_api_accepts_host_from_findings(aiohttp_client, paths, storage, ma
     # Um host que não está nos achados nem no DNS continua recusado.
     resp = await c.post("/api/dns/ia", headers={CSRF_HEADER: token}, json={"dominio": "8.8.4.4"})
     assert resp.status == 404 and len(asked) == 1
+
+
+# --- Pesquisa na web (ia_pesquisa_web) ---------------------------------------------------------
+
+
+class FakeHttpSeq(FakeHttp):
+    """Devolve as respostas em sequência (para a pausa da busca na web)."""
+
+    replies: list = []  # noqa: RUF012 - preenchida em cada teste
+
+    async def post_json(self, url, body, headers):
+        FakeHttp.calls.append({"allowed": self.allowed, "url": url, "body": json.loads(json.dumps(body)),
+                               "headers": headers})
+        return FakeHttpSeq.replies.pop(0)
+
+
+async def test_claude_web_search_and_pause_turn(monkeypatch):
+    FakeHttp.calls = []
+    monkeypatch.setattr(ai, "SafeHttpClient", FakeHttpSeq)
+    paused = {"stop_reason": "pause_turn", "content": [
+        {"type": "text", "text": "Vou pesquisar."},
+        {"type": "server_tool_use", "id": "s1", "name": "web_search", "input": {"query": "evil.xyz"}}]}
+    final = {"stop_reason": "end_turn", "content": [
+        {"type": "web_search_tool_result", "tool_use_id": "s1", "content": []},
+        {"type": "text", "text": "Achei relatórios."},
+        {"type": "text", "text": '```json\n' + json.dumps(ANSWER) + '\n```'}]}
+    FakeHttpSeq.replies = [paused, final]
+    got = await ask_domain("claude", "k", None, "evil.xyz", "pt", web=True)
+    assert got["veredito"] == "malicioso" and got["modelo"] == "claude-opus-5-5 + web"
+    first, second = FakeHttp.calls
+    assert first["body"]["tools"] == [{"type": "web_search_20260209", "name": "web_search", "max_uses": 3}]
+    assert "format" not in first["body"]["output_config"]  # saída estruturada não combina com citações
+    assert "Search the web" in first["body"]["system"]
+    # Retomada: a resposta pausada volta como turno do assistente, sem mensagem nova do usuário.
+    assert second["body"]["messages"] == [{"role": "user", "content": "evil.xyz"},
+                                          {"role": "assistant", "content": paused["content"]}]
+
+
+async def test_claude_web_search_never_resumes_forever(monkeypatch):
+    FakeHttp.calls = []
+    monkeypatch.setattr(ai, "SafeHttpClient", FakeHttpSeq)
+    FakeHttpSeq.replies = [{"stop_reason": "pause_turn", "content": []} for _ in range(5)]
+    with pytest.raises(AiError, match="cortada"):
+        await ask_domain("claude", "k", None, "evil.xyz", "pt", web=True)
+    assert len(FakeHttp.calls) == 1 + ai.MAX_RESUMES
+
+
+async def test_gemini_web_search(http):
+    http.reply = {"candidates": [{"content": {"parts": [
+        {"text": "Segundo as buscas: " + json.dumps(ANSWER) + " Fim."}]}}]}
+    got = await ask_domain("gemini", "k", None, "evil.xyz", "en", web=True)
+    assert got["veredito"] == "malicioso" and got["modelo"] == "gemini-3.5-flash-lite + web"
+    (call,) = http.calls
+    assert call["body"]["tools"] == [{"google_search": {}}] and "generationConfig" not in call["body"]
+
+
+async def test_without_web_search_nothing_changes(http):
+    http.reply = _claude()
+    await ask_domain("claude", "k", None, "evil.xyz", "pt")
+    body = http.calls[0]["body"]
+    assert "tools" not in body and body["output_config"]["format"]["type"] == "json_schema"
+    assert "Base the answer only on what you know" in body["system"]
+
+
+def test_web_search_option():
+    from pathlib import Path
+
+    import yaml
+
+    assert Options.from_dict({}).ai_web_search is False
+    assert Options.from_dict({"ia_pesquisa_web": True}).ai_web_search is True
+    addon = Path(__file__).parents[1] / "security_auditor"
+    cfg = yaml.safe_load((addon / "config.yaml").read_text())
+    keys = list(cfg["options"])
+    assert keys.index("ia_pesquisa_web") == keys.index("ia_modelo") + 1
+    assert cfg["options"]["ia_pesquisa_web"] is False and cfg["schema"]["ia_pesquisa_web"] == "bool"
+    for lang in ("en", "pt-BR"):
+        conf = yaml.safe_load((addon / "translations" / f"{lang}.yaml").read_text())["configuration"]
+        assert conf["ia_pesquisa_web"]["name"]
