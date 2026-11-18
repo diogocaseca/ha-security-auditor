@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.29.1
+
+- **Regra de shell reverso (scripts e Dockerfile dos add-ons):** `/dev/tcp` para `127.0.0.1`,
+  `localhost` ou `0.0.0.0` sem shell ligado à conexão deixou de ser marcado. É o teste de porta usado
+  em `HEALTHCHECK` (ex.: `bash -c '</dev/tcp/127.0.0.1/1883'` no MQTT). Continuam marcados `/dev/tcp`
+  para fora do container e qualquer shell ligado à conexão (`bash -i`, `>&`, `0>&1`), mesmo local.
+
 ## 0.29.0
 
 - **Cadeias de comportamento:** combinações perigosas no mesmo componente viram um achado próprio,

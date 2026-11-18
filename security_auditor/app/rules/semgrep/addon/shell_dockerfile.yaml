@@ -46,7 +46,12 @@ rules:
     severity: ERROR
     message: Padrão de shell reverso
     pattern-either:
-      - pattern-regex: /dev/(tcp|udp)/[^\s/]+/\d+
+      # /dev/tcp para fora do container. Para 127.0.0.1/localhost é só um teste de porta (healthcheck),
+      # a não ser que um shell seja ligado à conexão (casos abaixo).
+      - pattern-regex: /dev/(tcp|udp)/(?!(?:127\.\d{1,3}\.\d{1,3}\.\d{1,3}|localhost|0\.0\.0\.0|::1|\[::1\])/)[^\s/]+/\d+
+      - pattern-regex: \b(bash|sh|zsh|ash|dash)\s+-i\b[^\n]*/dev/(tcp|udp)/
+      - pattern-regex: '>&\s*/dev/(tcp|udp)/'
+      - pattern-regex: /dev/(tcp|udp)/[^\n]*\b0>&[12]
       - pattern-regex: \b(nc|ncat|netcat)\b[^\n]*\s-(e|c)\s
       - pattern-regex: '(?i)\bsocat\b[^\n]*exec:'
       - pattern-regex: (?i)\bmkfifo\b[^\n]*\b(nc|ncat|netcat)\b
