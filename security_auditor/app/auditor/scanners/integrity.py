@@ -137,6 +137,14 @@ class IntegrityScanner:
 
         local = hash_tree(comp.path, upstream.persistent_directory)
         remote = hash_tree(upstream.root)
+        if local != remote and not _version_from_hacs(comp):
+            # Sem a versão do HACS, a referência veio do manifest, que muitos autores esquecem de
+            # atualizar. Se os arquivos forem idênticos aos de uma release mais nova, é só isso.
+            newer = await self._match_newer_release(ctx, repo, comp, upstream.ref)
+            if newer is not None:
+                status = f"verificada contra {repo[0]}/{repo[1]}@{newer} (o manifest diz {upstream.ref})"
+                status_en = f"verified against {repo[0]}/{repo[1]}@{newer} (the manifest says {upstream.ref})"
+                return [_stale_manifest(comp, repo, newer, upstream.ref)], Bi(status, status_en)
         findings: list[Finding] = []
         for rel in sorted(set(local) | set(remote)):
             if rel in local and rel not in remote:
@@ -151,6 +159,30 @@ class IntegrityScanner:
             status += f" ({len(findings)} diferença(s))"
             status_en += f" ({len(findings)} difference(s))"
         return findings, Bi(status, status_en)
+
+    async def _match_newer_release(self, ctx: ScanContext, repo: tuple[str, str], comp: Component,
+                                   tried: str) -> str | None:
+        """Tag de uma das releases mais recentes cujos arquivos batem exatamente com os instalados."""
+        owner, name = repo
+        try:
+            releases = await ctx.http.get_json(f"https://api.github.com/repos/{owner}/{name}/releases?per_page=10")
+        except (HttpError, EgressDeniedError, aiohttp.ClientError, TimeoutError, ValueError) as err:
+            ctx.logger.debug("Releases de %s/%s indisponíveis: %s", owner, name, type(err).__name__)
+            return None
+        skip = {tried, tried[1:] if tried.startswith("v") else f"v{tried}"}
+        tags = [str(r.get("tag_name") or "") for r in releases if isinstance(r, dict) and not r.get("draft")]
+        tags = [t for t in tags if t and t not in skip and "/" not in t and ".." not in t][:NEWER_RELEASES]
+        for tag in tags:
+            try:
+                up = await self._fetch_upstream(ctx, repo, [tag], comp.name)
+            except (NotVerifiableError, HttpError, EgressDeniedError, DownloadTooLargeError, UnsafeArchiveError,
+                    aiohttp.ClientError, TimeoutError, OSError, json.JSONDecodeError):
+                continue
+            if hash_tree(comp.path, up.persistent_directory) == hash_tree(up.root):
+                ctx.logger.info("Integridade de %s: arquivos idênticos aos de %s/%s@%s (o manifest diz %s)",
+                                comp.name, owner, name, tag, tried)
+                return tag
+        return None
 
     # --- Download / cache ---------------------------------------------------
 
@@ -443,3 +475,37 @@ def _head(path: Path, n: int = 12) -> str:
     if len(lines) > n:
         out.append(f"… (+{len(lines) - n} linhas)")
     return "\n".join(out)
+
+
+NEWER_RELEASES = 5  # releases mais recentes testadas quando o manifest parece desatualizado
+
+
+def _version_from_hacs(comp: Component) -> bool:
+    """True se o HACS sabe a versão (ou o commit) instalada: a referência não veio do manifest."""
+    return bool(comp.hacs and (comp.hacs.version_installed or comp.hacs.installed_commit))
+
+
+def _stale_manifest(comp: Component, repo: tuple[str, str], tag: str, manifest_ref: str) -> Finding:
+    return Finding(
+        component=comp.name,
+        component_type=ComponentType.INTEGRATION,
+        category="integridade",
+        rule_id="auditor.integridade.manifest-desatualizado",
+        severity=Severity.INFO,
+        title="Versão do manifest desatualizada",
+        explanation=(
+            f"Os arquivos instalados são idênticos aos da versão {tag} publicada em {repo[0]}/{repo[1]}, mas o "
+            f"manifest.json declara {manifest_ref}. É um descuido comum do autor (esquecer de atualizar o "
+            f"\"version\"); a integridade foi confirmada contra {tag}."
+        ),
+        recommendation="Nada a fazer. Se quiser, avise o autor para atualizar o \"version\" do manifest.json.",
+        en=en_text(
+            "Manifest version is out of date",
+            f"The installed files are identical to version {tag} published at {repo[0]}/{repo[1]}, but "
+            f"manifest.json says {manifest_ref}. This is a common oversight by the author (forgetting to update "
+            f"\"version\"); integrity was confirmed against {tag}.",
+            "Nothing to do. If you like, let the author know so they update \"version\" in manifest.json.",
+        ),
+        source="integridade",
+        extra={"ref": tag, "repositorio": f"{repo[0]}/{repo[1]}", "fingerprint_key": tag},
+    )

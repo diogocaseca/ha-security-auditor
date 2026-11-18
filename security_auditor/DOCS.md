@@ -138,6 +138,10 @@ installed version from GitHub and compares it file by file with SHA-256:
 
 - it tries the tag with and without the `v` prefix and the commit recorded by HACS;
 - it honours `zip_release`, `content_in_root` and `persistent_directory` from `hacs.json`;
+- when HACS does not know the installed version, the reference comes from `manifest.json`, which
+  many authors forget to update. If the files differ from that version, the auditor also tries the
+  5 most recent releases; if one matches file by file, the High alerts become a single Info finding
+  ("Manifest version is out of date") and the component shows as verified against that release;
 - **modified file** or **extra file** = High, with the diff (or the start of the file) in the
   report; missing file = Low;
 - no identifiable repository (manual install) = Low; version not found in the repository = Info.

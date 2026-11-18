@@ -142,6 +142,11 @@ versão instalada e compara arquivo a arquivo por SHA-256:
 
 - tenta a tag com e sem o prefixo `v` e o commit gravado pelo HACS;
 - respeita `zip_release`, `content_in_root` e `persistent_directory` do `hacs.json`;
+- quando o HACS não sabe a versão instalada, a referência vem do `manifest.json`, que muitos
+  autores esquecem de atualizar. Se os arquivos não baterem com essa versão, o auditor testa também
+  as 5 releases mais recentes; se alguma bater arquivo a arquivo, os alertas altos viram um único
+  achado Informativo ("Versão do manifest desatualizada") e o componente aparece verificado contra
+  essa release;
 - **arquivo alterado** ou **arquivo extra** = Alta, com o diff (ou o início do arquivo) no
   relatório; arquivo ausente = Baixa;
 - sem repositório identificável (instalação manual) = Baixa; versão não encontrada no

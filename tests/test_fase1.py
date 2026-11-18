@@ -335,3 +335,64 @@ def test_fixture_tree_is_untouched():
     names = sorted(p.name for p in (FIXTURES / "config/custom_components/adulterada").iterdir())
     assert names == ["__init__.py", "_cache.py", "const.py", "manifest.json"]
     assert not any(p.name == "__pycache__" for p in (FIXTURES / "config").rglob("*"))
+
+
+# --- Manifest desatualizado: os arquivos batem com uma release mais nova -------------------------
+
+
+def _stale_setup(tmp_path, installed_readme=b"Port e Passphrase (1.3.2)\n", hacs=False):
+    config = tmp_path / "config"
+    comp = config / "custom_components/ssh_docker"
+    comp.mkdir(parents=True)
+    (comp / "__init__.py").write_text("V = 2\n")
+    (comp / "README.md").write_bytes(installed_readme)
+    # O autor nunca atualiza o "version": todas as releases dizem 1.2.0.
+    manifest = '{"domain": "ssh_docker", "version": "1.2.0", "documentation": "https://github.com/gensyn/ssh_docker"}'
+    (comp / "manifest.json").write_text(manifest)
+    (comp / "hacs.json").write_text('{"content_in_root": true}')
+    if hacs:
+        (config / ".storage").mkdir()
+        (config / ".storage/hacs.repositories").write_text(json.dumps({"data": {"1": {
+            "full_name": "gensyn/ssh_docker", "category": "integration", "domain": "ssh_docker",
+            "version_installed": "v1.2.0"}}}))
+    old = {"__init__.py": b"V = 1\n", "README.md": b"sem Port\n", "manifest.json": manifest.encode(),
+           "hacs.json": b'{"content_in_root": true}'}
+    new = {**old, "__init__.py": b"V = 2\n", "README.md": b"Port e Passphrase (1.3.2)\n"}
+    routes = {
+        "https://codeload.github.com/gensyn/ssh_docker/tar.gz/1.2.0": b"",  # não existe: tenta v1.2.0
+        "https://codeload.github.com/gensyn/ssh_docker/tar.gz/v1.2.0": _tar_of("ssh_docker-1.2.0", old),
+        "https://api.github.com/repos/gensyn/ssh_docker/releases?per_page=10": [
+            {"tag_name": "v1.3.2"}, {"tag_name": "v1.3.1", "draft": True}, {"tag_name": "v1.2.0"}],
+        "https://codeload.github.com/gensyn/ssh_docker/tar.gz/v1.3.2": _tar_of("ssh_docker-1.3.2", new),
+    }
+    del routes["https://codeload.github.com/gensyn/ssh_docker/tar.gz/1.2.0"]
+    data = tmp_path / "data"
+    data.mkdir()
+    return Paths(config_dir=config, data_dir=data, rules_dir=RULES), FakeGitHub(routes)
+
+
+async def test_integrity_stale_manifest_matches_newer_release(tmp_path):
+    paths, gh = _stale_setup(tmp_path)
+    ctx = _ctx(paths, tmp_path, http=gh)
+    (finding,) = await IntegrityScanner().scan(ctx)
+    assert finding.rule_id == "auditor.integridade.manifest-desatualizado" and finding.severity is Severity.INFO
+    assert "v1.3.2" in finding.explanation and "v1.2.0" in finding.explanation
+    status = ctx.components[("integracao", "ssh_docker")]["integridade"]
+    assert status == "verificada contra gensyn/ssh_docker@v1.3.2 (o manifest diz v1.2.0)"
+    assert not any("v1.3.1" in c for c in gh.calls)  # rascunho (draft) não é testado
+
+
+async def test_integrity_stale_manifest_but_file_edited(tmp_path):
+    """Nenhuma release bate (arquivo editado): ficam os alertas contra a versão do manifest."""
+    paths, gh = _stale_setup(tmp_path, installed_readme=b"editado por alguem\n")
+    findings = await IntegrityScanner().scan(_ctx(paths, tmp_path, http=gh))
+    assert {f.rule_id for f in findings} == {"auditor.integridade.arquivo-alterado"}
+    assert all("v1.2.0" in f.explanation for f in findings)
+
+
+async def test_integrity_trusts_hacs_version(tmp_path):
+    """Com a versão do HACS, a referência é a certa: não procura outras releases."""
+    paths, gh = _stale_setup(tmp_path, hacs=True)
+    findings = await IntegrityScanner().scan(_ctx(paths, tmp_path, http=gh))
+    assert {f.rule_id for f in findings} == {"auditor.integridade.arquivo-alterado"}
+    assert not any("/releases?" in c for c in gh.calls)

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.26.0
+
+- **Integridade com manifest desatualizado:** quando o HACS não informa a versão instalada e os
+  arquivos não batem com a versão do `manifest.json`, o auditor testa as 5 releases mais recentes
+  do repositório. Se alguma for idêntica arquivo a arquivo, os alertas "Arquivo diferente da
+  release oficial" dão lugar a um achado informativo "Versão do manifest desatualizada" (caso do
+  `gensyn/ssh_docker`, que declara 1.2.0 em todas as versões até a v1.3.2). Se nenhuma bater,
+  ficam os alertas de sempre.
+
 ## 0.25.1
 
 - **DNS:** com "Mostrar domínios ignorados" marcado, os botões **Ignorar todos…** e **Perguntar à
