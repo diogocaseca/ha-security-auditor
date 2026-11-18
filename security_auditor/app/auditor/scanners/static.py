@@ -291,7 +291,14 @@ def _from_semgrep(r: dict[str, Any], inv: Inventory) -> Finding | None:
     )
 
 
-def _bandit_severity(sev: str, conf: str) -> Severity:
+# Testes do Bandit cujo nível não combina com a busca por código malicioso (ex.: B324, md5/sha1 para gerar
+# identificadores, é comum e inofensivo): nível fixo.
+BANDIT_FIXED_SEVERITY = {"B324": Severity.LOW}
+
+
+def _bandit_severity(sev: str, conf: str, test_id: str = "") -> Severity:
+    if test_id in BANDIT_FIXED_SEVERITY:
+        return BANDIT_FIXED_SEVERITY[test_id]
     sev, conf = sev.upper(), conf.upper()
     if sev == "HIGH":
         return Severity.HIGH if conf == "HIGH" else Severity.MEDIUM
@@ -322,7 +329,8 @@ def _from_bandit(r: dict[str, Any], inv: Inventory) -> Finding | None:
         component_type=comp.component_type,
         category=category,
         rule_id=f"bandit.{test_id}",
-        severity=_bandit_severity(str(r.get("issue_severity", "LOW")), str(r.get("issue_confidence", "LOW"))),
+        severity=_bandit_severity(str(r.get("issue_severity", "LOW")), str(r.get("issue_confidence", "LOW")),
+                                  test_id),
         title=title,
         explanation=explanation,
         recommendation="Leia o trecho e confirme se o uso é seguro neste contexto.",

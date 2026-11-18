@@ -172,14 +172,23 @@ class IntegrityScanner:
 
         local = hash_tree(comp.path, upstream.persistent_directory)
         remote = hash_tree(upstream.root)
-        if local != remote and not _version_from_hacs(comp):
-            # Sem a versão do HACS, a referência veio do manifest, que muitos autores esquecem de
-            # atualizar. Se os arquivos forem idênticos aos de uma release mais nova, é só isso.
+        if local != remote:
+            # Os arquivos não batem com a versão de referência. Antes de alertar, vê se são de outra versão
+            # publicada pelo autor: uma release mais nova (manifest esquecido ou HACS desatualizado) ou o
+            # branch principal (instalação beta). Se forem idênticos, não houve adulteração.
+            from_hacs = _version_from_hacs(comp)
             newer = await self._match_newer_release(ctx, repo, comp, upstream.ref)
+            kind = "release"
+            if newer is None:
+                newer, kind = await self._match_default_branch(ctx, repo, comp), "branch"
             if newer is not None:
-                status = f"verificada contra {repo[0]}/{repo[1]}@{newer} (o manifest diz {upstream.ref})"
-                status_en = f"verified against {repo[0]}/{repo[1]}@{newer} (the manifest says {upstream.ref})"
-                return [_stale_manifest(comp, repo, newer, upstream.ref)], Bi(status, status_en)
+                said = "o HACS registrou" if from_hacs else "o manifest diz"
+                said_en = "HACS recorded" if from_hacs else "the manifest says"
+                status = f"verificada contra {repo[0]}/{repo[1]}@{newer} ({said} {upstream.ref})"
+                status_en = f"verified against {repo[0]}/{repo[1]}@{newer} ({said_en} {upstream.ref})"
+                if not from_hacs and kind == "release":
+                    return [_stale_manifest(comp, repo, newer, upstream.ref)], Bi(status, status_en)
+                return [_other_version(comp, repo, newer, upstream.ref, kind, from_hacs)], Bi(status, status_en)
         findings: list[Finding] = []
         for rel in sorted(set(local) | set(remote)):
             if rel in local and rel not in remote:
@@ -195,12 +204,30 @@ class IntegrityScanner:
             status_en += f" ({len(findings)} difference(s))"
         return findings, Bi(status, status_en)
 
+    async def _match_default_branch(self, ctx: ScanContext, repo: tuple[str, str], comp: Component) -> str | None:
+        """Nome do branch principal, se os arquivos instalados forem idênticos aos dele."""
+        owner, name = repo
+        try:
+            info = await _cached_json(ctx, f"https://api.github.com/repos/{owner}/{name}")
+            branch = str((info or {}).get("default_branch") or "")
+            if not branch or "/" in branch or ".." in branch:
+                return None
+            up = await self._fetch_upstream(ctx, repo, [branch], comp.name, ttl=BRANCH_TTL)
+        except (NotVerifiableError, HttpError, EgressDeniedError, DownloadTooLargeError, UnsafeArchiveError,
+                aiohttp.ClientError, TimeoutError, OSError, json.JSONDecodeError, ValueError):
+            return None
+        if hash_tree(comp.path, up.persistent_directory) == hash_tree(up.root):
+            ctx.logger.info("Integridade de %s: arquivos idênticos aos do branch %s de %s/%s", comp.name, branch,
+                            owner, name)
+            return branch
+        return None
+
     async def _match_newer_release(self, ctx: ScanContext, repo: tuple[str, str], comp: Component,
                                    tried: str) -> str | None:
         """Tag de uma das releases mais recentes cujos arquivos batem exatamente com os instalados."""
         owner, name = repo
         try:
-            releases = await ctx.http.get_json(f"https://api.github.com/repos/{owner}/{name}/releases?per_page=10")
+            releases = await _cached_json(ctx, f"https://api.github.com/repos/{owner}/{name}/releases?per_page=10") or []
         except (HttpError, EgressDeniedError, aiohttp.ClientError, TimeoutError, ValueError) as err:
             ctx.logger.debug("Releases de %s/%s indisponíveis: %s", owner, name, type(err).__name__)
             return None
@@ -221,7 +248,8 @@ class IntegrityScanner:
 
     # --- Download / cache ---------------------------------------------------
 
-    async def _fetch_upstream(self, ctx: ScanContext, repo: tuple[str, str], refs: list[str], domain: str) -> Upstream:
+    async def _fetch_upstream(self, ctx: ScanContext, repo: tuple[str, str], refs: list[str], domain: str,
+                              ttl: float = 0) -> Upstream:
         owner, name = repo
         cache_root = ctx.paths.cache_dir / "integrity"
         last_error: str | None = None
@@ -239,7 +267,7 @@ class IntegrityScanner:
             if meta_file.is_file():
                 try:
                     meta = json.loads(meta_file.read_text(encoding="utf-8"))
-                    if time.time() - float(meta.get("created", 0)) < CACHE_TTL:
+                    if time.time() - float(meta.get("created", 0)) < (ttl or CACHE_TTL):
                         return Upstream(ref=ref, root=cached / "files",
                                         persistent_directory=meta.get("persistent_directory"),
                                         source=meta.get("source", "tarball"))
@@ -351,12 +379,14 @@ class IntegrityScanner:
         )
 
     def _extra(self, comp: Component, inv: Inventory, rel: str, up: Upstream, repo: tuple[str, str]) -> Finding:
+        code = rel.lower().endswith(_CODE_SUFFIXES) or "." not in rel.rsplit("/", 1)[-1]
         return Finding(
             component=comp.name,
             component_type=ComponentType.INTEGRATION,
             category="integridade",
             rule_id="auditor.integridade.arquivo-extra",
-            severity=Severity.HIGH,
+            # Código (ou arquivo sem extensão, que pode ser executável) = Alta; dados e textos = Baixa.
+            severity=Severity.HIGH if code else Severity.LOW,
             title="Arquivo que não existe na release oficial",
             explanation=(
                 f"Este arquivo não faz parte da versão {up.ref} de {repo[0]}/{repo[1]}. Arquivos extras "
@@ -544,3 +574,63 @@ def _stale_manifest(comp: Component, repo: tuple[str, str], tag: str, manifest_r
         source="integridade",
         extra={"ref": tag, "repositorio": f"{repo[0]}/{repo[1]}", "fingerprint_key": tag},
     )
+
+
+BRANCH_TTL = 24 * 3600  # o branch muda: a cópia de referência dele vale só um dia
+_CODE_SUFFIXES = (".py", ".pyc", ".pyo", ".so", ".pyd", ".js", ".mjs", ".cjs", ".sh", ".bin", ".exe", ".dll")
+
+
+def _other_version(comp: Component, repo: tuple[str, str], ref: str, recorded: str, kind: str,
+                   from_hacs: bool) -> Finding:
+    who = "o HACS registrou" if from_hacs else "o manifest.json declara"
+    who_en = "HACS recorded" if from_hacs else "manifest.json says"
+    where = f"do branch {ref}" if kind == "branch" else f"da versão {ref}"
+    where_en = f"of the {ref} branch" if kind == "branch" else f"of version {ref}"
+    return Finding(
+        component=comp.name,
+        component_type=ComponentType.INTEGRATION,
+        category="integridade",
+        rule_id="auditor.integridade.outra-versao",
+        severity=Severity.INFO,
+        title="Arquivos de outra versão do repositório oficial",
+        explanation=(f"{who[0].upper()}{who[1:]} {recorded}, mas os arquivos instalados são idênticos aos {where} publicada "
+                     f"em {repo[0]}/{repo[1]}. É normal ao instalar uma versão beta ou do branch principal; o código é "
+                     "o mesmo que o autor publicou."),
+        recommendation="Nada a fazer. Se não instalou uma versão beta, reinstale pelo HACS para alinhar a versão.",
+        en=en_text("Files from another version of the official repository",
+                   f"{who_en[0].upper()}{who_en[1:]} {recorded}, but the installed files are identical to those {where_en} "
+                   f"published at {repo[0]}/{repo[1]}. This is normal when installing a beta version or the main "
+                   "branch; the code is the same the author published.",
+                   "Nothing to do. If you did not install a beta version, reinstall from HACS to align the version."),
+        source="integridade",
+        extra={"ref": ref, "repositorio": f"{repo[0]}/{repo[1]}", "fingerprint_key": f"{kind}:{ref}"},
+    )
+
+
+LOOKUP_TTL = 24 * 3600
+
+
+async def _cached_json(ctx: ScanContext, url: str):
+    """GET na API do GitHub com cópia guardada por um dia (lista de releases, dados do repositório).
+
+    Evita repetir as mesmas consultas a cada varredura quando um componente não bate com a versão.
+    """
+    key = hashlib.sha256(url.encode()).hexdigest()[:32]
+    path = ctx.paths.cache_dir / "integrity" / "lookups" / f"{key}.json"
+    try:
+        if time.time() - path.stat().st_mtime < LOOKUP_TTL:
+            return json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        pass
+    try:
+        data = await ctx.http.get_json(url)
+    except HttpError as err:
+        if err.status != 404:
+            raise
+        data = None  # não existe (repositório sem releases, por exemplo): também fica guardado
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data), encoding="utf-8")
+    except OSError:
+        pass
+    return data

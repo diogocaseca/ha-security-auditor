@@ -214,7 +214,7 @@ class ScanEngine:
         result.findings.extend(kept)
 
     def _finalize(self, result: ScanResult, ctx: ScanContext) -> None:
-        result.findings = _dedupe(result.findings)
+        result.findings = _group_repeats(_dedupe(result.findings))
         # Antes da comparação: a identidade de cada achado usa o trecho já mascarado.
         self._sanitize(result)
         # Cadeias e capacidade nova são recalculadas a cada varredura (inclusive sobre o que veio da base).
@@ -261,6 +261,47 @@ def _truncate(text: str | None) -> str | None:
     if text and len(text) > _MAX_SNIPPET:
         return text[:_MAX_SNIPPET] + " …"
     return text
+
+
+_MAX_LISTED = 20
+
+
+def _group_repeats(findings: list[Finding]) -> list[Finding]:
+    """Junta as repetições da mesma regra no mesmo arquivo (e a análise incompleta por componente).
+
+    Fica o achado de maior nível (empate: a primeira linha); as outras ocorrências vão para
+    ``extra["ocorrencias"]`` e ``extra["linhas"]`` (ou ``extra["arquivos"]``), fora do trecho: assim a
+    identidade do achado não muda quando a contagem muda.
+    """
+    groups: dict[tuple, list[Finding]] = {}
+    order: list[tuple] = []
+    out: list[Finding] = []
+    for f in findings:
+        if f.rule_id == "auditor.analise-incompleta":
+            key = ("incompleta", f.component_type, f.component)
+        elif f.file and f.line is not None:
+            key = ("linha", f.component_type, f.component, f.file, f.rule_id)
+        else:
+            out.append(f)
+            continue
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(f)
+    for key in order:
+        items = groups[key]
+        if len(items) == 1:
+            out.append(items[0])
+            continue
+        items.sort(key=lambda f: (f.file or "", f.line or 0))
+        best = max(items, key=lambda f: int(f.severity))
+        best.extra["ocorrencias"] = len(items)
+        if key[0] == "incompleta":
+            best.extra["arquivos"] = [f.file for f in items if f.file][:_MAX_LISTED]
+        else:
+            best.extra["linhas"] = sorted({f.line for f in items if f.line})[:_MAX_LISTED]
+        out.append(best)
+    return out
 
 
 def _dedupe(findings: list[Finding]) -> list[Finding]:

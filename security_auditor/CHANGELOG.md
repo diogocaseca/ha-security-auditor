@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.30.0
+
+Ajustes de ruído a partir de um relatório real (1.448 achados visíveis caíram para cerca de 725;
+altos e críticos de 274 para cerca de 58):
+
+- **`raw.githubusercontent.com` e gists** saíram de "destino suspeito" (Alta) e viraram a regra
+  informativa `auditor.py.conteudo-github`. Pastebins, webhooks, túneis e bots continuam Alta.
+- **`.storage`:** a regra genérica caiu para Baixa e não conta mais como "lê segredos" nas cadeias
+  (costuma ser a integração usando o próprio arquivo). A regra crítica de autenticação passou a
+  cobrir também o `.storage/core.config_entries`, que guarda as credenciais das outras integrações.
+- **Bandit B324** (`md5`/`sha1` para gerar identificadores) agora é sempre Baixa.
+- **Repetições agrupadas:** a mesma regra no mesmo arquivo vira um achado, com o número de
+  ocorrências e as linhas; a análise incompleta vira um achado por componente.
+- **Integridade:** quando os arquivos não batem com a versão registrada (inclusive pelo HACS), o
+  auditor testa as releases mais novas e o branch principal; se bater, é Informativa ("Arquivos de
+  outra versão do repositório oficial"). Arquivo extra que não é código passou a Baixa. As consultas
+  de releases e do repositório ficam guardadas por um dia.
+
 ## 0.29.1
 
 - **Regra de shell reverso (scripts e Dockerfile dos add-ons):** `/dev/tcp` para `127.0.0.1`,

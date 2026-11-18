@@ -540,6 +540,8 @@ EN: dict[str, str] = {
         "Component {nome}: the current findings at the levels ticked below. New findings keep showing up and the "
         "component is still scanned.",
     "Filtrar por nome…": "Filter by name…",
+    "{n} arquivos deste componente não foram analisados por completo:": "{n} files of this component were not fully analysed:",
+    "{n} ocorrências desta regra neste arquivo (linhas {linhas}).": "{n} occurrences of this rule in this file (lines {linhas}).",
     "Filtrar…": "Filter…",
     "Filtrar a tabela": "Filter the table",
     "Filtrar componentes pelo nome": "Filter components by name",

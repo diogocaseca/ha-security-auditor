@@ -246,6 +246,7 @@
               <div><dt>{{ _("Regra") }}</dt><dd><code>{{ f.rule_id }}</code> <span class="muted">· {% for src in (f.extra.sources or [f.source]) %}{{ src_label(src) }}{% if not loop.last %}, {% endif %}{% endfor %}</span></dd></div>
             </dl>
             {% if f.snippet %}<pre class="snippet"><code>{{ ftext(f, 'snippet') }}</code></pre>{% endif %}
+            {% if f.extra.ocorrencias %}<p class="muted small">{% if f.extra.arquivos %}{{ _("{n} arquivos deste componente não foram analisados por completo:", n=f.extra.ocorrencias) }} <code>{{ f.extra.arquivos | join(', ') }}</code>{% else %}{{ _("{n} ocorrências desta regra neste arquivo (linhas {linhas}).", n=f.extra.ocorrencias, linhas=(f.extra.linhas | join(', '))) }}{% endif %}{% if f.extra.ocorrencias > 20 %} …{% endif %}</p>{% endif %}
             {% if ai and viewing_latest %}{% set hosts = finding_hosts(f.snippet) %}{% if hosts %}
               <p class="finding-hosts small">
                 {% for h in hosts %}{% set q = dns_ai.get(h) %}

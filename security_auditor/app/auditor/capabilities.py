@@ -31,7 +31,7 @@ LABELS = {
 
 RULES: dict[str, set[str]] = {
     "rede": {
-        "auditor.py.url-fixa", "auditor.py.ip-fixo-publico", "auditor.py.destino-suspeito",
+        "auditor.py.url-fixa", "auditor.py.ip-fixo-publico", "auditor.py.destino-suspeito", "auditor.py.conteudo-github",
         "auditor.py.download-e-execucao", "auditor.js.destino-suspeito", "auditor.js.ip-fixo-publico",
         "auditor.js.codigo-remoto", "auditor.sh.baixa-e-executa", "auditor.sh.destino-suspeito",
         "auditor.docker.add-de-url", "bandit.B310", "bandit.B113",
@@ -41,8 +41,8 @@ RULES: dict[str, set[str]] = {
         "auditor.sh.shell-reverso", "bandit.B602", "bandit.B604", "bandit.B605", "bandit.B606", "bandit.B607",
     },
     "segredos": {
-        "auditor.py.acesso-secrets-yaml", "auditor.py.acesso-storage-auth", "auditor.py.acesso-storage",
-        "auditor.py.tokens-de-acesso", "auditor.js.acesso-token-ha", "auditor.sh.token-supervisor-externo",
+        # acesso-storage (pasta .storage em geral) não entra: costuma ser a integração usando o próprio arquivo.
+        "auditor.py.acesso-secrets-yaml", "auditor.py.acesso-storage-auth", "auditor.py.tokens-de-acesso", "auditor.js.acesso-token-ha", "auditor.sh.token-supervisor-externo",
         "auditor.sh.acesso-sensivel",
     },
     "execucao": {

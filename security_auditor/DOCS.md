@@ -102,28 +102,33 @@ too. When Bandit and Semgrep flag the same line, only one finding is kept.
 | `auditor.py.ofuscacao-decodifica-e-executa` | base64/zlib/marshal/hex decoded and executed | Critical |
 | `auditor.py.download-e-execucao` | content downloaded from the network reaching `exec`/`eval`/subprocess | Critical |
 | `auditor.py.shell-reverso` | socket redirected to a shell | Critical |
-| `auditor.py.acesso-storage-auth` | reading `.storage/auth*` (users and tokens) | Critical |
+| `auditor.py.acesso-storage-auth` | reading `.storage/auth*` (users and tokens) or `.storage/core.config_entries` (credentials of every integration) | Critical |
 | `auditor.py.eval-dinamico` | `eval`/`exec`/`compile` with dynamic data | High |
 | `auditor.py.marshal-loads` | bytecode loading | High |
 | `auditor.py.builtins-indireto` | `getattr(__builtins__, ...)` and similar | High |
 | `auditor.py.shell-true` | command run through a shell | High |
 | `auditor.py.instalacao-de-pacote-em-tempo-de-execucao` | `pip install` done by the integration itself | High |
-| `auditor.py.destino-suspeito` | webhooks, pastebins, tunnels, `raw.githubusercontent.com` | High |
+| `auditor.py.destino-suspeito` | webhooks, pastebins, tunnels, Discord and Telegram bots | High |
 | `auditor.py.acesso-secrets-yaml` | direct read of `secrets.yaml` | High |
-| `auditor.py.acesso-storage` | reading other `.storage` files | High |
+| `auditor.py.acesso-storage` | other uses of `.storage` (usually the integration's own data file) | Low |
 | `auditor.py.execucao-de-comandos` | `subprocess`, `os.system`, `os.exec*` | Medium |
 | `auditor.py.carregamento-dinamico-de-modulo` | modules loaded from arbitrary paths | Medium |
 | `auditor.py.ip-fixo-publico` | hard-coded public IP in the code | Medium |
 | `auditor.py.tokens-de-acesso` | creation of HA users/tokens | Medium |
 | `auditor.py.blob-codificado` | long base64/hex string | Medium |
 | `auditor.py.url-fixa` | hard-coded URLs (for review) | Info |
+| `auditor.py.conteudo-github` | GitHub "raw" files or gists (usually data; worth knowing what is downloaded) | Info |
 | `auditor.js.ofuscacao-decodifica-e-executa` | `eval(atob(...))` and similar | Critical |
 | `auditor.js.acesso-token-ha` | reading the access token (`hassTokens`) in the browser | High |
 | `auditor.js.destino-suspeito` | exfiltration services in scripts | High |
 | `auditor.js.eval-dinamico` | `eval`/`new Function` with dynamic data | Medium |
 | `auditor.js.codigo-remoto` | script loaded from an external address | Medium |
 | `auditor.js.ip-fixo-publico` | connection to a hard-coded public IP | Medium |
-| `bandit.*` | other Bandit warnings (pickle, disabled TLS, weak hash...) | as reported by Bandit |
+| `bandit.*` | other Bandit warnings (pickle, disabled TLS...) | as reported by Bandit (weak hash, B324, is always Low) |
+
+Repeated hits of the same rule in the same file show up as **one** finding, with the number of
+occurrences and their lines; files Semgrep could not fully analyse are listed in one finding per
+component.
 
 **Dependencies.** The `requirements` in `manifest.json` are audited with
 [pip-audit](https://pypi.org/project/pip-audit/) against the [OSV](https://osv.dev) database. It
@@ -175,8 +180,12 @@ installed version from GitHub and compares it file by file with SHA-256:
   many authors forget to update. If the files differ from that version, the auditor also tries the
   5 most recent releases; if one matches file by file, the High alerts become a single Info finding
   ("Manifest version is out of date") and the component shows as verified against that release;
-- **modified file** or **extra file** = High, with the diff (or the start of the file) in the
-  report; missing file = Low;
+- when the files differ from the reference version (even the one HACS recorded), the auditor also
+  tries the newer releases and the default branch; if one matches file by file, it becomes an Info
+  finding ("Files from another version of the official repository", for example a beta install);
+- **modified file** or **extra code file** (`.py`, `.js`, binaries) = High, with the diff (or the
+  start of the file) in the report; extra file that is not code (YAML, JSON, images) = Low; missing
+  file = Low;
 - no identifiable repository (manual install) = Low; version not found in the repository = Info.
 
 **HACS cards** (`www/community/<repository>`) are checked too, against the version HACS recorded.

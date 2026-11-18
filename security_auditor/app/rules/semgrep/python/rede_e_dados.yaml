@@ -92,7 +92,7 @@ rules:
       - pattern: '"$S"'
       - metavariable-regex:
           metavariable: $S
-          regex: (?i).*(pastebin\.com|paste\.ee|hastebin|ghostbin|transfer\.sh|ngrok(-free)?\.(io|app|dev)|webhook\.site|requestbin|pipedream\.net|interact\.sh|oast\.(fun|me|pro|live|site|online)|burpcollaborator|discord(app)?\.com/api/webhooks|api\.telegram\.org/bot|\.onion\b|gist\.githubusercontent\.com|raw\.githubusercontent\.com|cdn\.discordapp\.com/attachments|anonfiles|file\.io)
+          regex: (?i).*(pastebin\.com|paste\.ee|hastebin|ghostbin|transfer\.sh|ngrok(-free)?\.(io|app|dev)|webhook\.site|requestbin|pipedream\.net|interact\.sh|oast\.(fun|me|pro|live|site|online)|burpcollaborator|discord(app)?\.com/api/webhooks|api\.telegram\.org/bot|\.onion\b|cdn\.discordapp\.com/attachments|anonfiles|file\.io)
     metadata:
       titulo: Destino de rede suspeito
       categoria: destino_suspeito
@@ -100,11 +100,33 @@ rules:
       explicacao: >-
         O código referencia um serviço frequentemente usado para enviar dados
         roubados (webhooks, bots, túneis) ou para hospedar código baixado depois
-        (pastebins, arquivos "raw").
+        (pastebins, anexos do Discord).
       recomendacao: Veja o que é enviado ou baixado desse endereço e por quê.
       titulo_en: "Suspicious network destination"
-      explicacao_en: "The code references a service often used to send stolen data (webhooks, bots, tunnels) or to host code downloaded later (pastebins, \"raw\" files)."
+      explicacao_en: "The code references a service often used to send stolen data (webhooks, bots, tunnels) or to host code downloaded later (pastebins, Discord attachments)."
       recomendacao_en: "Check what is sent to or downloaded from this address and why."
+
+  - id: auditor.py.conteudo-github
+    languages: [python]
+    severity: INFO
+    message: Baixa conteúdo de arquivos "raw" do GitHub
+    patterns:
+      - pattern: '"$S"'
+      - metavariable-regex:
+          metavariable: $S
+          regex: (?i).*(raw\.githubusercontent\.com|gist\.githubusercontent\.com)
+    metadata:
+      titulo: Baixa arquivos do GitHub (raw ou gist)
+      categoria: rede
+      severidade: info
+      explicacao: >-
+        O código aponta para arquivos "raw" do GitHub ou para um gist. É comum para
+        baixar listas, traduções ou dados de dispositivos; também é um jeito de
+        buscar código que não está no componente, por isso vale saber o que é baixado.
+      recomendacao: Veja se o arquivo baixado é dado (JSON, YAML) ou código executado.
+      titulo_en: "Downloads files from GitHub (raw or gist)"
+      explicacao_en: "The code points to GitHub \"raw\" files or a gist. It is common for downloading lists, translations or device data; it is also a way to fetch code that is not in the component, so it is worth knowing what is downloaded."
+      recomendacao_en: "Check whether the downloaded file is data (JSON, YAML) or code that gets run."
 
   - id: auditor.py.ip-fixo-publico
     languages: [python]
@@ -183,21 +205,22 @@ rules:
           - pattern: '"$S"'
           - metavariable-regex:
               metavariable: $S
-              regex: (?i).*\.storage[/\\](auth|onboarding)
-      - pattern: os.path.join(..., ".storage", "=~/^(auth|onboarding)/", ...)
-      - pattern: $H.config.path(".storage", "=~/^(auth|onboarding)/", ...)
-      - pattern: $P / ".storage" / "=~/^(auth|onboarding)/"
+              regex: (?i).*\.storage[/\\](auth|onboarding|core\.config_entries)
+      - pattern: os.path.join(..., ".storage", "=~/^(auth|onboarding|core\.config_entries)/", ...)
+      - pattern: $H.config.path(".storage", "=~/^(auth|onboarding|core\.config_entries)/", ...)
+      - pattern: $P / ".storage" / "=~/^(auth|onboarding|core\.config_entries)/"
     metadata:
-      titulo: Acesso aos arquivos de autenticação (.storage/auth)
+      titulo: Acesso a arquivos de autenticação ou credenciais (.storage)
       categoria: acesso_sensivel
       severidade: critica
       explicacao: >-
         Os arquivos .storage/auth* guardam usuários, hashes de senha e tokens de
-        atualização. Com eles é possível entrar na instalação como qualquer
-        usuário. Nenhuma integração comum precisa lê-los.
+        atualização, e o .storage/core.config_entries guarda as credenciais de
+        todas as outras integrações. Com eles é possível entrar na instalação ou
+        nas contas ligadas a ela. Nenhuma integração comum precisa lê-los.
       recomendacao: Desative a integração e investigue; considere revogar os tokens de acesso.
-      titulo_en: "Access to the authentication files (.storage/auth)"
-      explicacao_en: "The .storage/auth* files hold users, password hashes and refresh tokens. With them it is possible to log in to the installation as any user. No regular integration needs to read them."
+      titulo_en: "Access to authentication or credential files (.storage)"
+      explicacao_en: "The .storage/auth* files hold users, password hashes and refresh tokens, and .storage/core.config_entries holds the credentials of every other integration. With them it is possible to log in to the installation or to the accounts linked to it. No regular integration needs to read them."
       recomendacao_en: "Disable the integration and investigate; consider revoking the access tokens."
 
   - id: auditor.py.acesso-storage
@@ -210,17 +233,17 @@ rules:
           metavariable: $S
           regex: (?i)(.*[/\\])?\.storage([/\\]|$)
     metadata:
-      titulo: Acesso direto à pasta .storage
+      titulo: Referência à pasta .storage
       categoria: acesso_sensivel
-      severidade: alta
+      severidade: baixa
       explicacao: >-
-        A pasta .storage contém o estado interno do Home Assistant, incluindo
-        credenciais de outras integrações (config_entries). Integrações devem
-        usar as APIs do HA em vez de ler esses arquivos.
-      recomendacao: Veja qual arquivo é acessado e se a integração realmente precisa dele.
-      titulo_en: "Direct access to the .storage folder"
-      explicacao_en: "The .storage folder holds Home Assistant's internal state, including other integrations' credentials (config_entries). Integrations should use the HA APIs instead of reading these files."
-      recomendacao_en: "Check which file is accessed and whether the integration really needs it."
+        O código usa a pasta .storage. É normal quando a integração guarda os
+        próprios dados lá (um arquivo com o nome dela); os arquivos de
+        autenticação e de credenciais têm regra própria, de nível crítico.
+      recomendacao: Veja se o arquivo acessado é da própria integração.
+      titulo_en: "Reference to the .storage folder"
+      explicacao_en: "The code uses the .storage folder. It is normal when the integration keeps its own data there (a file named after it); the authentication and credential files have their own rule, at critical level."
+      recomendacao_en: "Check whether the file accessed belongs to the integration itself."
 
   - id: auditor.py.tokens-de-acesso
     languages: [python]

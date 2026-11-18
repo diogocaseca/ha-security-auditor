@@ -390,9 +390,33 @@ async def test_integrity_stale_manifest_but_file_edited(tmp_path):
     assert all("v1.2.0" in f.explanation for f in findings)
 
 
-async def test_integrity_trusts_hacs_version(tmp_path):
-    """Com a versão do HACS, a referência é a certa: não procura outras releases."""
+async def test_integrity_hacs_version_but_files_of_newer_release(tmp_path):
+    """O HACS registrou v1.2.0, mas os arquivos são idênticos à v1.3.2 publicada: aviso informativo."""
     paths, gh = _stale_setup(tmp_path, hacs=True)
-    findings = await IntegrityScanner().scan(_ctx(paths, tmp_path, http=gh))
-    assert {f.rule_id for f in findings} == {"auditor.integridade.arquivo-alterado"}
-    assert not any("/releases?" in c for c in gh.calls)
+    ctx = _ctx(paths, tmp_path, http=gh)
+    (f,) = await IntegrityScanner().scan(ctx)
+    assert f.rule_id == "auditor.integridade.outra-versao" and f.severity is Severity.INFO
+    assert "O HACS registrou v1.2.0" in f.explanation and "v1.3.2" in f.explanation
+    assert "(o HACS registrou v1.2.0)" in ctx.components[("integracao", "ssh_docker")]["integridade"]
+
+
+async def test_integrity_matches_default_branch(tmp_path):
+    """Instalado do branch principal (beta): nenhuma release bate, mas o branch bate."""
+    paths, gh = _stale_setup(tmp_path, hacs=True)
+    gh.routes["https://api.github.com/repos/gensyn/ssh_docker/releases?per_page=10"] = []
+    gh.routes["https://api.github.com/repos/gensyn/ssh_docker"] = {"default_branch": "main"}
+    gh.routes["https://codeload.github.com/gensyn/ssh_docker/tar.gz/main"] = \
+        gh.routes["https://codeload.github.com/gensyn/ssh_docker/tar.gz/v1.3.2"]
+    (f,) = await IntegrityScanner().scan(_ctx(paths, tmp_path, http=gh))
+    assert f.rule_id == "auditor.integridade.outra-versao" and "branch main" in f.explanation
+
+
+async def test_integrity_extra_non_code_file_is_low(tmp_path):
+    paths, gh = _stale_setup(tmp_path, hacs=True)
+    comp = paths.config_dir / "custom_components/ssh_docker"
+    (comp / "devices").mkdir()
+    (comp / "devices/meu_aparelho.yaml").write_text("name: x\n")
+    (comp / "extra.py").write_text("import os\n")
+    by = {f.file.rsplit("/", 1)[-1]: f for f in await IntegrityScanner().scan(_ctx(paths, tmp_path, http=gh))
+          if f.rule_id == "auditor.integridade.arquivo-extra"}
+    assert by["meu_aparelho.yaml"].severity is Severity.LOW and by["extra.py"].severity is Severity.HIGH

@@ -106,28 +106,33 @@ também são analisados. Quando o Bandit e o Semgrep apontam a mesma linha, fica
 | `auditor.py.ofuscacao-decodifica-e-executa` | base64/zlib/marshal/hex decodificado e executado | Crítica |
 | `auditor.py.download-e-execucao` | conteúdo baixado da rede chegando a `exec`/`eval`/subprocess | Crítica |
 | `auditor.py.shell-reverso` | socket redirecionado para um shell | Crítica |
-| `auditor.py.acesso-storage-auth` | leitura de `.storage/auth*` (usuários e tokens) | Crítica |
+| `auditor.py.acesso-storage-auth` | leitura de `.storage/auth*` (usuários e tokens) ou `.storage/core.config_entries` (credenciais de todas as integrações) | Crítica |
 | `auditor.py.eval-dinamico` | `eval`/`exec`/`compile` com dados dinâmicos | Alta |
 | `auditor.py.marshal-loads` | carregamento de bytecode | Alta |
 | `auditor.py.builtins-indireto` | `getattr(__builtins__, ...)` e afins | Alta |
 | `auditor.py.shell-true` | comando executado via shell | Alta |
 | `auditor.py.instalacao-de-pacote-em-tempo-de-execucao` | `pip install` feito pela própria integração | Alta |
-| `auditor.py.destino-suspeito` | webhooks, pastebins, túneis, `raw.githubusercontent.com` | Alta |
+| `auditor.py.destino-suspeito` | webhooks, pastebins, túneis, bots do Discord e do Telegram | Alta |
 | `auditor.py.acesso-secrets-yaml` | leitura direta do `secrets.yaml` | Alta |
-| `auditor.py.acesso-storage` | leitura de outros arquivos de `.storage` | Alta |
+| `auditor.py.acesso-storage` | outros usos da `.storage` (normalmente o arquivo de dados da própria integração) | Baixa |
 | `auditor.py.execucao-de-comandos` | `subprocess`, `os.system`, `os.exec*` | Média |
 | `auditor.py.carregamento-dinamico-de-modulo` | módulos carregados de caminhos arbitrários | Média |
 | `auditor.py.ip-fixo-publico` | IP público fixo no código | Média |
 | `auditor.py.tokens-de-acesso` | criação de usuários/tokens do HA | Média |
 | `auditor.py.blob-codificado` | string longa em base64/hex | Média |
 | `auditor.py.url-fixa` | URLs fixas (para conferência) | Informativa |
+| `auditor.py.conteudo-github` | arquivos "raw" do GitHub ou gists (normalmente dados; vale saber o que é baixado) | Informativa |
 | `auditor.js.ofuscacao-decodifica-e-executa` | `eval(atob(...))` e afins | Crítica |
 | `auditor.js.acesso-token-ha` | leitura do token de acesso (`hassTokens`) no navegador | Alta |
 | `auditor.js.destino-suspeito` | serviços de exfiltração em scripts | Alta |
 | `auditor.js.eval-dinamico` | `eval`/`new Function` com dados dinâmicos | Média |
 | `auditor.js.codigo-remoto` | script carregado de endereço externo | Média |
 | `auditor.js.ip-fixo-publico` | conexão com IP público fixo | Média |
-| `bandit.*` | demais avisos do Bandit (pickle, TLS desativado, hash fraco...) | conforme o Bandit |
+| `bandit.*` | outros avisos do Bandit (pickle, TLS desativado...) | o do Bandit (hash fraco, B324, é sempre Baixa) |
+
+Repetições da mesma regra no mesmo arquivo aparecem como **um** achado, com o número de
+ocorrências e as linhas; arquivos que o Semgrep não conseguiu analisar por completo ficam listados
+num achado por componente.
 
 **Dependências.** Os `requirements` do `manifest.json` são auditados com o
 [pip-audit](https://pypi.org/project/pip-audit/) contra a base [OSV](https://osv.dev). Ele roda
@@ -181,8 +186,13 @@ versão instalada e compara arquivo a arquivo por SHA-256:
   as 5 releases mais recentes; se alguma bater arquivo a arquivo, os alertas altos viram um único
   achado Informativo ("Versão do manifest desatualizada") e o componente aparece verificado contra
   essa release;
-- **arquivo alterado** ou **arquivo extra** = Alta, com o diff (ou o início do arquivo) no
-  relatório; arquivo ausente = Baixa;
+- quando os arquivos não batem com a versão de referência (mesmo a registrada pelo HACS), o auditor
+  testa também as releases mais novas e o branch principal; se alguma bater arquivo a arquivo, vira
+  um achado Informativo ("Arquivos de outra versão do repositório oficial", por exemplo instalação
+  beta);
+- **arquivo alterado** ou **arquivo de código extra** (`.py`, `.js`, binários) = Alta, com o diff
+  (ou o início do arquivo) no relatório; arquivo extra que não é código (YAML, JSON, imagens) =
+  Baixa; arquivo ausente = Baixa;
 - sem repositório identificável (instalação manual) = Baixa; versão não encontrada no
   repositório = Informativa.
 
