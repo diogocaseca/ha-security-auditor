@@ -18,6 +18,7 @@ from ..inventory import Component, Inventory
 from ..models import ComponentType, Finding, Severity, en_text
 from ..tools import run_tool
 from .base import ScanContext
+from .deps_malicious import malicious_ids, normalize, texts, typosquat_of
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -52,17 +53,27 @@ def classify(raw: str) -> tuple[str, PinnedReq | None]:
 class DependencyScanner:
     name = "dependencias"
 
+    async def _malicious(self, ctx: ScanContext, named):
+        ctx.set_progress(self.name, "pacotes maliciosos e typosquatting")
+        return await _check_malicious(ctx, named)
+
     async def scan(self, ctx: ScanContext) -> list[Finding]:
         inv: Inventory = ctx.inventory()
         findings: list[Finding] = []
         pinned: dict[PinnedReq, list[Component]] = {}
 
+        named: dict[str, list[tuple[Component, str]]] = {}  # nome normalizado -> (componente, requisito)
         for comp in inv.integrations:
             reqs = comp.manifest.get("requirements") or []
             if not isinstance(reqs, list):
                 continue
             for raw in reqs:
                 kind, req = classify(str(raw))
+                if kind in ("fixado", "sem_versao"):
+                    try:
+                        named.setdefault(normalize(Requirement(str(raw).strip()).name), []).append((comp, str(raw)))
+                    except InvalidRequirement:
+                        pass
                 if kind == "fixado" and req:
                     pinned.setdefault(req, []).append(comp)
                 elif kind == "url":
@@ -105,6 +116,7 @@ class DependencyScanner:
                                    "Check the integration's manifest.json."),
                     ))
 
+        findings.extend(await self._malicious(ctx, named))
         if not pinned:
             return findings
 
@@ -126,6 +138,29 @@ class DependencyScanner:
         data = json.loads(text[text.index("{") :])
         findings.extend(findings_from_pip_audit(data, pinned))
         return findings
+
+
+async def _check_malicious(ctx: ScanContext, named: dict[str, list[tuple[Component, str]]]) -> list[Finding]:
+    """Pacotes maliciosos catalogados (OSV MAL-…) e nomes de typosquatting."""
+    out: list[Finding] = []
+    for name, uses in sorted(named.items()):
+        if popular := typosquat_of(name):
+            sev, title, why, todo, en = texts("typosquatting", nome=name, popular=popular)
+            out += [_finding(comp, raw, sev, "auditor.deps.typosquatting", title, why, todo, en=en,
+                             fingerprint_key=popular) for comp, raw in uses]
+    if not named:
+        return out
+    try:
+        bad = await malicious_ids(ctx.http, list(named))
+    except Exception as err:  # noqa: BLE001 - a consulta é um extra: sem ela, o resto do scanner segue
+        _LOGGER.warning("Consulta de pacotes maliciosos na OSV falhou: %s", type(err).__name__)
+        return out
+    for name, ids in sorted(bad.items()):
+        sev, title, why, todo, en = texts("malicioso", ids=", ".join(ids))
+        out += [_finding(comp, raw, sev, "auditor.deps.pacote-malicioso", title, why, todo, en=en,
+                         fingerprint_key=",".join(ids), category="dependencia_maliciosa")
+                for comp, raw in named.get(name, [])]
+    return out
 
 
 def findings_from_pip_audit(data: dict, pinned: dict[PinnedReq, list[Component]]) -> list[Finding]:

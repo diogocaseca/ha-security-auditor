@@ -93,6 +93,31 @@ CREATE TABLE IF NOT EXISTS excluded (
     created_at  TEXT NOT NULL,
     PRIMARY KEY (type, name)
 );
+-- Perfil de capacidades por componente e versão (capacidade nova trazida por atualização).
+CREATE TABLE IF NOT EXISTS capabilities (
+    type        TEXT NOT NULL,
+    name        TEXT NOT NULL,
+    version     TEXT NOT NULL,
+    caps        TEXT NOT NULL,
+    added       TEXT NOT NULL,
+    previous    TEXT,
+    updated_at  TEXT NOT NULL,
+    PRIMARY KEY (type, name)
+);
+-- Respostas da API do GitHub guardadas por um dia (sinais de cadeia de suprimentos).
+CREATE TABLE IF NOT EXISTS github_cache (
+    key        TEXT PRIMARY KEY,
+    data       TEXT NOT NULL,
+    checked_at REAL NOT NULL
+);
+-- Commit para onde cada tag apontava na primeira vez (detecta tag reescrita).
+CREATE TABLE IF NOT EXISTS tag_refs (
+    repo       TEXT NOT NULL,
+    tag        TEXT NOT NULL,
+    sha        TEXT NOT NULL,
+    first_seen TEXT NOT NULL,
+    PRIMARY KEY (repo, tag)
+);
 -- Última resposta da IA (opção ia_provedor) para cada domínio consultado na aba DNS.
 CREATE TABLE IF NOT EXISTS dns_ai (
     domain      TEXT PRIMARY KEY,
@@ -441,6 +466,36 @@ class Storage:
     def known_dns_domains(self) -> set[str]:
         with self._conn() as conn:
             return {r["domain"] for r in conn.execute("SELECT domain FROM dns_domains").fetchall()}
+
+    def github_cache(self, key: str) -> tuple[dict[str, Any], float] | None:
+        with self._conn() as conn:
+            r = conn.execute("SELECT data, checked_at FROM github_cache WHERE key = ?", (key,)).fetchone()
+        return (json.loads(r["data"]), float(r["checked_at"])) if r else None
+
+    def set_github_cache(self, key: str, data: dict[str, Any], checked_at: float) -> None:
+        with self._conn() as conn:
+            conn.execute("INSERT OR REPLACE INTO github_cache VALUES (?, ?, ?)", (key, json.dumps(data), checked_at))
+
+    def first_tag_sha(self, repo: str, tag: str, sha: str, seen: str) -> str:
+        """Commit da primeira vez que a tag foi vista (guarda ``sha`` se for a primeira)."""
+        with self._conn() as conn:
+            conn.execute("INSERT OR IGNORE INTO tag_refs VALUES (?, ?, ?, ?)", (repo, tag, sha, seen))
+            return str(conn.execute("SELECT sha FROM tag_refs WHERE repo = ? AND tag = ?", (repo, tag)).fetchone()[0])
+
+    def capability_row(self, component_type: str, name: str) -> dict[str, Any] | None:
+        with self._conn() as conn:
+            r = conn.execute("SELECT * FROM capabilities WHERE type = ? AND name = ?", (component_type, name)).fetchone()
+        if r is None:
+            return None
+        return {"version": r["version"], "caps": json.loads(r["caps"]), "added": json.loads(r["added"]),
+                "previous": r["previous"]}
+
+    def save_capabilities(self, component_type: str, name: str, version: str, caps: set[str], added: set[str],
+                          previous: str | None, updated_at: str) -> None:
+        with self._conn() as conn:
+            conn.execute("INSERT OR REPLACE INTO capabilities VALUES (?, ?, ?, ?, ?, ?, ?)",
+                         (component_type, name, version, json.dumps(sorted(caps)), json.dumps(sorted(added)),
+                          previous, updated_at))
 
     def list_excluded(self) -> list[dict[str, str]]:
         with self._conn() as conn:

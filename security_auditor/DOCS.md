@@ -130,7 +130,40 @@ too. When Bandit and Semgrep flag the same line, only one finding is kept.
 runs in `--no-deps --disable-pip` mode: it only queries the database and never installs or resolves
 packages, because resolving could run third-party `setup.py` files. That is why only requirements
 with an exact version (`==`) can be audited; the others show up as informational. Dependencies
-installed from a URL or git repository show up as Medium.
+installed from a URL or git repository show up as Medium. Every requirement name (with or without a
+version) is also checked against the OSV catalogue of **malicious packages** (`MAL-…` entries, from
+the OpenSSF; only the package name is sent) = Critical, and against a list of popular packages for
+**typosquatting** (a name one letter away from, say, `requests` or `aiohttp`) = Medium.
+
+**Obfuscation and compiled code.** Besides the Semgrep rules, the auditor looks in each Python file
+for text built with `chr()` in sequence, long runs of `\xNN`, variable names like `O0O0O0`, code lines
+over 2000 characters, and compressed data (`zlib`, `lzma`, `bz2`, `gzip`, `marshal`) together with
+`exec`/`eval`. It also flags compiled files inside integrations and cards: a `.pyc` outside
+`__pycache__` (Python imports it even without the `.py`, and nothing else analyses it), native
+libraries and executables (ELF, PE, Mach-O) = High.
+
+**Capabilities and behaviour chains.** From the findings, each component gets a capability profile,
+shown as badges in the components table: 🌐 network access, 🖥️ runs commands, 🔑 reads secrets or
+tokens, ⚙️ runs dynamic code, 📦 installs packages, 🕶️ has hidden code. Some combinations become a
+finding of their own, with the pieces and where each one is:
+
+| Chain | Severity |
+|---|---|
+| Reads credentials **and** accesses the network | Critical |
+| Hidden code **and** a dangerous capability (network, secrets, commands, dynamic code, packages) | Critical |
+| Accesses the network **and** runs dynamic code | High |
+
+Ignoring the pieces does not hide the chain; ignore the chain itself if it is expected.
+
+**New capability in an update.** The profile is stored per version. When an update brings a capability
+the previous version did not have (for example, 1.4.3 starts reading `.storage/auth`), the auditor
+creates the High finding "Update added a new capability", which stays until the next update. It is
+the typical sign of a repository that changed hands or was hacked. New rules of the auditor itself do
+not trigger it: it only compares when the component's version changes.
+
+**GitHub supply-chain signals** (HACS components, read-only, each repository at most once a day):
+the installed version's tag now points to another commit = High; the repository changed name or owner
+since HACS installed it = Medium; the repository was archived = Info.
 
 **Integrity.** For each integration with an identifiable repository (through HACS, in
 `.storage/hacs.repositories`, or through the URLs in `manifest.json`), the auditor downloads the
@@ -694,6 +727,7 @@ outbound connections are downloads and queries to vulnerability databases, plus 
 | `api.github.com`, `github.com`, `codeload.github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `raw.githubusercontent.com` | Download the integrations' and add-ons' code for comparison and analysis | Auditor (Python) |
 | `raw.githubusercontent.com` (`diogocaseca/ha-security-blocklist`) | Download the community blocklist and its signature (whole file; nothing is sent) | Auditor (Python) |
 | `api.osv.dev` | Query vulnerabilities of the requirements (sends only package name and version) | pip-audit |
+| `api.osv.dev` | Check whether a requirement is a catalogued malicious package (sends only the package name) | Auditor (Python) |
 | Image registries (`ghcr.io`, Docker Hub and whichever registry each add-on uses) | Download image manifests and layers | Trivy |
 | `mirror.gcr.io`, `ghcr.io` | Download Trivy's vulnerability database | Trivy |
 | The `adguard_url` and `pihole_url` hosts | Read your DNS servers' query log (optional) | Auditor (Python) |

@@ -155,6 +155,7 @@
                     {% set details = component_details(c.metadata) %}
                     {% if c.first_seen %}{% set details = details + [_("descoberto em {data}", data=(c.first_seen | dt))] %}{% endif %}
                     {% if details %}<div class="comp-meta">{{ details | join(' · ') }}</div>{% endif %}
+                    {% if c.metadata.capacidades %}<div class="comp-caps">{% for cap in c.metadata.capacidades if cap in cap_labels %}<span class="cap-badge cap-{{ cap }}" title="{{ cap_labels[cap][0] }}">{{ cap_labels[cap][1] }} {{ cap_labels[cap][0] }}</span>{% endfor %}</div>{% endif %}
                     {# A lista mudou depois deste relatório: avisa até a próxima varredura. #}
                     {% set was_skipped = (c.metadata.verificacao or '').startswith('não verificado') %}
                     {% if viewing_latest and was_skipped %}<div class="comp-meta"><strong>{{ _("Não está mais ignorado: volta a ser analisado na próxima varredura.") }}</strong></div>{% endif %}

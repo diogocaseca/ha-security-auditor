@@ -10,6 +10,7 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, pass_context, select_autoescape
 
 from ..ai import finding_hosts
+from ..capabilities import LABELS as CAP_LABELS
 from ..allowlist import skip_entry_for
 from ..i18n import HTML_LANG, Translator, normalize
 from ..models import ComponentType, ScanResult, Severity
@@ -149,6 +150,8 @@ def render_html(
         finding_hosts=finding_hosts,  # hosts de URLs e IPs nos trechos (botão "Perguntar à IA" nos achados)
         dns_ai=dns_ai or {},
         excluded=excluded or [],  # componentes tirados da tabela com "Excluir…"
+        # Capacidades do componente (selos na tabela): rótulo no idioma e ícone.
+        cap_labels={k: (v[1] if lang == "en" else v[0], v[2]) for k, v in CAP_LABELS.items()},
         # Ignorado (fora da varredura) pela lista ATUAL: o relatório pode ser de antes de uma mudança na lista.
         is_skipped=lambda name: skip_entry_for(name, tuple(skip_entries)) is not None,
         ai_verdicts={"malicioso": tr.t("Malicioso"), "suspeito": tr.t("Suspeito"),

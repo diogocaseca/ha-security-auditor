@@ -134,7 +134,41 @@ também são analisados. Quando o Bandit e o Semgrep apontam a mesma linha, fica
 em modo `--no-deps --disable-pip`: só consulta a base e nunca instala nem resolve pacotes, porque
 resolver poderia executar `setup.py` de terceiros. Por isso só requisitos com versão exata
 (`==`) podem ser auditados; os demais aparecem como informativos. Dependências instaladas de
-URL ou repositório git aparecem como Média.
+URL ou repositório git aparecem como Média. O nome de cada requisito (com ou sem versão) também é
+comparado com o catálogo de **pacotes maliciosos** da OSV (avisos `MAL-…`, da OpenSSF; só o nome do
+pacote é enviado) = Crítica, e com uma lista de pacotes populares para pegar **typosquatting** (um
+nome a uma letra de, por exemplo, `requests` ou `aiohttp`) = Média.
+
+**Ofuscação e código compilado.** Além das regras do Semgrep, o auditor procura em cada arquivo
+Python: texto montado com `chr()` em sequência, sequências longas de `\xNN`, nomes de variáveis como
+`O0O0O0`, linhas de código com mais de 2000 caracteres e dados compactados (`zlib`, `lzma`, `bz2`,
+`gzip`, `marshal`) junto com `exec`/`eval`. Também marca arquivos compilados dentro de integrações e
+cards: `.pyc` fora de `__pycache__` (o Python importa mesmo sem o `.py`, e nada mais o analisa),
+bibliotecas nativas e executáveis (ELF, PE, Mach-O) = Alta.
+
+**Capacidades e cadeias de comportamento.** A partir dos achados, cada componente ganha um perfil de
+capacidades, mostrado como selos na tabela de componentes: 🌐 acessa a rede, 🖥️ executa comandos,
+🔑 lê segredos ou tokens, ⚙️ executa código dinâmico, 📦 instala pacotes, 🕶️ tem código escondido.
+Algumas combinações viram um achado próprio, com as peças e onde cada uma está:
+
+| Cadeia | Severidade |
+|---|---|
+| Lê credenciais **e** acessa a rede | Crítica |
+| Código escondido **e** capacidade perigosa (rede, segredos, comandos, código dinâmico, pacotes) | Crítica |
+| Acessa a rede **e** executa código dinâmico | Alta |
+
+Ignorar as peças não esconde a cadeia; se ela for esperada, ignore a própria cadeia.
+
+**Capacidade nova numa atualização.** O perfil fica guardado por versão. Quando uma atualização traz
+uma capacidade que a versão anterior não tinha (por exemplo, a 1.4.3 passa a ler o `.storage/auth`),
+o auditor cria o achado Alto "Atualização trouxe capacidade nova", que fica até a próxima
+atualização. É o sinal típico de repositório que mudou de mãos ou foi invadido. Regras novas do
+próprio auditor não disparam esse aviso: ele só compara quando a versão do componente muda.
+
+**Sinais de cadeia de suprimentos no GitHub** (componentes do HACS, só leitura, cada repositório no
+máximo uma vez por dia): a tag da versão instalada passou a apontar para outro commit = Alta; o
+repositório mudou de nome ou de dono desde que o HACS o instalou = Média; o repositório foi
+arquivado = Informativa.
 
 **Integridade.** Para cada integração com repositório identificável (pelo HACS, em
 `.storage/hacs.repositories`, ou pelas URLs do `manifest.json`), o auditor baixa do GitHub a
@@ -698,6 +732,7 @@ O auditor **nunca envia dados da sua instalação para serviços externos por co
 | `api.github.com`, `github.com`, `codeload.github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `raw.githubusercontent.com` | Baixar o código das integrações e add-ons para comparação e análise | Auditor (Python) |
 | `raw.githubusercontent.com` (`diogocaseca/ha-security-blocklist`) | Baixar a lista negra comunitária e a assinatura (arquivo inteiro; nada é enviado) | Auditor (Python) |
 | `api.osv.dev` | Consultar vulnerabilidades dos requirements (envia só nome e versão do pacote) | pip-audit |
+| `api.osv.dev` | Ver se um requisito é pacote malicioso catalogado (envia só o nome do pacote) | Auditor (Python) |
 | Registros das imagens (`ghcr.io`, Docker Hub e o registro que cada add-on usar) | Baixar manifesto e camadas das imagens | Trivy |
 | `mirror.gcr.io`, `ghcr.io` | Baixar a base de vulnerabilidades do Trivy | Trivy |
 | Os hosts de `adguard_url` e `pihole_url` | Ler o log de consultas dos seus servidores DNS (Fase 3, opcional) | Auditor (Python) |

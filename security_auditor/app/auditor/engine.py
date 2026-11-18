@@ -11,6 +11,7 @@ from pathlib import Path
 
 from . import __version__
 from .allowlist import apply_allowlist
+from .capabilities import CHANGE_RULE, DERIVED, build_chains, capability_changes, profile
 from .config import Options, Paths
 from .diff import compare
 from .masking import Masker
@@ -215,6 +216,17 @@ class ScanEngine:
     def _finalize(self, result: ScanResult, ctx: ScanContext) -> None:
         result.findings = _dedupe(result.findings)
         # Antes da comparação: a identidade de cada achado usa o trecho já mascarado.
+        self._sanitize(result)
+        # Cadeias e capacidade nova são recalculadas a cada varredura (inclusive sobre o que veio da base).
+        result.findings = [f for f in result.findings if f.category not in DERIVED and f.rule_id != CHANGE_RULE]
+        result.findings += build_chains(result.findings)
+        prof = profile(result.findings)
+        for (ctype, name), caps in prof.items():
+            ctx.components.setdefault((ctype, name), {})["capacidades"] = sorted(caps)
+        for meta in ctx.components.values():
+            meta.setdefault("capacidades", [])
+        provisional = summarize(result.findings, ctx.components)
+        result.findings += capability_changes(result.findings, provisional, self.storage, result.started_at)
         self._sanitize(result)
         apply_allowlist(result.findings, self.options.allowlist + tuple(self.storage.ignore_entries()))
         compare(result, self.storage.load_latest())

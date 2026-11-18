@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.29.0
+
+- **Cadeias de comportamento:** combinações perigosas no mesmo componente viram um achado próprio,
+  com as peças: lê credenciais e acessa a rede (Crítica), código escondido com capacidade perigosa
+  (Crítica), acessa a rede e executa código dinâmico (Alta).
+- **Perfil de capacidades:** selos na tabela de componentes (rede, comandos, segredos, código
+  dinâmico, pacotes, código escondido).
+- **Capacidade nova numa atualização:** quando uma versão nova traz uma capacidade que a anterior
+  não tinha, sai um achado Alto (sinal típico de repositório que mudou de mãos).
+- **Sinais do GitHub:** tag da versão reescrita (Alta), repositório transferido ou renomeado
+  (Média) e repositório arquivado (Informativa). Cada repositório é consultado no máximo uma vez
+  por dia.
+- **Dependências:** pacotes maliciosos catalogados na OSV (`MAL-…`, Crítica) e nomes de
+  typosquatting (Média).
+- **Ofuscação e código compilado:** `chr()` em sequência, escapes `\xNN`, nomes ofuscados, linhas
+  enormes, dados compactados com `exec`/`eval`, `.pyc` fora de `__pycache__` e binários dentro do
+  componente.
+
 ## 0.28.0
 
 - **Integridade dos cards do HACS** (`www/community`): cada arquivo é comparado com a release

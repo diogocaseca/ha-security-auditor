@@ -10,6 +10,8 @@ from .blocklist import BlocklistScanner
 from .deps import DependencyScanner
 from .dns import DnsScanner
 from .integrity import IntegrityScanner
+from .obfuscation import ObfuscationScanner
+from .repo_signals import RepoSignalsScanner
 from .static import StaticAnalysisScanner
 from .traffic import TrafficScanner
 
@@ -23,8 +25,10 @@ def default_scanners() -> list[Scanner]:
         BlocklistScanner(),
         # Fase 1: integrações customizadas e www/
         StaticAnalysisScanner(),
+        ObfuscationScanner(),
         DependencyScanner(),
         IntegrityScanner(),
+        RepoSignalsScanner(),
         # Fase 2: outros add-ons
         AddonPermissionsScanner(),
         AddonSourceScanner(),

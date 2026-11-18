@@ -359,3 +359,6 @@ body.view-dns main > :not(#dns-view):not(.tabs) { display: none; }
 th.col-select, td.col-select { width: 28px; padding-right: 0; }
 .col-select input { margin: 0; cursor: pointer; }
 .finding header .finding-select { margin: 0 2px 0 0; cursor: pointer; }
+.comp-caps { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.cap-badge { font-size: 11px; padding: 1px 6px; border-radius: 999px; background: var(--surface-2); color: var(--muted); white-space: nowrap; }
+.cap-badge.cap-segredos, .cap-badge.cap-escondido { background: var(--sev-high-bg); color: var(--sev-high); }
