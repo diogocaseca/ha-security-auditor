@@ -119,6 +119,7 @@ também são analisados. Quando o Bandit e o Semgrep apontam a mesma linha, fica
 | `auditor.py.carregamento-dinamico-de-modulo` | módulos carregados de caminhos arbitrários | Média |
 | `auditor.py.ip-fixo-publico` | IP público fixo no código | Média |
 | `auditor.py.tokens-de-acesso` | criação de usuários/tokens do HA | Média |
+| `auditor.py.lista-usuarios` | leitura da lista de usuários do HA | Info |
 | `auditor.py.blob-codificado` | string longa em base64/hex | Média |
 | `auditor.py.url-fixa` | URLs fixas (para conferência) | Informativa |
 | `auditor.py.conteudo-github` | arquivos "raw" do GitHub ou gists (normalmente dados; vale saber o que é baixado) | Informativa |

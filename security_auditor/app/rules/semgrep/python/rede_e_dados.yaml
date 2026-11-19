@@ -248,13 +248,12 @@ rules:
   - id: auditor.py.tokens-de-acesso
     languages: [python]
     severity: WARNING
-    message: Criação ou leitura de tokens/usuários do HA
+    message: Criação de tokens/usuários do HA ou acesso ao armazenamento de autenticação
     pattern-either:
       - pattern: $H.auth.async_create_refresh_token(...)
       - pattern: $H.auth.async_create_access_token(...)
       - pattern: $H.auth.async_create_user(...)
       - pattern: $H.auth.async_create_system_user(...)
-      - pattern: $H.auth.async_get_users(...)
       - pattern: $H.auth._store
     metadata:
       titulo: Criação de usuários ou tokens de acesso
@@ -268,3 +267,21 @@ rules:
       titulo_en: "Creation of users or access tokens"
       explicacao_en: "The integration creates Home Assistant users or access tokens. Some do this to expose an API, but a token created in secret gives full access to the installation to whoever receives it."
       recomendacao_en: "Confirm what the token is created for and whether it leaves the installation."
+
+  - id: auditor.py.lista-usuarios
+    languages: [python]
+    severity: INFO
+    message: Leitura da lista de usuários do HA
+    pattern: $H.auth.async_get_users(...)
+    metadata:
+      titulo: Leitura da lista de usuários
+      categoria: acesso_sensivel
+      severidade: info
+      explicacao: >-
+        A integração lê a lista de usuários do Home Assistant. Costuma ser para
+        mostrar nomes ou conferir permissões; sozinha, não dá acesso a tokens.
+        Criar usuários ou tokens tem regra própria.
+      recomendacao: Veja o que a integração faz com os dados dos usuários.
+      titulo_en: "Reading the list of users"
+      explicacao_en: "The integration reads the Home Assistant user list. It is usually to show names or check permissions; on its own it gives no access to tokens. Creating users or tokens has its own rule."
+      recomendacao_en: "Check what the integration does with the users' data."

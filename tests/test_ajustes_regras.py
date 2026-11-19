@@ -13,6 +13,7 @@ import yaml
 from auditor.capabilities import build_chains, profile
 from auditor.engine import _group_repeats
 from auditor.models import Severity
+from auditor.scanners.obfuscation import _scan_python
 from auditor.scanners.static import _bandit_severity
 
 from .conftest import make_finding
@@ -29,6 +30,8 @@ STORAGE_KEY = f"{DOMAIN}.storage"
 proprio = hass.config.path(".storage", f"{DOMAIN}.json")
 creds = hass.config.path(".storage", "core.config_entries")
 auth = open("/config/.storage/auth")
+nomes = await hass.auth.async_get_users()
+token = await hass.auth.async_create_refresh_token(user)
 '''
 
 
@@ -103,3 +106,22 @@ def test_group_repeats_same_rule_same_file():
     assert inc.extra["ocorrencias"] == 2 and inc.extra["arquivos"] == ["x.js", "y.js"]
     # A identidade não depende da contagem: o trecho do achado agrupado é o da primeira ocorrência.
     assert grouped.snippet == "u10"
+
+
+def test_listing_users_is_info_and_not_secrets(tmp_path):
+    hits = _semgrep(tmp_path)
+    assert "py.lista-usuarios" in hits[10] and "py.tokens-de-acesso" not in hits[10]
+    assert "py.tokens-de-acesso" in hits[11]
+    assert _rule_meta("auditor.py.lista-usuarios")["severidade"] == "info"
+    findings = [make_finding(component="c", rule_id="auditor.py.lista-usuarios", line=1),
+                make_finding(component="c", rule_id="auditor.py.url-fixa", line=2)]
+    assert build_chains(findings) == []
+
+
+def test_long_prose_line_is_not_obfuscation():
+    prompt = 'prompt += "' + "Use the current topic to resolve follow-ups. " * 60 + '"\n'
+    assert _scan_python(prompt) == []
+    assert _scan_python('x = "' + "QUJD" * 700 + '"\n') == [("linha-enorme", 1)]   # texto codificado
+    assert _scan_python("a=1;" * 700 + "\n") == [("linha-enorme", 1)]           # código compactado
+    executed = 'exec("' + "print(1); " * 300 + '")\n'
+    assert ("linha-enorme", 1) in _scan_python(executed)                          # texto que é executado

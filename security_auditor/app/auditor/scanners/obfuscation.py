@@ -28,6 +28,7 @@ _WEIRD_NAME = re.compile(r"\b(?=\w*[O0]\w*[O0])(?=\w*O)[O0_]{8,}\b|\b(?=\w*[Il1]
 _DECOMPRESS = re.compile(r"\b(?:zlib|lzma|bz2|gzip)\.decompress\s*\(|\bmarshal\.loads\s*\(")
 _EXEC = re.compile(r"\b(?:exec|eval)\s*\(")
 LONG_LINE = 2000
+_STRING = re.compile(r"""[rRbBfFuU]{0,2}(?:"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*')""")
 _NATIVE_SUFFIXES = (".so", ".pyd", ".dll", ".dylib", ".exe", ".bin")
 _MAGIC = {b"\x7fELF": "ELF (Linux)", b"MZ": "PE (Windows)", b"\xcf\xfa\xed\xfe": "Mach-O (macOS)",
           b"\xfe\xed\xfa\xcf": "Mach-O (macOS)"}
@@ -48,13 +49,28 @@ def _scan_python(text: str) -> list[tuple[str, int]]:
     if len({m.group(0) for m in names}) >= 3:
         hits.append(("nomes-ofuscados", line_of(names[0].start())))
     for n, line in enumerate(text.splitlines(), 1):
-        if len(line) > LONG_LINE and not line.lstrip().startswith("#"):
+        if len(line) > LONG_LINE and not line.lstrip().startswith("#") and not _is_prose(line):
             hits.append(("linha-enorme", n))
             break
     dec, ex = _DECOMPRESS.search(text), _EXEC.search(text)
     if dec and ex:
         hits.append(("descompacta-e-executa", line_of(ex.start())))
     return hits
+
+
+def _is_prose(line: str) -> bool:
+    """Linha que é quase só texto entre aspas, com palavras separadas por espaço (um prompt, uma mensagem).
+
+    Código compactado ou ofuscado não tem esse formato; um texto codificado (base64, hex) não tem espaços.
+    Se a linha executa o texto (exec/eval), não é prosa.
+    """
+    if _EXEC.search(line):
+        return False
+    literals = [m.group(0) for m in _STRING.finditer(line)]
+    inside = sum(len(t) for t in literals)
+    if inside < 0.9 * len(line.strip()):
+        return False
+    return sum(t.count(" ") for t in literals) >= 0.08 * inside
 
 
 def _binary_kind(path: Path) -> str | None:

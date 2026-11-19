@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.30.1
+
+Dois falsos positivos que geravam cadeias críticas (vistos na integração sentient):
+
+- **Lista de usuários:** `hass.auth.async_get_users()` saiu de "Criação de usuários ou tokens de
+  acesso" e virou a regra informativa `auditor.py.lista-usuarios`, que não conta como "lê segredos"
+  nas cadeias. Criar usuários ou tokens continua Média e entra nas cadeias.
+- **Linha de código enorme:** uma linha que é quase só texto entre aspas, com palavras separadas por
+  espaço (um prompt, uma mensagem), não é mais marcada. Continuam marcados código compactado, texto
+  codificado (base64, hex) e qualquer linha que execute o texto com `exec`/`eval`.
+
 ## 0.30.0
 
 Ajustes de ruído a partir de um relatório real (1.448 achados visíveis caíram para cerca de 725;

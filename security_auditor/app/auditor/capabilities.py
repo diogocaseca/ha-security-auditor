@@ -41,7 +41,8 @@ RULES: dict[str, set[str]] = {
         "auditor.sh.shell-reverso", "bandit.B602", "bandit.B604", "bandit.B605", "bandit.B606", "bandit.B607",
     },
     "segredos": {
-        # acesso-storage (pasta .storage em geral) não entra: costuma ser a integração usando o próprio arquivo.
+        # acesso-storage (pasta .storage em geral) e lista-usuarios (só nomes/permissões) não entram: costumam
+        # ser a integração usando o próprio arquivo ou mostrando quem fez o quê.
         "auditor.py.acesso-secrets-yaml", "auditor.py.acesso-storage-auth", "auditor.py.tokens-de-acesso", "auditor.js.acesso-token-ha", "auditor.sh.token-supervisor-externo",
         "auditor.sh.acesso-sensivel",
     },

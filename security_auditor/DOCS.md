@@ -115,6 +115,7 @@ too. When Bandit and Semgrep flag the same line, only one finding is kept.
 | `auditor.py.carregamento-dinamico-de-modulo` | modules loaded from arbitrary paths | Medium |
 | `auditor.py.ip-fixo-publico` | hard-coded public IP in the code | Medium |
 | `auditor.py.tokens-de-acesso` | creation of HA users/tokens | Medium |
+| `auditor.py.lista-usuarios` | reading the HA user list | Info |
 | `auditor.py.blob-codificado` | long base64/hex string | Medium |
 | `auditor.py.url-fixa` | hard-coded URLs (for review) | Info |
 | `auditor.py.conteudo-github` | GitHub "raw" files or gists (usually data; worth knowing what is downloaded) | Info |
