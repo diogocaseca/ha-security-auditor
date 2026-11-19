@@ -427,6 +427,10 @@ auditor tira uma foto leve do que está instalado: nome, tamanho e data de cada 
 mudar (o HACS grava os arquivos aos poucos, então a varredura começa na conferência seguinte) e roda
 uma **varredura só desse componente**, que leva segundos. O resto do relatório vem da última
 varredura completa. A varredura aparece no histórico como "Instalação/atualização: nome (novo)".
+Se uma varredura completa rodar antes disso (por exemplo a do início, quando o auditor reinicia
+junto com outras atualizações), ela avisa sobre o que mudou do mesmo jeito. Se a varredura do
+componente falhar, ele tenta de novo nas conferências seguintes (até 3 vezes); depois disso, a
+próxima varredura completa analisa e avisa.
 
 Depois ele **avisa no HA**:
 

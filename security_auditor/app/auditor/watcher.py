@@ -34,6 +34,7 @@ from .models import ComponentType, ScanResult, Severity
 _LOGGER = logging.getLogger(__name__)
 
 CHECK_INTERVAL = 120  # segundos
+MAX_FAILED_TRIES = 3  # varredura de instalação que falha: tenta de novo até este número de rodadas
 SETTING_KEY = "inventario_instalado"
 LEVELS = {"critica": Severity.CRITICAL, "alta": Severity.HIGH, "media": Severity.MEDIUM, "baixa": Severity.LOW}
 _SEV_PT = {Severity.CRITICAL: "crítico(s)", Severity.HIGH: "alto(s)", Severity.MEDIUM: "médio(s)",
@@ -235,6 +236,8 @@ class InstallWatcher:
         self._interval = interval
         self._base: Snapshot | None = None
         self._pending: Snapshot | None = None
+        self._failures = 0
+        self._gave_up: Snapshot | None = None  # foto cuja varredura falhou demais: espera a próxima completa
 
     # --- Foto do que está instalado ------------------------------------------------------
 
@@ -258,6 +261,8 @@ class InstallWatcher:
         """Nova referência (após uma varredura completa ou parcial)."""
         self._base = snap
         self._pending = None
+        self._failures = 0
+        self._gave_up = None
         self._storage.set_setting(SETTING_KEY, json.dumps(snap, sort_keys=True))
 
     def _load_base(self) -> Snapshot | None:
@@ -267,6 +272,25 @@ class InstallWatcher:
         except json.JSONDecodeError:
             return None
         return data if isinstance(data, dict) else None
+
+    async def full_scan(self, run: Callable[[], Awaitable[ScanResult]]) -> ScanResult:
+        """Varredura completa que também avisa sobre o que mudou desde a referência.
+
+        Sem isso, uma completa que rodasse com atualizações ainda na fila (ex.: a do início, quando o
+        auditor reinicia junto com outras atualizações) as analisaria sem notificar ninguém. Sem
+        referência nenhuma (primeira execução), não avisa: tudo seria "novo".
+        """
+        snap = await self.snapshot()
+        base = self._base if self._base is not None else await asyncio.to_thread(self._load_base)
+        result = await run()
+        if result.status == "concluida":
+            changes = diff(base, snap) if base is not None else []
+            await asyncio.to_thread(self.set_base, snap)
+            if changes:
+                _LOGGER.info("A varredura completa incluiu mudanças ainda não avisadas: %s",
+                             ", ".join(f"{c['nome']} ({c['mudanca']})" for c in changes))
+            await self.alert(result, [c for c in changes if c["mudanca"] != "removido"])
+        return result
 
     # --- Laço -----------------------------------------------------------------------------
 
@@ -291,7 +315,7 @@ class InstallWatcher:
         """Uma rodada: detecta mudança, espera estabilizar e varre só o que mudou."""
         current = await self.snapshot()
         base = self._base or {}
-        if current == base:
+        if current == base or current == self._gave_up:
             self._pending = None
             return None
         if current != self._pending:
@@ -306,11 +330,19 @@ class InstallWatcher:
         result = await self._run_job(changes)
         if result is None:
             return None  # outra varredura começou ou o usuário cancelou: tenta de novo depois
+        if result.status != "concluida":
+            self._failures += 1
+            if self._failures < MAX_FAILED_TRIES:
+                # As mudanças continuam na fila (a foto pendente fica igual): tenta na próxima rodada.
+                _LOGGER.warning("Varredura de instalação terminou como %s; tentando de novo na próxima rodada "
+                                "(%d de %d)", result.status, self._failures, MAX_FAILED_TRIES)
+                return result
+            _LOGGER.warning("Varredura de instalação terminou como %s %d vezes seguidas; as mudanças ficam "
+                            "para a próxima varredura completa", result.status, self._failures)
+            self._gave_up, self._failures = current, 0
+            return result
         await asyncio.to_thread(self.set_base, current)
-        if result.status == "concluida":
-            await self.alert(result, [c for c in changes if c["mudanca"] != "removido"])
-        else:
-            _LOGGER.warning("Varredura de instalação terminou como %s", result.status)
+        await self.alert(result, [c for c in changes if c["mudanca"] != "removido"])
         return result
 
     async def alert(self, result: ScanResult, changes: list[dict[str, str]]) -> None:

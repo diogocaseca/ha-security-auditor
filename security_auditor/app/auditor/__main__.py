@@ -90,11 +90,8 @@ async def main() -> None:
         watcher: InstallWatcher | None = None
 
         async def full_scan():
-            snap = await watcher.snapshot() if watcher else None
-            result = await engine.run()
-            if watcher and snap is not None and result.status == "concluida":
-                await asyncio.to_thread(watcher.set_base, snap)
-            return result
+            # Com a verificação de instalações ligada, a completa também avisa sobre o que mudou.
+            return await watcher.full_scan(engine.run) if watcher else await engine.run()
 
         tz = await _timezone(supervisor)
         daily_at = options.scan_time_parts if options.has_mode(MODE_FIXED_TIME) else None

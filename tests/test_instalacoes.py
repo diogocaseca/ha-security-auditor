@@ -272,3 +272,64 @@ async def test_alert_link_opens_the_auditor(monkeypatch, panel, expected):
     assert await _ingress_url(client) == expected
     assert await _ingress_url(client) == expected and seen == ["/addons/self/info"]  # consulta uma vez só
     assert await _ingress_url(None) is None
+
+
+async def test_full_scan_alerts_changes_still_in_queue(tmp_path, paths, storage, masker):
+    """Atualizações ainda na fila quando roda uma completa (ex.: a do início) também são avisadas."""
+    config = tmp_path / "cfg"
+    _write(config / "custom_components/velha/__init__.py")
+    engine = _engine(paths, storage, masker, Options(), [Scanner({
+        "velha": [_f("velha", severity=Severity.HIGH)], "nova": [_f("nova", severity=Severity.HIGH)]})])
+    notifier = FakeNotifier()
+    watcher = InstallWatcher(config_dir=config, storage=storage, supervisor=None, notifier=notifier,
+                             run_job=lambda changes: engine.run(changes), is_busy=lambda: False, min_level="alta")
+    # Sem referência (primeira execução): a completa só cria a referência, sem avisar de tudo.
+    await watcher.full_scan(engine.run)
+    assert notifier.events == []
+    _write(config / "custom_components/nova/__init__.py")
+    assert await watcher.check() is None  # viu a mudança; espera a instalação terminar...
+    result = await watcher.full_scan(engine.run)  # ...mas a completa rodou antes
+    assert result.kind == "completa"
+    assert [e["componente"] for e in notifier.events] == ["nova"] and notifier.events[0]["alerta"] is True
+    assert await watcher.check() is None  # já avisado: a verificação não repete
+
+
+async def test_full_scan_loads_saved_base_before_watcher_starts(tmp_path, paths, storage, masker):
+    config = tmp_path / "cfg"
+    engine = _engine(paths, storage, masker, Options(), [Scanner({"nova": [_f("nova", severity=Severity.HIGH)]})])
+    first = InstallWatcher(config_dir=config, storage=storage, supervisor=None, notifier=None,
+                           run_job=engine.run, is_busy=lambda: False, min_level="alta")
+    first.set_base(await first.snapshot())  # referência salva antes de o add-on reiniciar
+    _write(config / "custom_components/nova/__init__.py")  # atualizado junto com o auditor
+    notifier = FakeNotifier()
+    restarted = InstallWatcher(config_dir=config, storage=storage, supervisor=None, notifier=notifier,
+                               run_job=engine.run, is_busy=lambda: False, min_level="alta")
+    await restarted.full_scan(engine.run)  # varredura do início, antes da primeira conferência
+    assert [e["componente"] for e in notifier.events] == ["nova"]
+
+
+async def test_failed_partial_keeps_changes_queued(tmp_path, storage):
+    from auditor.models import ScanResult
+    from auditor.watcher import MAX_FAILED_TRIES
+
+    config = tmp_path / "cfg"
+    calls = []
+
+    async def run_job(changes):
+        calls.append(changes)
+        return ScanResult(scan_id=f"s{len(calls)}", started_at="x", status="falhou")
+
+    watcher = InstallWatcher(config_dir=config, storage=storage, supervisor=None, notifier=None,
+                             run_job=run_job, is_busy=lambda: False, min_level="alta")
+    watcher.set_base({})
+    _write(config / "custom_components/nova/__init__.py")
+    await watcher.check()  # espera estabilizar
+    for _ in range(MAX_FAILED_TRIES + 2):
+        await watcher.check()
+    assert calls == [[NEW]] * MAX_FAILED_TRIES  # tentou de novo, depois parou de insistir
+    assert json.loads(storage.get_setting("inventario_instalado")) == {}  # a mudança não foi engolida
+    # Uma mudança nova volta a tentar.
+    _write(config / "custom_components/outra/__init__.py")
+    await watcher.check()
+    await watcher.check()
+    assert len(calls) == MAX_FAILED_TRIES + 1

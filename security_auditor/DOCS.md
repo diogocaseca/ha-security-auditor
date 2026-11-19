@@ -420,7 +420,10 @@ version of each add-on (`GET /addons`). When something is **installed, updated o
 waits until the snapshot stops changing (HACS writes the files little by little, so the scan starts
 on the following check) and runs a **scan of only that component**, which takes seconds. The rest of
 the report comes from the latest full scan. The scan shows up in the history as "Install/update:
-name (new)".
+name (new)". If a full scan runs before that (for example the one at start-up, when the auditor
+restarts together with other updates), it alerts about what changed all the same. If the component
+scan fails, it tries again on the following checks (up to 3 times); after that, the next full scan
+analyses and alerts.
 
 Then it **warns you in HA**:
 

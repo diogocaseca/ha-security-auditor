@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.30.3
+
+- **Atualizações sem aviso:** uma varredura completa que rodava com atualizações ainda na fila (por
+  exemplo a do início, quando o auditor reinicia junto com outras atualizações, ou uma agendada ou
+  manual logo depois de atualizar) analisava essas atualizações mas não notificava nem disparava o
+  evento `security_auditor_alerta`. Agora a completa avisa sobre cada componente novo ou atualizado
+  desde a última referência.
+- **Varredura de instalação com falha:** as mudanças não saem mais da fila sem aviso; o auditor tenta
+  de novo nas conferências seguintes (até 3 vezes) e, se continuar falhando, deixa para a próxima
+  varredura completa, que analisa e avisa.
+
 ## 0.30.2
 
 Mais três falsos positivos, vistos numa varredura real:
