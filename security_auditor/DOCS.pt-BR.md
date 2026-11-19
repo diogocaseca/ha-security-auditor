@@ -163,7 +163,9 @@ Algumas combinações viram um achado próprio, com as peças e onde cada uma es
 | Código escondido **e** capacidade perigosa (rede, segredos, comandos, código dinâmico, pacotes) | Crítica |
 | Acessa a rede **e** executa código dinâmico | Alta |
 
-Ignorar as peças não esconde a cadeia; se ela for esperada, ignore a própria cadeia.
+Ignorar as peças não esconde a cadeia; se ela for esperada, ignore a própria cadeia. Achados em
+arquivos de testes (pasta `tests/`, `test_*.py`, `conftest.py`, `*.test.js`) aparecem sozinhos, mas
+não contam para o perfil nem para as cadeias: o Home Assistant não carrega esses arquivos.
 
 **Capacidade nova numa atualização.** O perfil fica guardado por versão. Quando uma atualização traz
 uma capacidade que a versão anterior não tinha (por exemplo, a 1.4.3 passa a ler o `.storage/auth`),

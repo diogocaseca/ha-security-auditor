@@ -159,7 +159,9 @@ finding of their own, with the pieces and where each one is:
 | Hidden code **and** a dangerous capability (network, secrets, commands, dynamic code, packages) | Critical |
 | Accesses the network **and** runs dynamic code | High |
 
-Ignoring the pieces does not hide the chain; ignore the chain itself if it is expected.
+Ignoring the pieces does not hide the chain; ignore the chain itself if it is expected. Findings in
+test files (`tests/` folder, `test_*.py`, `conftest.py`, `*.test.js`) show up on their own but do not
+count for the profile or the chains: Home Assistant does not load those files.
 
 **New capability in an update.** The profile is stored per version. When an update brings a capability
 the previous version did not have (for example, 1.4.3 starts reading `.storage/auth`), the auditor

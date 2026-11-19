@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.30.2
+
+Mais três falsos positivos, vistos numa varredura real:
+
+- **Destino suspeito:** os domínios (`transfer.sh`, `interact.sh`, `file.io`, `paste.ee`…) agora
+  precisam aparecer inteiros. Antes `t('transfer.show')` era marcado como `transfer.sh`.
+- **`secrets.yaml`:** só conta o nome ou caminho do arquivo, não um texto que o menciona (docstring,
+  mensagem). Listas que protegem o arquivo (`PROTECTED_PATHS`, `DENY_…`, `BLOCKED_…`, `EXCLUDE_…`)
+  deixaram de ser marcadas; listas que permitem a leitura continuam.
+- **Arquivos de testes** (pasta `tests/`, `test_*.py`, `conftest.py`, `*.test.js`…) continuam com
+  achados próprios, mas não entram mais no perfil de capacidades nem nas cadeias: o Home Assistant
+  não carrega esses arquivos.
+
 ## 0.30.1
 
 Dois falsos positivos que geravam cadeias críticas (vistos na integração sentient):

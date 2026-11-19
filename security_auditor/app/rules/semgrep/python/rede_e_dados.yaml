@@ -92,7 +92,7 @@ rules:
       - pattern: '"$S"'
       - metavariable-regex:
           metavariable: $S
-          regex: (?i).*(pastebin\.com|paste\.ee|hastebin|ghostbin|transfer\.sh|ngrok(-free)?\.(io|app|dev)|webhook\.site|requestbin|pipedream\.net|interact\.sh|oast\.(fun|me|pro|live|site|online)|burpcollaborator|discord(app)?\.com/api/webhooks|api\.telegram\.org/bot|\.onion\b|cdn\.discordapp\.com/attachments|anonfiles|file\.io)
+          regex: (?i).*((?<![\w-])(pastebin\.com|paste\.ee|hastebin|ghostbin|transfer\.sh|ngrok(-free)?\.(io|app|dev)|webhook\.site|requestbin|pipedream\.net|interact\.sh|oast\.(fun|me|pro|live|site|online)|burpcollaborator|anonfiles|file\.io)(?![\w-])|(?<![\w-])(discord(app)?\.com/api/webhooks|api\.telegram\.org/bot|cdn\.discordapp\.com/attachments)|\.onion\b)
     metadata:
       titulo: Destino de rede suspeito
       categoria: destino_suspeito
@@ -182,7 +182,10 @@ rules:
       - pattern: '"$S"'
       - metavariable-regex:
           metavariable: $S
-          regex: (?i).*secrets\.ya?ml
+          # Só o nome ou caminho do arquivo; um texto que só menciona o arquivo (docstring, mensagem) não conta.
+          regex: (?i)^(.*[/\\])?secrets\.ya?ml$
+      # Listas que protegem o arquivo (não apagar, não ler, não mostrar) não são leitura.
+      - pattern-not-regex: (?i)\b\w*(protect|deny|denied|block|forbid|exclu|ignor|skip|hidden|hide|sensitive|blacklist|never|readonly|read_only)\w*\s*(:[^=\n]*)?=\s*(frozenset|set|tuple|list)?\s*\(?\s*[\[\{\(][^\]\}\)]*secrets\.ya?ml["']
     metadata:
       titulo: Leitura direta do secrets.yaml
       categoria: acesso_sensivel

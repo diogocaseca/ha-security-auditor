@@ -109,7 +109,7 @@ rules:
     languages: [regex]
     severity: ERROR
     message: URL de serviço usado para exfiltração ou hospedagem de payloads
-    pattern-regex: (?i)(pastebin\.com|paste\.ee|hastebin|transfer\.sh|ngrok(-free)?\.(io|app|dev)|webhook\.site|requestbin|pipedream\.net|interact\.sh|oast\.(fun|me|pro|live|site|online)|burpcollaborator|discord(app)?\.com/api/webhooks|api\.telegram\.org/bot|\.onion\b)
+    pattern-regex: (?i)((?<![\w-])(pastebin\.com|paste\.ee|hastebin|transfer\.sh|ngrok(-free)?\.(io|app|dev)|webhook\.site|requestbin|pipedream\.net|interact\.sh|oast\.(fun|me|pro|live|site|online)|burpcollaborator)(?![\w-])|(?<![\w-])(discord(app)?\.com/api/webhooks|api\.telegram\.org/bot)|\.onion\b)
     metadata:
       titulo: Destino de rede suspeito
       categoria: destino_suspeito

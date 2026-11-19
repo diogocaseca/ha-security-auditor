@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -10,7 +11,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from auditor.capabilities import build_chains, profile
+from auditor.capabilities import build_chains, is_test_file, profile
 from auditor.engine import _group_repeats
 from auditor.models import Severity
 from auditor.scanners.obfuscation import _scan_python
@@ -35,12 +36,12 @@ token = await hass.auth.async_create_refresh_token(user)
 '''
 
 
-def _semgrep(tmp_path) -> dict[int, set[str]]:
+def _semgrep(tmp_path, code: str = CODE) -> dict[int, set[str]]:
     exe = shutil.which("semgrep") or (str(VENV_SEMGREP) if VENV_SEMGREP.exists() else None)
     if exe is None:
         pytest.skip("semgrep não instalado")
     f = tmp_path / "x.py"
-    f.write_text(CODE)
+    f.write_text(code)
     res = subprocess.run([exe, "scan", "--config", str(PY_RULES), "--json", "--quiet", "--metrics=off",
                           "--disable-version-check", "--oss-only", "--no-git-ignore", str(f)],
                          capture_output=True, text=True, timeout=180, check=False,
@@ -125,3 +126,48 @@ def test_long_prose_line_is_not_obfuscation():
     assert _scan_python("a=1;" * 700 + "\n") == [("linha-enorme", 1)]           # código compactado
     executed = 'exec("' + "print(1); " * 300 + '")\n'
     assert ("linha-enorme", 1) in _scan_python(executed)                          # texto que é executado
+
+
+SECRETS_CODE = '''"""Loading and scrubbing of resolved ``secrets.yaml`` values."""
+PROTECTED_PATHS = {
+    "configuration.yaml",
+    "secrets.yaml",
+}
+DENY_READ_BASENAMES = frozenset({"secrets.yaml", "approval_pin.json"})
+ALLOWED_READ_FILES = [
+    "secrets.yaml",
+]
+data = open(hass.config.path("secrets.yaml")).read()
+other = load("/config/secrets.yaml")
+msg = "could not read secrets.yaml"
+LABEL = t("transfer.show")
+EXFIL = "https://transfer.sh/upload"
+'''
+
+
+def test_secrets_yaml_protection_lists_and_prose(tmp_path):
+    hits = _semgrep(tmp_path, SECRETS_CODE)
+    lines = sorted(n for n, rules in hits.items() if "py.acesso-secrets-yaml" in rules)
+    assert lines == [8, 10, 11]  # lista que permite ler, open() e caminho; não docstring, proteção ou mensagem
+    assert "py.destino-suspeito" not in hits.get(13, set()) and "py.destino-suspeito" in hits[14]
+
+
+def test_destination_regex_needs_word_boundary():
+    rule = next(r for r in yaml.safe_load((PY_RULES.parents[1] / "semgrep/javascript/frontend.yaml").read_text())["rules"]
+                if r["id"] == "auditor.js.destino-suspeito")
+    rx = re.compile(rule["pattern-regex"])
+    for text, hit in [("t('transfer.show')", False), ("https://transfer.sh/x", True), ("profile.io", False),
+                      ("interact.shown", False), ("x.oast.fun", True), ("https://api.telegram.org/bot12:AB/x", True),
+                      ("abc.onion", True), ("pastebin.com/raw", True)]:
+        assert bool(rx.search(text)) is hit, text
+
+
+def test_test_files_do_not_build_chains():
+    pieces = [make_finding(component="c", rule_id="auditor.py.ip-fixo-publico", file="custom_components/c/tests/a.py",
+                           line=1),
+              make_finding(component="c", rule_id="auditor.py.carregamento-dinamico-de-modulo",
+                           file="custom_components/c/conftest.py", line=2),
+              make_finding(component="c", rule_id="auditor.py.url-fixa", file="custom_components/c/api.py", line=3)]
+    assert build_chains(pieces) == []
+    assert set(profile(pieces)[("integracao", "c")]) == {"rede"}
+    assert is_test_file("custom_components/c/test_x.py") and not is_test_file("custom_components/c/contest.py")

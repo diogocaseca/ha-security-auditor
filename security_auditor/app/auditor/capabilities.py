@@ -71,11 +71,32 @@ def capabilities_of(finding: Finding) -> set[str]:
     return caps
 
 
+_TEST_DIRS = {"test", "tests", "testing"}
+
+
+def is_test_file(path: str | None) -> bool:
+    """Arquivo de testes do projeto (pasta tests/, test_*.py, *_test.py, conftest.py, *.test.js/*.spec.js).
+
+    O Home Assistant não carrega esses arquivos; eles continuam como achados próprios, mas não formam o
+    perfil do componente nem cadeias.
+    """
+    if not path:
+        return False
+    parts = path.replace("\\", "/").split("/")
+    name = parts[-1].lower()
+    return (any(p.lower() in _TEST_DIRS for p in parts[:-1]) or name == "conftest.py"
+            or (name.startswith("test_") and name.endswith(".py"))
+            or name.endswith(("_test.py", ".test.js", ".spec.js", ".test.ts", ".spec.ts")))
+
+
 def profile(findings: list[Finding]) -> dict[tuple[str, str], dict[str, list[Finding]]]:
-    """(tipo, componente) -> capacidade -> achados que a mostram. Inclui achados ignorados: são fatos."""
+    """(tipo, componente) -> capacidade -> achados que a mostram. Inclui achados ignorados: são fatos.
+
+    Achados em arquivos de testes ficam de fora (ver ``is_test_file``).
+    """
     out: dict[tuple[str, str], dict[str, list[Finding]]] = {}
     for f in findings:
-        if f.category in DERIVED or f.rule_id == CHANGE_RULE:
+        if f.category in DERIVED or f.rule_id == CHANGE_RULE or is_test_file(f.file):
             continue
         for cap in capabilities_of(f):
             out.setdefault((str(f.component_type), f.component), {}).setdefault(cap, []).append(f)
