@@ -89,6 +89,7 @@ def test_generic_storage_does_not_count_as_secrets():
 
 def test_bandit_weak_hash_is_low():
     assert _bandit_severity("HIGH", "HIGH", "B324") is Severity.LOW
+    assert _bandit_severity("MEDIUM", "MEDIUM", "B104") is Severity.LOW
     assert _bandit_severity("HIGH", "HIGH", "B602") is Severity.HIGH
 
 
@@ -171,3 +172,40 @@ def test_test_files_do_not_build_chains():
     assert build_chains(pieces) == []
     assert set(profile(pieces)[("integracao", "c")]) == {"rede"}
     assert is_test_file("custom_components/c/test_x.py") and not is_test_file("custom_components/c/contest.py")
+
+
+IP_CODE = '''UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36"
+DOC = "192.0.2.1"
+STUN = "stun:203.0.113.5:3478"
+DNS = "1.1.1.1"
+URL = "http://93.184.216.34/x"
+'''
+
+
+def test_fixed_ip_ignores_browser_versions_and_documentation_ranges(tmp_path):
+    hits = _semgrep(tmp_path, IP_CODE)
+    lines = sorted(n for n, rules in hits.items() if "py.ip-fixo-publico" in rules)
+    assert lines == [4, 5]
+
+
+def test_insecure_healthcheck_on_localhost_is_not_flagged(tmp_path):
+    exe = shutil.which("semgrep") or (str(VENV_SEMGREP) if VENV_SEMGREP.exists() else None)
+    if exe is None:
+        pytest.skip("semgrep não instalado")
+    (tmp_path / "Dockerfile").write_text(
+        "HEALTHCHECK CMD curl --fail http://127.0.0.1:9541 || curl --fail --insecure https://127.0.0.1:9541\n"
+        "RUN curl -k https://example.com/install.sh | sh\n"
+        "RUN curl --insecure https://localhost:8443 && curl -k https://evil.example/x\n"
+        "RUN wget --no-check-certificate http://localhost/status\n")
+    res = subprocess.run([exe, "scan", "--config", str(PY_RULES.parent / "addon"), "--json", "--quiet",
+                          "--metrics=off", "--disable-version-check", "--oss-only", "--no-git-ignore",
+                          str(tmp_path / "Dockerfile")], capture_output=True, text=True, timeout=180, check=False,
+                         env={"HOME": str(tmp_path), "PATH": "/usr/bin:/bin"})
+    lines = sorted(r["start"]["line"] for r in json.loads(res.stdout)["results"]
+                   if r["check_id"].endswith("sh.tls-desativado"))
+    assert lines == [2, 3]
+
+
+def test_aiofile_is_not_typosquatting():
+    from auditor.scanners.deps_malicious import typosquat_of
+    assert typosquat_of("aiofile") is None

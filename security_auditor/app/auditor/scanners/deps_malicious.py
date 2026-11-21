@@ -28,7 +28,7 @@ cbor2 pycountry geopy haversine pyusb pyudev dbus-fast bleak-retry-connector has
 python-slugify unidecode awesomeversion aiohttp-cors fnvhash sqlalchemy pyotp qrcode
 """.split())
 # Pacotes legítimos conhecidos que ficam a uma letra de um popular (não são typosquatting).
-KNOWN_NEIGHBOURS = frozenset({"pyaml", "websocket", "pycrypto", "aiosignal"})
+KNOWN_NEIGHBOURS = frozenset({"pyaml", "websocket", "pycrypto", "aiosignal", "aiofile"})
 _NORM = re.compile(r"[-_.]+")
 
 

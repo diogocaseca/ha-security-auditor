@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.30.5
+
+Falsos positivos vistos numa varredura real:
+
+- **IP público fixo:** versões no User-Agent (`Chrome/124.0.0.0`) não contam mais como IP, e as
+  faixas reservadas para documentação (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`) ficam
+  de fora.
+- **Bandit B104** (`"0.0.0.0"`) agora é sempre Baixa: o Bandit marca qualquer texto `"0.0.0.0"`,
+  inclusive comparações e listas, e só às vezes é uma porta aberta em todas as interfaces.
+- **Download sem verificar o certificado:** `curl -k`/`wget --no-check-certificate` só para
+  `127.0.0.1` ou `localhost` (teste do próprio container no `HEALTHCHECK`) não é mais marcado.
+- **Typosquatting:** `aiofile` é um pacote legítimo e saiu da suspeita de imitar `aiofiles`.
+
 ## 0.30.4
 
 - **"Excluir…" de um componente já apagado do HA:** dava o erro "Este componente não pode ser

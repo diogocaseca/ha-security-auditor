@@ -293,7 +293,9 @@ def _from_semgrep(r: dict[str, Any], inv: Inventory) -> Finding | None:
 
 # Testes do Bandit cujo nível não combina com a busca por código malicioso (ex.: B324, md5/sha1 para gerar
 # identificadores, é comum e inofensivo): nível fixo.
-BANDIT_FIXED_SEVERITY = {"B324": Severity.LOW}
+# B324: md5/sha1 para gerar identificadores. B104: qualquer texto "0.0.0.0", inclusive comparações e listas;
+# abrir uma porta em todas as interfaces só às vezes é o caso.
+BANDIT_FIXED_SEVERITY = {"B324": Severity.LOW, "B104": Severity.LOW}
 
 
 def _bandit_severity(sev: str, conf: str, test_id: str = "") -> Severity:

@@ -113,7 +113,7 @@ too. When Bandit and Semgrep flag the same line, only one finding is kept.
 | `auditor.py.acesso-storage` | other uses of `.storage` (usually the integration's own data file) | Low |
 | `auditor.py.execucao-de-comandos` | `subprocess`, `os.system`, `os.exec*` | Medium |
 | `auditor.py.carregamento-dinamico-de-modulo` | modules loaded from arbitrary paths | Medium |
-| `auditor.py.ip-fixo-publico` | hard-coded public IP in the code | Medium |
+| `auditor.py.ip-fixo-publico` | hard-coded public IP in the code (not versions like `Chrome/124.0.0.0` or documentation ranges) | Medium |
 | `auditor.py.tokens-de-acesso` | creation of HA users/tokens | Medium |
 | `auditor.py.lista-usuarios` | reading the HA user list | Info |
 | `auditor.py.blob-codificado` | long base64/hex string | Medium |
@@ -125,7 +125,7 @@ too. When Bandit and Semgrep flag the same line, only one finding is kept.
 | `auditor.js.eval-dinamico` | `eval`/`new Function` with dynamic data | Medium |
 | `auditor.js.codigo-remoto` | script loaded from an external address | Medium |
 | `auditor.js.ip-fixo-publico` | connection to a hard-coded public IP | Medium |
-| `bandit.*` | other Bandit warnings (pickle, disabled TLS...) | as reported by Bandit (weak hash, B324, is always Low) |
+| `bandit.*` | other Bandit warnings (pickle, disabled TLS...) | as reported by Bandit (weak hash, B324, and "0.0.0.0", B104, are always Low) |
 
 Repeated hits of the same rule in the same file show up as **one** finding, with the number of
 occurrences and their lines; files Semgrep could not fully analyse are listed in one finding per
@@ -230,7 +230,7 @@ to the Python/JS rules:
 | `auditor.sh.token-supervisor-externo` | `SUPERVISOR_TOKEN` sent to a host other than the Supervisor | High |
 | `auditor.sh.acesso-sensivel` | reading `secrets.yaml` or `.storage/auth` | High |
 | `auditor.sh.destino-suspeito` | exfiltration services | High |
-| `auditor.sh.tls-desativado` | `curl -k`, `wget --no-check-certificate` | Medium |
+| `auditor.sh.tls-desativado` | `curl -k`, `wget --no-check-certificate` (not checks on `127.0.0.1`/`localhost`) | Medium |
 | `auditor.docker.add-de-url` | `ADD https://...` without hash verification | Low |
 | `auditor.sh.permissao-777` | `chmod 777` | Low |
 

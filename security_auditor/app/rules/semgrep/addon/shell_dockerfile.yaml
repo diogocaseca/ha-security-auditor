@@ -126,9 +126,12 @@ rules:
     languages: [regex]
     severity: WARNING
     message: Download sem verificar o certificado TLS
-    pattern-either:
-      - pattern-regex: \bcurl\b[^\n]*\s(-k|--insecure)\b
-      - pattern-regex: \bwget\b[^\n]*--no-check-certificate
+    patterns:
+      - pattern-either:
+          - pattern-regex: \bcurl\b[^\n]*\s(-k|--insecure)\b
+          - pattern-regex: \bwget\b[^\n]*--no-check-certificate
+      # Teste do próprio container (HEALTHCHECK em 127.0.0.1/localhost) não é download: não há o que verificar.
+      - pattern-not-regex: \b(?:curl|wget)\b(?=[^\n]*\b(?:127\.\d{1,3}\.\d{1,3}\.\d{1,3}|localhost)\b)(?![^\n]*https?://(?!(?:127\.\d{1,3}\.\d{1,3}\.\d{1,3}|localhost|\[::1\])(?:[:/\s'"]|$)))[^\n]*
     metadata:
       titulo: Download sem verificação de certificado
       categoria: tls

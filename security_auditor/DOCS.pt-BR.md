@@ -117,7 +117,7 @@ também são analisados. Quando o Bandit e o Semgrep apontam a mesma linha, fica
 | `auditor.py.acesso-storage` | outros usos da `.storage` (normalmente o arquivo de dados da própria integração) | Baixa |
 | `auditor.py.execucao-de-comandos` | `subprocess`, `os.system`, `os.exec*` | Média |
 | `auditor.py.carregamento-dinamico-de-modulo` | módulos carregados de caminhos arbitrários | Média |
-| `auditor.py.ip-fixo-publico` | IP público fixo no código | Média |
+| `auditor.py.ip-fixo-publico` | IP público fixo no código (fora versões tipo `Chrome/124.0.0.0` e faixas de documentação) | Média |
 | `auditor.py.tokens-de-acesso` | criação de usuários/tokens do HA | Média |
 | `auditor.py.lista-usuarios` | leitura da lista de usuários do HA | Info |
 | `auditor.py.blob-codificado` | string longa em base64/hex | Média |
@@ -129,7 +129,7 @@ também são analisados. Quando o Bandit e o Semgrep apontam a mesma linha, fica
 | `auditor.js.eval-dinamico` | `eval`/`new Function` com dados dinâmicos | Média |
 | `auditor.js.codigo-remoto` | script carregado de endereço externo | Média |
 | `auditor.js.ip-fixo-publico` | conexão com IP público fixo | Média |
-| `bandit.*` | outros avisos do Bandit (pickle, TLS desativado...) | o do Bandit (hash fraco, B324, é sempre Baixa) |
+| `bandit.*` | outros avisos do Bandit (pickle, TLS desativado...) | o do Bandit (hash fraco, B324, e "0.0.0.0", B104, são sempre Baixa) |
 
 Repetições da mesma regra no mesmo arquivo aparecem como **um** achado, com o número de
 ocorrências e as linhas; arquivos que o Semgrep não conseguiu analisar por completo ficam listados
@@ -237,7 +237,7 @@ do HA Core) e aplica as regras abaixo ao Dockerfile e aos scripts, além das reg
 | `auditor.sh.token-supervisor-externo` | `SUPERVISOR_TOKEN` enviado a host que não é o Supervisor | Alta |
 | `auditor.sh.acesso-sensivel` | leitura de `secrets.yaml` ou `.storage/auth` | Alta |
 | `auditor.sh.destino-suspeito` | serviços de exfiltração | Alta |
-| `auditor.sh.tls-desativado` | `curl -k`, `wget --no-check-certificate` | Média |
+| `auditor.sh.tls-desativado` | `curl -k`, `wget --no-check-certificate` (fora testes em `127.0.0.1`/`localhost`) | Média |
 | `auditor.docker.add-de-url` | `ADD https://...` sem verificação de hash | Baixa |
 | `auditor.sh.permissao-777` | `chmod 777` | Baixa |
 
