@@ -120,3 +120,29 @@ async def test_partial_scan_keeps_component_excluded(client, storage):
     await c.post("/api/componentes/excluidos", headers=h, json={"tipo": "integracao", "nome": "removida"})
     part = await engine.run([{"tipo": "integracao", "nome": "removida", "mudanca": "atualizado"}])
     assert "removida" not in _names(part)[0] and ("integracao", "removida") in storage.excluded_map()
+
+
+async def test_exclude_component_already_uninstalled(client, paths, storage):
+    """Apagado do HA antes da próxima varredura: "Excluir…" só tira do relatório, sem dar erro."""
+    c, h, engine = client
+    folder = paths.config_dir / "custom_components/removida"
+    (folder / "__init__.py").unlink()
+    folder.rmdir()
+    resp = await c.post("/api/componentes/excluidos", headers=h, json={"tipo": "integracao", "nome": "removida"})
+    assert resp.status == 201
+    assert _names(storage.load_latest()) == ({"fica"}, {"fica"})
+    assert storage.excluded_map() == {}  # nada a lembrar: se voltar, é analisado
+    _write(folder / "__init__.py")
+    assert "removida" in _names(await engine.run())[0]
+
+
+async def test_exclude_rejects_symlinked_folder(client, paths, storage):
+    c, h, _ = client
+    target = paths.config_dir / "custom_components/fica"
+    (paths.config_dir / "custom_components/link").symlink_to(target)
+    result = storage.load_latest()
+    from auditor.models import ComponentSummary
+    result.components.append(ComponentSummary(name="link", component_type="integracao"))
+    storage.save_scan(result)
+    resp = await c.post("/api/componentes/excluidos", headers=h, json={"tipo": "integracao", "nome": "link"})
+    assert resp.status == 400

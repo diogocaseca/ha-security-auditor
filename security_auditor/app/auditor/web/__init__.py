@@ -496,15 +496,21 @@ def create_app(
                      if c.component_type == component_type and c.name == name), None)
         if comp is None:
             return "nao_encontrado"
+        gone = False
         if component_type == "addon":
             fingerprint = str(comp.metadata.get("versao") or "")
         else:
             folder = {"integracao": "custom_components", "frontend": "www/community"}[component_type]
             path = (config_dir / folder / name) if config_dir else None
-            if path is None or name == "www" or not path.is_dir() or path.is_symlink():
+            if path is None or name == "www" or path.is_symlink() or (path.exists() and not path.is_dir()):
                 return "sem_pasta"
-            fingerprint = component_fingerprint(component_type, path)
-        storage.add_excluded(component_type, name, fingerprint or "", datetime.now(UTC).isoformat(timespec="seconds"))
+            # Já desinstalado (a pasta sumiu e o relatório ainda não sabe): só sai do relatório. Não
+            # precisa ficar na lista de excluídos; se for instalado de novo, volta a ser analisado.
+            gone = not path.exists()
+            fingerprint = None if gone else component_fingerprint(component_type, path)
+        if not gone:
+            storage.add_excluded(component_type, name, fingerprint or "",
+                                 datetime.now(UTC).isoformat(timespec="seconds"))
         # Sai do relatório na hora (achados e linha da tabela), sem esperar a próxima varredura.
         result.components = [c for c in result.components if c is not comp]
         result.findings = [f for f in result.findings if (f.component_type, f.component) != (component_type, name)]

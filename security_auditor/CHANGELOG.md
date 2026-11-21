@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.30.4
+
+- **"Excluir…" de um componente já apagado do HA:** dava o erro "Este componente não pode ser
+  excluído da tabela" quando a pasta já não existia (o relatório ainda não sabia da remoção). Agora
+  ele só sai do relatório, sem erro; se for instalado de novo, volta a ser analisado.
+
 ## 0.30.3
 
 - **Atualizações sem aviso:** uma varredura completa que rodava com atualizações ainda na fila (por
