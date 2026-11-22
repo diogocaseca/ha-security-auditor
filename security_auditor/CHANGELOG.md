@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.30.7
+
+- **Registro do HACS no formato novo:** o auditor só lia `.storage/hacs.repositories`. Versões novas
+  do HACS guardam os repositórios em `.storage/hacs.data` (por categoria), e aí todas as integrações
+  e cards apareciam como "manual", sem a verificação de integridade dos cards e sem os sinais do
+  GitHub (tag reescrita, repositório transferido). Agora lê os dois formatos.
+- **Só os baixados:** repositórios que estão só no catálogo do HACS (nunca instalados) não são mais
+  confundidos com um card ou integração de mesmo nome.
+- **Diagnóstico no log:** cada varredura informa quantos repositórios baixados vieram do registro
+  do HACS, e avisa se houver arquivos do HACS num formato desconhecido.
+
 ## 0.30.6
 
 - **`secrets.yaml` em comparações:** `nome == "secrets.yaml"`, `!=` e `in (...)` (quase sempre para

@@ -121,20 +121,56 @@ def walk_files(root: Path) -> tuple[list[Path], list[str]]:
     return files, links
 
 
-def load_hacs(config_dir: Path) -> list[HacsEntry]:
-    path = config_dir / ".storage" / "hacs.repositories"
+def _read_store(path: Path) -> dict[str, Any] | None:
+    """Conteúdo ("data") de um arquivo de armazenamento do HA em .storage; None se não existir ou falhar."""
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        return []
-    except (OSError, json.JSONDecodeError) as err:
-        _LOGGER.warning("Não foi possível ler hacs.repositories: %s", type(err).__name__)
-        return []
+        return None
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as err:
+        _LOGGER.warning("Não foi possível ler %s: %s", path.name, type(err).__name__)
+        return None
+    inner = data.get("data") if isinstance(data, dict) else None
+    return inner if isinstance(inner, dict) else None
+
+
+def _hacs_raw_entries(storage: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    """Repositórios guardados pelo HACS e os arquivos de onde vieram.
+
+    Formatos conhecidos:
+    - ``hacs.repositories``: ``{"data": {"<id>": {"full_name", "category", "installed", ...}}}``;
+    - ``hacs.data`` (formato novo): ``{"data": {"repositories": {"<categoria>": [{"id", "full_name", ...}]}}}``.
+      Aqui a categoria é a chave da lista, não um campo do repositório.
+    O HACS pode gravar os dois; as entradas são juntadas pelo id (o primeiro arquivo vence).
+    """
+    found: dict[str, dict[str, Any]] = {}
+    sources: list[str] = []
+    old = _read_store(storage / "hacs.repositories")
+    if old:
+        sources.append("hacs.repositories")
+        for key, raw in old.items():
+            if isinstance(raw, dict):
+                found.setdefault(str(raw.get("id") or key), raw)
+    new = _read_store(storage / "hacs.data")
+    repos = new.get("repositories") if new else None
+    if isinstance(repos, dict):
+        sources.append("hacs.data")
+        for category, items in repos.items():
+            for raw in items if isinstance(items, list) else []:
+                if isinstance(raw, dict):
+                    found.setdefault(str(raw.get("id") or raw.get("full_name")), {"category": category, **raw})
+    return list(found.values()), sources
+
+
+def load_hacs(config_dir: Path) -> list[HacsEntry]:
+    storage = config_dir / ".storage"
+    raws, sources = _hacs_raw_entries(storage)
     entries = []
-    for raw in (data.get("data") or {}).values():
-        if not isinstance(raw, dict) or not raw.get("full_name"):
+    for raw in raws:
+        if not raw.get("full_name"):
             continue
-        if raw.get("installed") is False:
+        # Só os baixados: o HACS guarda também o catálogo (repositórios que você nunca instalou).
+        if raw.get("installed") is not True and not raw.get("version_installed") and not raw.get("installed_commit"):
             continue
         entries.append(
             HacsEntry(
@@ -146,6 +182,17 @@ def load_hacs(config_dir: Path) -> list[HacsEntry]:
                 raw=raw,
             )
         )
+    if sources:
+        _LOGGER.info("Registro do HACS (%s): %d repositório(s) baixado(s) de %d guardado(s)",
+                     ", ".join(sources), len(entries), len(raws))
+    else:
+        try:
+            names = sorted(p.name for p in storage.glob("hacs*"))
+        except OSError:
+            names = []
+        if names:
+            _LOGGER.warning("Registro do HACS não reconhecido: há %s em .storage, mas em nenhum formato conhecido; "
+                            "integrações e cards vão aparecer como instalados manualmente", ", ".join(names))
     return entries
 
 
