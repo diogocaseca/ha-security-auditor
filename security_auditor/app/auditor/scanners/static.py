@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -298,6 +299,19 @@ def _from_semgrep(r: dict[str, Any], inv: Inventory) -> Finding | None:
 BANDIT_FIXED_SEVERITY = {"B324": Severity.LOW, "B104": Severity.LOW}
 
 
+# B506 (yaml.load): só é perigoso com um loader inseguro. O Bandit marca qualquer loader que não seja o
+# SafeLoader, inclusive os do Home Assistant e loaders próprios derivados do seguro.
+_UNSAFE_YAML_LOADER = re.compile(r"Loader\s*=\s*(?:\w+\.)*(?:Loader|UnsafeLoader|FullLoader)\b")
+_ANY_YAML_LOADER = re.compile(r"\bLoader\s*=")
+
+
+def _yaml_load_severity(code: str, severity: Severity) -> Severity:
+    """B506: mantém a severidade sem loader (padrão antigo inseguro) ou com loader inseguro; senão, Baixa."""
+    if not _ANY_YAML_LOADER.search(code) or _UNSAFE_YAML_LOADER.search(code):
+        return severity
+    return Severity.LOW
+
+
 def _bandit_severity(sev: str, conf: str, test_id: str = "") -> Severity:
     if test_id in BANDIT_FIXED_SEVERITY:
         return BANDIT_FIXED_SEVERITY[test_id]
@@ -326,20 +340,23 @@ def _from_bandit(r: dict[str, Any], inv: Inventory) -> Finding | None:
     )
     line = r.get("line_number")
     line_range = r.get("line_range") or [line]
+    snippet = read_snippet(path, line, max(line_range) if line_range else line)
+    severity = _bandit_severity(str(r.get("issue_severity", "LOW")), str(r.get("issue_confidence", "LOW")), test_id)
+    if test_id == "B506":
+        severity = _yaml_load_severity(str(r.get("code") or snippet or ""), severity)
     return Finding(
         component=comp.name,
         component_type=comp.component_type,
         category=category,
         rule_id=f"bandit.{test_id}",
-        severity=_bandit_severity(str(r.get("issue_severity", "LOW")), str(r.get("issue_confidence", "LOW")),
-                                  test_id),
+        severity=severity,
         title=title,
         explanation=explanation,
         recommendation="Leia o trecho e confirme se o uso é seguro neste contexto.",
         en=en_text(title_en, explanation_en, _BANDIT_RECOMMENDATION_EN),
         file=inv.rel(path),
         line=line,
-        snippet=read_snippet(path, line, max(line_range) if line_range else line),
+        snippet=snippet,
         source="bandit",
         extra={"bandit_cwe": (r.get("issue_cwe") or {}).get("id")},
     )

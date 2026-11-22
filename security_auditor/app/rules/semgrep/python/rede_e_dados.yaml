@@ -186,6 +186,11 @@ rules:
           regex: (?i)^(.*[/\\])?secrets\.ya?ml$
       # Listas que protegem o arquivo (não apagar, não ler, não mostrar) não são leitura.
       - pattern-not-regex: (?i)\b\w*(protect|deny|denied|block|forbid|exclu|ignor|skip|hidden|hide|sensitive|blacklist|never|readonly|read_only)\w*\s*(:[^=\n]*)?=\s*(frozenset|set|tuple|list)?\s*\(?\s*[\[\{\(][^\]\}\)]*secrets\.ya?ml["']
+      # Comparar um nome com "secrets.yaml" (quase sempre para pular o arquivo) tem regra própria, Baixa.
+      - pattern-not-inside: $X == $Y
+      - pattern-not-inside: $X != $Y
+      - pattern-not-inside: $X in $Y
+      - pattern-not-inside: $X not in $Y
     metadata:
       titulo: Leitura direta do secrets.yaml
       categoria: acesso_sensivel
@@ -198,6 +203,33 @@ rules:
       titulo_en: "Direct read of secrets.yaml"
       explicacao_en: "Home Assistant already gives the integration the values it needs. Reading secrets.yaml directly gives access to ALL passwords and tokens of the installation, not only the integration's."
       recomendacao_en: "Check what is read and where that data goes."
+
+  - id: auditor.py.compara-secrets-yaml
+    languages: [python]
+    severity: INFO
+    message: Nome de arquivo comparado com secrets.yaml
+    patterns:
+      - pattern-either:
+          - pattern-inside: $X == $Y
+          - pattern-inside: $X != $Y
+          - pattern-inside: $X in $Y
+          - pattern-inside: $X not in $Y
+      - pattern: '"$S"'
+      - metavariable-regex:
+          metavariable: $S
+          regex: (?i)^(.*[/\\])?secrets\.ya?ml$
+    metadata:
+      titulo: Comparação com o nome secrets.yaml
+      categoria: acesso_sensivel
+      severidade: baixa
+      explicacao: >-
+        O código compara um nome de arquivo com secrets.yaml. Quase sempre é para
+        pular o arquivo (não ler, não alterar); só merece atenção se, quando o
+        nome bate, o arquivo for aberto.
+      recomendacao: Veja o que acontece quando o nome é igual a secrets.yaml.
+      titulo_en: "Comparison with the name secrets.yaml"
+      explicacao_en: "The code compares a file name with secrets.yaml. It is almost always to skip the file (not read it, not change it); it only deserves attention if the file is opened when the name matches."
+      recomendacao_en: "Check what happens when the name equals secrets.yaml."
 
   - id: auditor.py.acesso-storage-auth
     languages: [python]

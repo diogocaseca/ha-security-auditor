@@ -110,6 +110,7 @@ too. When Bandit and Semgrep flag the same line, only one finding is kept.
 | `auditor.py.instalacao-de-pacote-em-tempo-de-execucao` | `pip install` done by the integration itself | High |
 | `auditor.py.destino-suspeito` | webhooks, pastebins, tunnels, Discord and Telegram bots | High |
 | `auditor.py.acesso-secrets-yaml` | direct read of `secrets.yaml` | High |
+| `auditor.py.compara-secrets-yaml` | name compared with `secrets.yaml` (almost always to skip the file) | Low |
 | `auditor.py.acesso-storage` | other uses of `.storage` (usually the integration's own data file) | Low |
 | `auditor.py.execucao-de-comandos` | `subprocess`, `os.system`, `os.exec*` | Medium |
 | `auditor.py.carregamento-dinamico-de-modulo` | modules loaded from arbitrary paths | Medium |
@@ -125,7 +126,7 @@ too. When Bandit and Semgrep flag the same line, only one finding is kept.
 | `auditor.js.eval-dinamico` | `eval`/`new Function` with dynamic data | Medium |
 | `auditor.js.codigo-remoto` | script loaded from an external address | Medium |
 | `auditor.js.ip-fixo-publico` | connection to a hard-coded public IP | Medium |
-| `bandit.*` | other Bandit warnings (pickle, disabled TLS...) | as reported by Bandit (weak hash, B324, and "0.0.0.0", B104, are always Low) |
+| `bandit.*` | other Bandit warnings (pickle, disabled TLS...) | as reported by Bandit (weak hash, B324, and "0.0.0.0", B104, are always Low; `yaml.load`, B506, is Low with a safe or custom loader) |
 
 Repeated hits of the same rule in the same file show up as **one** finding, with the number of
 occurrences and their lines; files Semgrep could not fully analyse are listed in one finding per

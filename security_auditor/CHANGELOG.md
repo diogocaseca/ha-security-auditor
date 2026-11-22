@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.30.6
+
+- **`secrets.yaml` em comparações:** `nome == "secrets.yaml"`, `!=` e `in (...)` (quase sempre para
+  pular o arquivo) viraram a regra `auditor.py.compara-secrets-yaml`, Baixa, que não conta como
+  "lê segredos" nas cadeias. Abrir o arquivo ou colocá-lo numa lista que permite ler continua Alta.
+- **Bandit B506 (`yaml.load`):** com o loader do Home Assistant, o `SafeLoader` ou um loader próprio,
+  agora é Baixa. Continua Média sem loader ou com `Loader`, `UnsafeLoader` ou `FullLoader`.
+
 ## 0.30.5
 
 Falsos positivos vistos numa varredura real:

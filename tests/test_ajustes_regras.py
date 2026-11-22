@@ -209,3 +209,42 @@ def test_insecure_healthcheck_on_localhost_is_not_flagged(tmp_path):
 def test_aiofile_is_not_typosquatting():
     from auditor.scanners.deps_malicious import typosquat_of
     assert typosquat_of("aiofile") is None
+
+
+SECRETS_CMP = '''import os
+def a(path):
+    if os.path.basename(path) == "secrets.yaml" or (text := _read(path)) is None:
+        return None
+def never(name):
+    return (
+        name == "secrets.yaml"
+        or ".bak" in name
+    )
+def b(name):
+    return name in ("secrets.yaml", "x")
+data = open(hass.config.path("secrets.yaml")).read()
+'''
+
+
+def test_comparing_with_secrets_yaml_is_low_and_not_a_secret(tmp_path):
+    hits = _semgrep(tmp_path, SECRETS_CMP)
+    assert all("py.acesso-secrets-yaml" not in hits.get(n, set()) for n in (3, 7, 11))
+    assert all("py.compara-secrets-yaml" in hits[n] for n in (3, 7, 11))
+    assert "py.acesso-secrets-yaml" in hits[12]  # abrir o arquivo continua Alta
+    assert _rule_meta("auditor.py.compara-secrets-yaml")["severidade"] == "baixa"
+    findings = [make_finding(component="c", rule_id="auditor.py.compara-secrets-yaml", line=1),
+                make_finding(component="c", rule_id="auditor.py.url-fixa", line=2)]
+    assert build_chains(findings) == []
+
+
+@pytest.mark.parametrize("code, expected", [
+    ("yaml.load(text, Loader=HAYamlLoader)", Severity.LOW),
+    ("yaml.load(text, Loader=lambda stream: _Loader(stream, None))", Severity.LOW),
+    ("yaml.load(text, Loader=yaml.Loader)", Severity.MEDIUM),
+    ("yaml.load(text, Loader=yaml.UnsafeLoader)", Severity.MEDIUM),
+    ("yaml.load(fh, Loader=FullLoader)", Severity.MEDIUM),
+    ("yaml.load(text)", Severity.MEDIUM),
+])
+def test_yaml_load_with_safe_or_custom_loader_is_low(code, expected):
+    from auditor.scanners.static import _yaml_load_severity
+    assert _yaml_load_severity(code, Severity.MEDIUM) is expected

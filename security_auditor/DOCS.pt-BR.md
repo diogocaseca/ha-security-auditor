@@ -114,6 +114,7 @@ também são analisados. Quando o Bandit e o Semgrep apontam a mesma linha, fica
 | `auditor.py.instalacao-de-pacote-em-tempo-de-execucao` | `pip install` feito pela própria integração | Alta |
 | `auditor.py.destino-suspeito` | webhooks, pastebins, túneis, bots do Discord e do Telegram | Alta |
 | `auditor.py.acesso-secrets-yaml` | leitura direta do `secrets.yaml` | Alta |
+| `auditor.py.compara-secrets-yaml` | nome comparado com `secrets.yaml` (quase sempre para pular o arquivo) | Baixa |
 | `auditor.py.acesso-storage` | outros usos da `.storage` (normalmente o arquivo de dados da própria integração) | Baixa |
 | `auditor.py.execucao-de-comandos` | `subprocess`, `os.system`, `os.exec*` | Média |
 | `auditor.py.carregamento-dinamico-de-modulo` | módulos carregados de caminhos arbitrários | Média |
@@ -129,7 +130,7 @@ também são analisados. Quando o Bandit e o Semgrep apontam a mesma linha, fica
 | `auditor.js.eval-dinamico` | `eval`/`new Function` com dados dinâmicos | Média |
 | `auditor.js.codigo-remoto` | script carregado de endereço externo | Média |
 | `auditor.js.ip-fixo-publico` | conexão com IP público fixo | Média |
-| `bandit.*` | outros avisos do Bandit (pickle, TLS desativado...) | o do Bandit (hash fraco, B324, e "0.0.0.0", B104, são sempre Baixa) |
+| `bandit.*` | outros avisos do Bandit (pickle, TLS desativado...) | o do Bandit (hash fraco, B324, e "0.0.0.0", B104, são sempre Baixa; `yaml.load`, B506, é Baixa com loader seguro ou próprio) |
 
 Repetições da mesma regra no mesmo arquivo aparecem como **um** achado, com o número de
 ocorrências e as linhas; arquivos que o Semgrep não conseguiu analisar por completo ficam listados
