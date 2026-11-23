@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.33.0
+
+- **Imagem pronta:** o app agora baixa a imagem publicada em `ghcr.io/diogocaseca/security-auditor`
+  (amd64 e aarch64, montada e assinada pelo GitHub Actions) em vez de montar tudo na máquina. A
+  instalação e as atualizações ficam bem mais rápidas, principalmente em Raspberry Pi, e todo mundo
+  roda exatamente a mesma imagem.
+- Depois de publicar uma versão, a imagem leva alguns minutos para ficar pronta no GitHub; atualizar
+  antes disso dá erro de download (basta tentar de novo depois).
+
 ## 0.32.2
 
 Preparação para distribuir o app com imagens prontas:
