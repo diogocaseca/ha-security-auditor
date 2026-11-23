@@ -111,6 +111,7 @@ too. When Bandit and Semgrep flag the same line, only one finding is kept.
 | `auditor.py.destino-suspeito` | webhooks, pastebins, tunnels, Discord and Telegram bots | High |
 | `auditor.py.acesso-secrets-yaml` | direct read of `secrets.yaml` | High |
 | `auditor.py.compara-secrets-yaml` | name compared with `secrets.yaml` (almost always to skip the file) | Low |
+| `auditor.codigo.dominio-em-lista-de-ameacas` | domain mentioned in the code (integrations and cards) that is on HaGeZi's threat list, even if never queried | High |
 | `auditor.py.acesso-storage` | other uses of `.storage` (usually the integration's own data file) | Low |
 | `auditor.py.execucao-de-comandos` | `subprocess`, `os.system`, `os.exec*` | Medium |
 | `auditor.py.carregamento-dinamico-de-modulo` | modules loaded from arbitrary paths | Medium |
@@ -265,13 +266,34 @@ those queries are not counted again.
 > AdGuard/Pi-hole, everything comes from the same client. The report repeats this notice on every
 > finding.
 
+To make up for it, the auditor points out the **likely owner** when it can:
+
+- **mentioned in the code of…:** the domain (or its parent domain) appears in the code of an
+  integration or card. The index of domain names in the code is kept and only rebuilt for the
+  components that changed (the first time may take a few more seconds). Code of HA itself and of
+  add-ons is not included;
+- **first queried right after…:** the domain showed up for the first time up to an hour after a
+  component was installed or updated (from the install scans).
+
+This shows in the findings and in the domain table.
+
 | Situation | Severity |
 |---|---|
 | Exfiltration services, tunnels and pastebins (`webhook.site`, `ngrok`, `pastebin`...) | High |
 | Cryptocurrency mining pools | High |
+| Domain on **HaGeZi's threat list** (malware, phishing, C2, scams) | High (Medium if your filter blocked every query) |
+| Query to an **encrypted DNS server** (DoH/DoT: `dns.google`, `cloudflare-dns.com`...), which bypasses AdGuard/Pi-hole | Medium |
+| **Many different names** (50+ in 24 h) or **many TXT queries** (20+) under the same domain: DNS tunnel pattern | Medium with long names or TXT; Low otherwise |
+| **New** domain (last 7 days), mentioned by no component, queried at a **regular pace** ("heartbeat") | Low |
 | Random-looking domains (except known CDNs and Nabu Casa) | Low |
 | Domains blocked by your filter | Low |
 | New domains since the previous scan | Info |
+
+The threat and encrypted DNS lists are HaGeZi's (*Threat Intelligence Feeds*, medium version, and
+*Encrypted DNS Bypass*), **downloaded** from GitHub every 12 hours and compared in here: no domain
+of your home is sent. Without the encrypted DNS list, a short built-in list is used. The regular
+pace is a weak signal: DNS caching makes any periodic query regular, including those of HA's
+official integrations (which are not in the code index).
 
 With **Ignore all…** (next to the table title) every domain in the table that is not ignored yet
 goes to the list at once, with a single reason. Check the list first: ignored domains no longer
@@ -759,6 +781,7 @@ outbound connections are downloads and queries to vulnerability databases, plus 
 |---|---|---|
 | `api.github.com`, `github.com`, `codeload.github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `raw.githubusercontent.com` | Download the integrations' and add-ons' code for comparison and analysis | Auditor (Python) |
 | `raw.githubusercontent.com` (`diogocaseca/ha-security-blocklist`) | Download the community blocklist and its signature (whole file; nothing is sent) | Auditor (Python) |
+| `raw.githubusercontent.com` (`hagezi/dns-blocklists`) | Download the threat and encrypted DNS lists (whole file, every 12 h; nothing is sent) | Auditor (Python) |
 | `api.osv.dev` | Query vulnerabilities of the requirements (sends only package name and version) | pip-audit |
 | `api.osv.dev` | Check whether a requirement is a catalogued malicious package (sends only the package name) | Auditor (Python) |
 | Image registries (`ghcr.io`, Docker Hub and whichever registry each add-on uses) | Download image manifests and layers | Trivy |

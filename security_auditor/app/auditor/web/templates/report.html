@@ -389,7 +389,11 @@
                 <tr{% if ign %} class="dns-ignored-row" hidden{% endif %}>
                   <td class="col-select">{% if not ign %}<input type="checkbox" class="dns-select" value="{{ d.dominio }}" aria-label="{{ _('Selecionar {dominio}', dominio=d.dominio) }}">{% endif %}</td>
                   <td><code>{{ d.dominio }}</code>{% if d.novo %} <span class="badge badge-new">{{ _("Novo") }}</span>{% endif %}
-                    {% set q = dns_ai.get(d.dominio) %}{% if q %} <span class="badge {{ ai_badge.get(q.veredito, 'badge-muted') }}" title="{{ _('Opinião da IA ({modelo})', modelo=q.modelo) }}">{{ _("IA:") }} {{ ai_verdicts.get(q.veredito, q.veredito) }}</span>{% endif %}</td>
+                    {% set q = dns_ai.get(d.dominio) %}{% if q %} <span class="badge {{ ai_badge.get(q.veredito, 'badge-muted') }}" title="{{ _('Opinião da IA ({modelo})', modelo=q.modelo) }}">{{ _("IA:") }} {{ ai_verdicts.get(q.veredito, q.veredito) }}</span>{% endif %}
+                    {% if d.ameaca %} <span class="badge sev-critical" title="{{ _('Na lista de ameaças do HaGeZi como {entrada}', entrada=d.ameaca) }}">{{ _("Lista de ameaças") }}</span>{% endif %}
+                    {% if d.dns_cifrado %} <span class="badge sev-medium" title="{{ _('Servidor de DNS cifrado: quem usa resolve nomes por fora do seu filtro') }}">{{ _("DNS cifrado") }}</span>{% endif %}
+                    {% if d.citado_em %}<div class="comp-meta">{{ _("Citado no código de:") }} {{ d.citado_em | join(", ") }}</div>{% endif %}
+                    {% if d.depois_de %}<div class="comp-meta">{{ _("Primeira consulta logo depois de:") }} {{ d.depois_de.nome }} ({{ {'novo': _('novo'), 'atualizado': _('atualizado')}.get(d.depois_de.mudanca, d.depois_de.mudanca) }})</div>{% endif %}</td>
                   {% if multi %}<td>{{ _('ambos') if (d.servidores or []) | length > 1 else (d.servidores or ['—']) | first }}</td>{% endif %}
                   <td class="num">{{ d.consultas }}</td>
                   <td class="num">{{ d.bloqueadas or '' }}</td>

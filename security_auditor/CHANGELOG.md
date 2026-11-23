@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.32.0
+
+DNS mais esperto, sem mandar nada da sua casa para fora:
+
+- **Lista de ameaças do HaGeZi:** os domínios consultados são comparados com os *Threat
+  Intelligence Feeds* (versão média, ~378 mil domínios de malware, phishing, C2 e golpes), baixados
+  do GitHub a cada 12 h e comparados aqui dentro. Domínio da lista vira achado Alto (Médio se o seu
+  filtro bloqueou todas as consultas).
+- **Domínios do código na lista de ameaças:** todo nome de domínio citado no código das integrações
+  e dos cards é comparado com a mesma lista; um domínio da lista vira achado Alto no componente,
+  com arquivo e linha, mesmo que nunca tenha sido consultado.
+- **Quem usa cada domínio:** os achados e a tabela de domínios dizem em que componente o domínio
+  aparece no código ("citado no código de…") e se a primeira consulta veio logo depois de instalar
+  ou atualizar algo ("primeira consulta logo depois de…").
+- **DNS cifrado (DoH/DoT):** consulta a servidores como `dns.google` ou `cloudflare-dns.com`, que
+  contornam o AdGuard/Pi-hole, vira achado Médio (lista *Encrypted DNS Bypass* do HaGeZi, com uma
+  lista curta embutida de reserva).
+- **Túnel por DNS por volume:** 50+ nomes diferentes ou 20+ consultas TXT sob o mesmo domínio em
+  24 h.
+- **Ritmo regular ("batimento cardíaco"):** domínio novo, que nenhum componente cita, consultado
+  em intervalos quase iguais (sinal fraco, Baixa).
+- O tipo da consulta (A, AAAA, TXT…) agora é lido do AdGuard Home e do Pi-hole.
+
 ## 0.31.0
 
 - **Mais dados para a IA:** ao clicar em **Perguntar à IA**, o auditor junta dados públicos do host e

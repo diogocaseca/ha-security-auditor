@@ -359,6 +359,21 @@ class Storage:
             )
         return path
 
+    def recent_changes(self, since: str) -> list[tuple[str, str, str]]:
+        """Instalações/atualizações recentes: (início da varredura parcial, nome, mudança)."""
+        with self._conn() as conn:
+            rows = conn.execute("SELECT started_at, targets_json FROM scans WHERE kind = 'parcial' AND started_at >= ?",
+                                (since,)).fetchall()
+        out = []
+        for r in rows:
+            try:
+                targets = json.loads(r["targets_json"] or "[]")
+            except json.JSONDecodeError:
+                continue
+            out += [(r["started_at"], str(t.get("nome")), str(t.get("mudanca"))) for t in targets
+                    if isinstance(t, dict) and t.get("nome") and t.get("mudanca") != "removido"]
+        return out
+
     def list_scans(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
         with self._conn() as conn:
             rows = conn.execute(

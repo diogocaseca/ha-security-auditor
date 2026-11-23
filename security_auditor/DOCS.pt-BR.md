@@ -115,6 +115,7 @@ também são analisados. Quando o Bandit e o Semgrep apontam a mesma linha, fica
 | `auditor.py.destino-suspeito` | webhooks, pastebins, túneis, bots do Discord e do Telegram | Alta |
 | `auditor.py.acesso-secrets-yaml` | leitura direta do `secrets.yaml` | Alta |
 | `auditor.py.compara-secrets-yaml` | nome comparado com `secrets.yaml` (quase sempre para pular o arquivo) | Baixa |
+| `auditor.codigo.dominio-em-lista-de-ameacas` | domínio citado no código (integrações e cards) que está na lista de ameaças do HaGeZi, mesmo sem nunca ter sido consultado | Alta |
 | `auditor.py.acesso-storage` | outros usos da `.storage` (normalmente o arquivo de dados da própria integração) | Baixa |
 | `auditor.py.execucao-de-comandos` | `subprocess`, `os.system`, `os.exec*` | Média |
 | `auditor.py.carregamento-dinamico-de-modulo` | módulos carregados de caminhos arbitrários | Média |
@@ -271,13 +272,34 @@ segundo só vê o primeiro como cliente e essas consultas não entram de novo.
 > add-ons e integrações passa pelo DNS do Supervisor, que encaminha para o seu servidor; para o
 > AdGuard/Pi-hole, tudo vem do mesmo cliente. O relatório repete esse aviso em cada achado.
 
+Para compensar, o auditor aponta o **provável responsável** quando dá:
+
+- **citado no código de…:** o domínio (ou o domínio pai) aparece no código de uma integração ou
+  card. O índice de nomes de domínio do código fica guardado e só é refeito para os componentes
+  que mudaram (a primeira vez pode levar alguns segundos a mais). Código do próprio HA e dos
+  add-ons não entra;
+- **primeira consulta logo depois de…:** o domínio apareceu pela primeira vez até uma hora depois
+  de instalar ou atualizar um componente (pelas varreduras de instalação).
+
+Isso aparece nos achados e na tabela de domínios.
+
 | Situação | Severidade |
 |---|---|
 | Serviços de exfiltração, túneis e pastebins (`webhook.site`, `ngrok`, `pastebin`...) | Alta |
 | Pools de mineração de criptomoedas | Alta |
+| Domínio na **lista de ameaças do HaGeZi** (malware, phishing, C2, golpes) | Alta (Média se o seu filtro bloqueou todas as consultas) |
+| Consulta a **servidor de DNS cifrado** (DoH/DoT: `dns.google`, `cloudflare-dns.com`...), que contorna o AdGuard/Pi-hole | Média |
+| **Muitos nomes diferentes** (50+ em 24 h) ou **muitas consultas TXT** (20+) sob o mesmo domínio: padrão de túnel por DNS | Média com nomes longos ou TXT; Baixa nos demais |
+| Domínio **novo** (últimos 7 dias), que nenhum componente cita, consultado em **ritmo regular** ("batimento cardíaco") | Baixa |
 | Domínios com aparência aleatória (exceto CDNs conhecidas e Nabu Casa) | Baixa |
 | Domínios bloqueados pelo seu filtro | Baixa |
 | Domínios novos desde a varredura anterior | Informativa |
+
+As listas de ameaças e de DNS cifrado são as do HaGeZi (*Threat Intelligence Feeds*, versão
+média, e *Encrypted DNS Bypass*), **baixadas** do GitHub a cada 12 horas e comparadas aqui dentro:
+nenhum domínio da sua casa é enviado. Sem a lista de DNS cifrado, vale uma lista curta embutida.
+O ritmo regular é um sinal fraco: o cache do DNS deixa regular qualquer consulta periódica, inclusive
+das integrações oficiais do HA (que não estão no índice do código).
 
 Com **Ignorar todos…** (ao lado do título da tabela), todos os domínios da tabela que ainda não
 estão ignorados vão para a lista de uma vez, com um motivo só. Confira a lista antes: domínios
@@ -766,6 +788,7 @@ O auditor **nunca envia dados da sua instalação para serviços externos por co
 |---|---|---|
 | `api.github.com`, `github.com`, `codeload.github.com`, `objects.githubusercontent.com`, `release-assets.githubusercontent.com`, `raw.githubusercontent.com` | Baixar o código das integrações e add-ons para comparação e análise | Auditor (Python) |
 | `raw.githubusercontent.com` (`diogocaseca/ha-security-blocklist`) | Baixar a lista negra comunitária e a assinatura (arquivo inteiro; nada é enviado) | Auditor (Python) |
+| `raw.githubusercontent.com` (`hagezi/dns-blocklists`) | Baixar as listas de ameaças e de DNS cifrado (arquivo inteiro, a cada 12 h; nada é enviado) | Auditor (Python) |
 | `api.osv.dev` | Consultar vulnerabilidades dos requirements (envia só nome e versão do pacote) | pip-audit |
 | `api.osv.dev` | Ver se um requisito é pacote malicioso catalogado (envia só o nome do pacote) | Auditor (Python) |
 | Registros das imagens (`ghcr.io`, Docker Hub e o registro que cada add-on usar) | Baixar manifesto e camadas das imagens | Trivy |

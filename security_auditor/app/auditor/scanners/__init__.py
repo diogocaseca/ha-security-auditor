@@ -7,6 +7,7 @@ from .addon_perms import AddonPermissionsScanner
 from .addon_source import AddonSourceScanner
 from .base import ScanContext, Scanner
 from .blocklist import BlocklistScanner
+from .code_threats import CodeThreatScanner
 from .deps import DependencyScanner
 from .dns import DnsScanner
 from .integrity import IntegrityScanner
@@ -29,6 +30,8 @@ def default_scanners() -> list[Scanner]:
         DependencyScanner(),
         IntegrityScanner(),
         RepoSignalsScanner(),
+        # Domínios citados no código contra a lista de ameaças (baixada do GitHub, comparada aqui)
+        CodeThreatScanner(),
         # Fase 2: outros add-ons
         AddonPermissionsScanner(),
         AddonSourceScanner(),

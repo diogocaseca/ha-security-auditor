@@ -17,6 +17,7 @@ import asyncio
 import base64
 import fnmatch
 import ipaddress
+import itertools
 import logging
 import re
 import time
@@ -87,6 +88,7 @@ class DnsQuery:
     client: str
     blocked: bool
     server: str = ""
+    qtype: str = ""  # A, AAAA, TXT... (vazio se o servidor não informar)
 
 
 @dataclass
@@ -98,9 +100,14 @@ class DomainStats:
     last: datetime | None = None
     new: bool = False
     servers: set[str] = field(default_factory=set)
+    types: dict[str, int] = field(default_factory=dict)
+    times: list[float] = field(default_factory=list)  # para achar consultas em intervalo regular
 
     def add(self, q: DnsQuery) -> None:
         self.count += 1
+        if q.qtype:
+            self.types[q.qtype] = self.types.get(q.qtype, 0) + 1
+        self.times.append(q.ts.timestamp())
         if q.server:
             self.servers.add(q.server)
         self.blocked += int(q.blocked)
@@ -181,8 +188,10 @@ class AdGuardHome:
                     return out
                 if str(e.get("client", "")) != client:
                     continue  # "search" também casa com o texto do domínio
-                name = (e.get("question") or {}).get("name", "")
-                out.append(DnsQuery(ts, str(name), client, str(e.get("reason", "")) in _ADGUARD_BLOCKED))
+                question = e.get("question") or {}
+                out.append(DnsQuery(ts, str(question.get("name", "")), client,
+                                    str(e.get("reason", "")) in _ADGUARD_BLOCKED,
+                                    qtype=str(question.get("type") or "").upper()))
             older_than = str(data.get("oldest") or "")
             if not entries or not older_than:
                 break
@@ -265,7 +274,7 @@ class PiHole6:
                     continue
                 out.append(DnsQuery(
                     datetime.fromtimestamp(float(q.get("time", 0)), UTC), str(q.get("domain", "")), ip,
-                    str(q.get("status", "")) in _PIHOLE_BLOCKED,
+                    str(q.get("status", "")) in _PIHOLE_BLOCKED, qtype=str(q.get("type") or "").upper(),
                 ))
             if len(items) < PAGE:
                 break
@@ -402,8 +411,93 @@ def is_ignored(domain: str, patterns: Iterable[str]) -> bool:
     return False
 
 
-def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
+# --- Contexto extra: listas de ameaças, quem usa cada domínio e mudanças recentes ----------
+
+TUNNEL_MIN_NAMES = 50  # nomes diferentes sob o mesmo domínio em 24 h
+TXT_MIN = 20  # consultas TXT ao mesmo domínio em 24 h
+BEACON_MIN_INTERVALS = 10
+BEACON_TOLERANCE = 0.10  # intervalo dentro de ±10% da mediana
+BEACON_SHARE = 0.8  # fração dos intervalos que precisa ser regular
+BEACON_RANGE = (30.0, 7200.0)  # segundos
+BEACON_RECENT = timedelta(days=7)  # só domínios vistos pela primeira vez há menos que isto
+CHANGE_BEFORE = timedelta(minutes=10)
+CHANGE_AFTER = timedelta(minutes=60)
+
+
+@dataclass
+class DnsIntel:
+    """O que se sabe além das consultas (tudo local ou baixado; nada da casa sai do add-on)."""
+
+    threats: dict[str, str] = field(default_factory=dict)  # domínio -> entrada da lista de ameaças
+    encrypted_dns: dict[str, str] = field(default_factory=dict)  # domínio -> entrada da lista de DNS cifrado
+    users: Any = None  # função domínio -> {componente: arquivo} (domínios citados no código)
+    changes: list[tuple[datetime, str, str]] = field(default_factory=list)  # (quando, nome, mudança)
+    first_seen: dict[str, str | None] = field(default_factory=dict)
+
+    def who(self, domain: str) -> dict[str, str]:
+        return self.users(domain) if self.users else {}
+
+    def first(self, s: DomainStats) -> datetime | None:
+        raw = self.first_seen.get(s.domain)
+        try:
+            return datetime.fromisoformat(raw) if raw else s.first
+        except ValueError:
+            return s.first
+
+    def change_before(self, s: DomainStats) -> tuple[datetime, str, str] | None:
+        """A instalação/atualização logo antes da primeira consulta ao domínio (se houver)."""
+        first = self.first(s)
+        if first is None:
+            return None
+        near = [c for c in self.changes if c[0] - CHANGE_BEFORE <= first <= c[0] + CHANGE_AFTER]
+        return min(near, key=lambda c: abs((first - c[0]).total_seconds())) if near else None
+
+
+_CHANGE_PT = {"novo": "instalado", "atualizado": "atualizado", "removido": "removido"}
+_CHANGE_EN = {"novo": "installed", "atualizado": "updated", "removido": "removed"}
+
+
+def attribution(s: DomainStats, intel: DnsIntel) -> tuple[list[str], list[str]]:
+    """Linhas "citado no código de…" e "apareceu depois de…", em português e inglês."""
+    pt: list[str] = []
+    en: list[str] = []
+    users = intel.who(s.domain)
+    if users:
+        listed = ", ".join(f"{c.split('/', 1)[-1]} ({f})" for c, f in sorted(users.items())[:3])
+        more = f" e mais {len(users) - 3}" if len(users) > 3 else ""
+        more_en = f" and {len(users) - 3} more" if len(users) > 3 else ""
+        pt.append(f"  citado no código de: {listed}{more}")
+        en.append(f"  mentioned in the code of: {listed}{more_en}")
+    change = intel.change_before(s)
+    first = intel.first(s)
+    if change and first:
+        minutes = int((first - change[0]).total_seconds() // 60)
+        when_pt = f"{minutes} min depois" if minutes >= 0 else f"{-minutes} min antes"
+        when_en = f"{minutes} min after" if minutes >= 0 else f"{-minutes} min before"
+        pt.append(f"  primeira consulta {when_pt} de: {change[1]} ({_CHANGE_PT.get(change[2], change[2])})")
+        en.append(f"  first queried {when_en}: {change[1]} ({_CHANGE_EN.get(change[2], change[2])})")
+    return pt, en
+
+
+def _regular_interval(times: list[float]) -> float | None:
+    """Mediana do intervalo entre consultas, se elas acontecem em ritmo regular; senão None."""
+    moments: list[float] = []
+    for t in sorted(times):
+        if not moments or t - moments[-1] > 2.0:  # A e AAAA juntos contam como uma consulta
+            moments.append(t)
+    gaps = [b - a for a, b in itertools.pairwise(moments)]
+    if len(gaps) < BEACON_MIN_INTERVALS:
+        return None
+    median = sorted(gaps)[len(gaps) // 2]
+    if not BEACON_RANGE[0] <= median <= BEACON_RANGE[1]:
+        return None
+    regular = sum(1 for g in gaps if abs(g - median) <= BEACON_TOLERANCE * median)
+    return median if regular / len(gaps) >= BEACON_SHARE else None
+
+
+def analyze(stats: dict[str, DomainStats], first_run: bool, intel: DnsIntel | None = None) -> list[Finding]:
     findings: list[Finding] = []
+    intel = intel or DnsIntel()
 
     def finding(rule: str, sev: Severity, title: str, why: str, todo: str, snippet: str,
                 category: str, key: str = "", en: tuple[str, str, str] = ("", "", ""),
@@ -427,6 +521,13 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
         extra = f", {s.blocked} blocked" if s.blocked else ""
         return f"{s.domain}: {s.count} query(ies){extra}, last {last}"
 
+    def detail(s: DomainStats, *extra: str) -> tuple[str, str]:
+        """Linha do domínio + linhas extras + quem usa (português, inglês)."""
+        who_pt, who_en = attribution(s, intel)
+        pt = [line(s), *[e for e in extra[0::2]], *who_pt]
+        en = [line_en(s), *[e for e in extra[1::2]], *who_en]
+        return "\n".join(pt), "\n".join(en)
+
     for s in sorted(stats.values(), key=lambda s: s.domain):
         if _SUSPICIOUS.search(s.domain):
             finding("destino-suspeito", Severity.HIGH, f"Consulta a serviço suspeito: {s.domain}",
@@ -434,24 +535,63 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
                     "túneis reversos ou hospedagem de payloads.",
                     "Procure esse domínio no código das integrações e add-ons (os achados de análise "
                     "estática ajudam) e nos logs; pare o componente responsável se não houver explicação.",
-                    line(s), "destino_suspeito", s.domain,
+                    detail(s)[0], "destino_suspeito", s.domain,
                     (f"Query to a suspicious service: {s.domain}",
-                     "The HA host queried a service often used for data exfiltration, reverse tunnels or hosting "
-                     "payloads.",
-                     "Search for this domain in the integrations' and add-ons' code (the static analysis findings "
-                     "help) and in the logs; stop the responsible component if there is no explanation."),
-                    line_en(s))
+                     ("The HA host queried a service often used for data exfiltration, reverse tunnels or hosting "
+                     "payloads."),
+                     ("Search for this domain in the integrations' and add-ons' code (the static analysis findings "
+                     "help) and in the logs; stop the responsible component if there is no explanation.")),
+                    detail(s)[1])
         elif _MINING.search(s.domain):
             finding("mineracao", Severity.HIGH, f"Consulta a pool de mineração: {s.domain}",
                     "Contato com pool de mineração de criptomoedas é o sinal típico de cryptojacking: alguém "
                     "usando o processador da sua máquina para minerar.",
                     "Veja nas estatísticas qual add-on está com CPU alta e investigue-o.",
-                    line(s), "mineracao", s.domain,
+                    detail(s)[0], "mineracao", s.domain,
                     (f"Query to a mining pool: {s.domain}",
-                     "Contact with a cryptocurrency mining pool is the typical sign of cryptojacking: someone using "
-                     "your machine's processor to mine.",
+                     ("Contact with a cryptocurrency mining pool is the typical sign of cryptojacking: someone using "
+                     "your machine's processor to mine."),
                      "Check in the statistics which add-on has high CPU and investigate it."),
-                    line_en(s))
+                    detail(s)[1])
+        elif s.domain in intel.threats:
+            entry = intel.threats[s.domain]
+            only_blocked = s.blocked >= s.count
+            listed_pt = f"na lista de ameaças do HaGeZi como {entry}"
+            listed_en = f"on HaGeZi's threat list as {entry}"
+            pt, en = detail(s, f"  {listed_pt}", f"  {listed_en}")
+            finding("lista-ameacas", Severity.MEDIUM if only_blocked else Severity.HIGH,
+                    f"Domínio em lista de ameaças: {s.domain}",
+                    "O domínio está na lista de ameaças do HaGeZi (malware, phishing, comando e controle, golpes)."
+                    + (" Todas as consultas foram bloqueadas pelo seu filtro, mas algo na instalação tentou "
+                       "acessá-lo." if only_blocked else ""),
+                    "Veja quem cita o domínio no código (abaixo, quando dá para saber) e investigue esse componente. "
+                    "Sem explicação, pare-o e bloqueie o domínio no AdGuard/Pi-hole.",
+                    pt, "lista_ameacas", s.domain,
+                    (f"Domain on a threat list: {s.domain}",
+                     "The domain is on HaGeZi's threat list (malware, phishing, command and control, scams)."
+                     + (" Every query was blocked by your filter, but something in the installation tried to reach "
+                        "it." if only_blocked else ""),
+                     ("Check who mentions the domain in the code (below, when it can be told) and investigate that "
+                     "component. Without an explanation, stop it and block the domain in AdGuard/Pi-hole.")),
+                    en)
+        if s.domain in intel.encrypted_dns:
+            pt, en = detail(s)
+            finding("dns-cifrado", Severity.MEDIUM, f"Consulta a servidor de DNS cifrado: {s.domain}",
+                    "O host do HA procurou um servidor de DNS cifrado (DNS-over-HTTPS/TLS). Quem usa um desses "
+                    "resolve nomes por fora do seu AdGuard/Pi-hole, e as consultas seguintes não aparecem nem são "
+                    "filtradas. Navegadores (como o add-on Chromium) e algumas integrações fazem isso por conta "
+                    "própria; código malicioso também.",
+                    "Veja quem cita o domínio no código. Se for esperado, ignore o domínio; senão, bloqueie-o no "
+                    "AdGuard/Pi-hole e bloqueie a porta 853 no roteador.",
+                    pt, "dns_cifrado", s.domain,
+                    (f"Query to an encrypted DNS server: {s.domain}",
+                     ("The HA host looked up an encrypted DNS server (DNS-over-HTTPS/TLS). Whoever uses one resolves "
+                     "names outside your AdGuard/Pi-hole, and the following queries are neither shown nor filtered. "
+                     "Browsers (like the Chromium add-on) and some integrations do it on their own; so does "
+                     "malicious code."),
+                     ("Check who mentions the domain in the code. If it is expected, ignore the domain; otherwise "
+                     "block it in AdGuard/Pi-hole and block port 853 on the router.")),
+                    en)
 
     random_like = sorted((s for s in stats.values() if looks_random(s.domain)), key=lambda s: -s.count)
     if random_like:
@@ -462,8 +602,8 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
                 "\n".join(line(s) for s in random_like[:15]), "dns_anormal",
                 ",".join(sorted(s.domain for s in random_like))[:200],
                 (f"{len(random_like)} random-looking domain(s)",
-                 "Long, meaningless names can be generated by malware (DGA) or used to tunnel data over DNS. They "
-                 "can also belong to unrecognised CDNs and cloud services.",
+                 ("Long, meaningless names can be generated by malware (DGA) or used to tunnel data over DNS. They "
+                 "can also belong to unrecognised CDNs and cloud services."),
                  "Check that the domains belong to services you use."),
                 "\n".join(line_en(s) for s in random_like[:15]))
 
@@ -476,10 +616,72 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
                 "\n".join(line(s) for s in blocked[:20]), "dns_bloqueado",
                 ",".join(sorted(s.domain for s in blocked))[:200],
                 (f"{len(blocked)} domain(s) blocked by your DNS filter",
-                 "The HA host tried to reach domains your AdGuard/Pi-hole blocks (ads, trackers or threat lists). "
-                 "It is usually some component's telemetry.",
+                 ("The HA host tried to reach domains your AdGuard/Pi-hole blocks (ads, trackers or threat lists). "
+                 "It is usually some component's telemetry."),
                  "Check whether any domain is on a threat list (not just an ad list)."),
                 "\n".join(line_en(s) for s in blocked[:20]))
+
+    # Túnel por DNS: muitos nomes diferentes sob o mesmo domínio (cada nome carrega um pedaço de dado).
+    by_base: dict[str, list[DomainStats]] = {}
+    for s in stats.values():
+        if not _RANDOM_OK.search(s.domain):
+            by_base.setdefault(base_domain(s.domain), []).append(s)
+    for base, items in sorted(by_base.items()):
+        txt = sum(s.types.get("TXT", 0) for s in items)
+        if len(items) < TUNNEL_MIN_NAMES and txt < TXT_MIN:
+            continue
+        first_labels = [s.domain[: -len(base) - 1].split(".")[0] for s in items if s.domain != base]
+        avg = sum(map(len, first_labels)) / len(first_labels) if first_labels else 0
+        tunnel = len(items) >= TUNNEL_MIN_NAMES
+        sev = Severity.MEDIUM if (tunnel and (avg >= 20 or txt >= TXT_MIN)) else Severity.LOW
+        sample = sorted(items, key=lambda s: -s.count)[:8]
+        users = intel.who(base)
+        who_pt = f"\n  citado no código de: {', '.join(c.split('/', 1)[-1] for c in sorted(users)[:3])}" if users else ""
+        who_en = f"\n  mentioned in the code of: {', '.join(c.split('/', 1)[-1] for c in sorted(users)[:3])}" if users else ""
+        head_pt = f"{len(items)} nome(s) diferente(s) sob {base}, {txt} consulta(s) TXT, tamanho médio do 1º rótulo {avg:.0f}"
+        head_en = f"{len(items)} different name(s) under {base}, {txt} TXT query(ies), average first label length {avg:.0f}"
+        finding("tunel", sev,
+                f"Muitos nomes ou consultas TXT sob {base}" if tunnel else f"Muitas consultas TXT a {base}",
+                "Túneis e exfiltração por DNS escondem dados nos nomes consultados (cada nome diferente leva um "
+                "pedaço) ou nas respostas TXT. Serviços legítimos com muitos subdomínios (CDNs, nuvens de "
+                "fabricantes) também geram esse padrão.",
+                "Veja se o domínio é de um serviço que você usa. Nomes longos e aleatórios sob um domínio "
+                "desconhecido merecem investigação.",
+                head_pt + who_pt + "\n" + "\n".join(line(s) for s in sample), "dns_tunel", base,
+                (f"Many names or TXT queries under {base}" if tunnel else f"Many TXT queries to {base}",
+                 ("DNS tunnels and exfiltration hide data in the queried names (each different name carries a "
+                 "piece) or in TXT answers. Legitimate services with many subdomains (CDNs, vendor clouds) also "
+                 "produce this pattern."),
+                 ("Check whether the domain belongs to a service you use. Long random names under an unknown domain "
+                 "deserve investigation.")),
+                head_en + who_en + "\n" + "\n".join(line_en(s) for s in sample))
+
+    # "Batimento cardíaco": domínio recente, sem dono conhecido, consultado em ritmo regular.
+    recent_cut = datetime.now(UTC) - BEACON_RECENT
+    beacons = []
+    for s in stats.values():
+        first = intel.first(s)
+        if (s.count < BEACON_MIN_INTERVALS or s.blocked >= s.count or _RANDOM_OK.search(s.domain)
+                or first is None or first < recent_cut or intel.who(s.domain)):
+            continue
+        if (interval := _regular_interval(s.times)) is not None:
+            beacons.append((s, interval))
+    if beacons:
+        beacons.sort(key=lambda b: -b[0].count)
+        finding("batimento", Severity.LOW, f"{len(beacons)} domínio(s) novo(s) consultado(s) em ritmo regular",
+                "Domínios vistos pela primeira vez nos últimos 7 dias, que nenhum componente cita no código, "
+                "consultados em intervalos quase iguais. É o padrão de um programa \"chamando\" um servidor de "
+                "comando, mas também de integrações oficiais do HA consultando uma nuvem (o cache do DNS deixa "
+                "qualquer consulta periódica regular).",
+                "Confira se os domínios combinam com algo que você usa. Os desconhecidos merecem a pergunta à IA.",
+                "\n".join(f"{s.domain}: a cada ~{iv:.0f} s ({s.count} consultas)" for s, iv in beacons[:20]),
+                "dns_batimento", ",".join(sorted(s.domain for s, _ in beacons))[:200],
+                (f"{len(beacons)} new domain(s) queried at a regular pace",
+                 ("Domains first seen in the last 7 days, not mentioned in any component's code, queried at almost "
+                 "equal intervals. It is the pattern of a program \"calling\" a command server, but also of "
+                 "official HA integrations polling a cloud (DNS caching makes any periodic query regular)."),
+                 "Check whether the domains match something you use. Unknown ones deserve the AI question."),
+                "\n".join(f"{s.domain}: every ~{iv:.0f} s ({s.count} queries)" for s, iv in beacons[:20]))
 
     new = sorted((s for s in stats.values() if s.new), key=lambda s: -s.count)
     if new and not first_run:
@@ -487,13 +689,13 @@ def analyze(stats: dict[str, DomainStats], first_run: bool) -> list[Finding]:
                 "Domínios que o host do HA nunca tinha consultado. É normal depois de instalar ou atualizar "
                 "algo; sem mudança na instalação, merece uma olhada.",
                 "Confira se os domínios combinam com algo que você instalou ou atualizou.",
-                "\n".join(line(s) for s in new[:30]), "dns_novo",
+                "\n".join(detail(s)[0] for s in new[:30]), "dns_novo",
                 ",".join(sorted(s.domain for s in new))[:200],
                 (f"{len(new)} new domain(s) since the previous scan",
-                 "Domains the HA host had never queried before. This is normal after installing or updating "
-                 "something; without a change in the installation, it deserves a look.",
+                 ("Domains the HA host had never queried before. This is normal after installing or updating "
+                 "something; without a change in the installation, it deserves a look."),
                  "Check that the domains match something you installed or updated."),
-                "\n".join(line_en(s) for s in new[:30]))
+                "\n".join(detail(s)[1] for s in new[:30]))
     return findings
 
 
@@ -597,7 +799,8 @@ class DnsScanner:
         if len(active) < len(stats):
             _LOGGER.info("DNS: %d domínio(s) fora dos achados pela lista de domínios ignorados",
                          len(stats) - len(active))
-        findings.extend(analyze(active, first_run=not known))
+        intel = await self._intel(ctx, stats, seen)
+        findings.extend(analyze(active, first_run=not known, intel=intel))
         await _remember(ctx, stats)
 
         def discovered(s: DomainStats) -> str:
@@ -627,12 +830,41 @@ class DnsScanner:
             dominios=[
                 {"dominio": s.domain, "consultas": s.count, "bloqueadas": s.blocked, "novo": s.new,
                  "servidores": sorted(s.servers), "descoberto": discovered(s) or None,
-                 "ultima": s.last.isoformat(timespec="seconds") if s.last else None}
+                 "ultima": s.last.isoformat(timespec="seconds") if s.last else None,
+                 **_row_extras(s, intel)}
                 for s in top
             ],
             dominios_total=len(stats),
         )
         return findings
+
+    async def _intel(self, ctx: ScanContext, stats: dict[str, DomainStats],
+                     seen: dict[str, str | None]) -> DnsIntel:
+        """Listas de ameaças e de DNS cifrado (baixadas), domínios do código e mudanças recentes."""
+        from .. import code_hosts, threat_intel
+
+        intel = DnsIntel(first_seen=dict(seen))
+        domains = set(stats)
+        cache = ctx.paths.cache_dir
+        ctx.set_progress(self.name, "listas de ameaças")
+        intel.threats, _ = await threat_intel.lookup(ctx.http, cache, "ameacas", domains)
+        intel.encrypted_dns, _ = await threat_intel.lookup(ctx.http, cache, "dns_cifrado", domains)
+        ctx.set_progress(self.name, "domínios citados no código")
+        try:
+            index = await asyncio.to_thread(code_hosts.build, ctx.inventory(), cache, ctx.paths.rules_dir)
+            intel.users = index.users
+        except OSError as err:
+            _LOGGER.warning("Índice de domínios do código indisponível: %s", type(err).__name__)
+        since = (datetime.now(UTC) - WINDOW - CHANGE_AFTER).isoformat(timespec="seconds")
+        for when, name, change in await asyncio.to_thread(ctx.storage.recent_changes, since):
+            try:
+                intel.changes.append((datetime.fromisoformat(when), name, change))
+            except ValueError:
+                continue
+        if intel.threats or intel.encrypted_dns:
+            _LOGGER.info("DNS: %d domínio(s) em lista de ameaças, %d servidor(es) de DNS cifrado",
+                         len(intel.threats), len(intel.encrypted_dns))
+        return intel
 
     async def _fetch(self, ctx: ScanContext, srv: DnsServer, host: str, clients: list[str],
                      since: datetime) -> list[DnsQuery]:
@@ -657,6 +889,22 @@ class DnsScanner:
             await provider.close()
             await http.close()
         return out
+
+
+def _row_extras(s: DomainStats, intel: DnsIntel) -> dict[str, Any]:
+    """Colunas extras da tabela de domínios: quem cita no código, mudança logo antes, listas."""
+    out: dict[str, Any] = {}
+    users = intel.who(s.domain)
+    if users:
+        out["citado_em"] = sorted(c.split("/", 1)[-1] for c in users)[:5]
+    change = intel.change_before(s)
+    if change:
+        out["depois_de"] = {"nome": change[1], "mudanca": change[2]}
+    if s.domain in intel.threats:
+        out["ameaca"] = intel.threats[s.domain]
+    if s.domain in intel.encrypted_dns:
+        out["dns_cifrado"] = True
+    return out
 
 
 async def _remember(ctx: ScanContext, stats: dict[str, DomainStats]) -> None:
