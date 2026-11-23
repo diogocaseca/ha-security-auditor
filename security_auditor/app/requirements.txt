@@ -584,6 +584,9 @@ defusedxml==0.7.1 \
     --hash=sha256:1bb3032db185915b62d7c6209c5a8792be6a32ab2fedacc84e01b52c51aa3e69 \
     --hash=sha256:a352e7e428770286cc899e2542b6cdaedb2b4953ff269a210103ec58f6198a61
     # via py-serializable
+dnspython==2.9.2 \
+    --hash=sha256:af15f7d385a6ae2fb35a796fde2138004c8c42c7389090e2addc83e3b3340fd8
+    # via auditor (consultas DNS para a IA)
 exceptiongroup==1.2.2 \
     --hash=sha256:3111b9d131c238bec2f8f516e123e14ba243563fb135d3fe885990585aa7795b \
     --hash=sha256:47c2edf7c6738fafb49fd34290706d1a1a2f4d1c6df275526b62cbb4aa5393cc

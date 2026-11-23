@@ -323,6 +323,23 @@ so it follows strict rules:
   findings;
 - the connection only accepts the chosen provider's host, and the key never shows in logs.
 
+**Public data sent along.** Before asking, the auditor gathers public data about the host and sends
+it to the AI as evidence; it also shows in the dialog, below the answer:
+
+- **DNS**, looked up through the DNS your home already uses (no new destination): IPs, CNAME chain,
+  name servers and whether the domain has MX, SPF and DMARC (the TTL is left out: your home's cache
+  only shows the time left, which would mislead the AI). The text of TXT records is
+  not sent. If AdGuard/Pi-hole blocks the domain (`0.0.0.0` or NXDOMAIN), the AI is told, so it does
+  not conclude the domain does not exist. The lookup is done in Python (`dnspython`), without running
+  `dig`;
+- **registration (RDAP)**, the modern "whois": registration date (and how many days ago),
+  expiration, registrar and status of the domain; for an IP, the network, the owning organisation
+  and the country. The server is the one listed by IANA's official list (`data.iana.org/rdap`,
+  kept for a week), and only the registered domain (e.g. `example.co.uk`) or the IP leaves.
+
+A domain registered a few days ago, CNAMEs to tunnel or free hosting services and no
+MX/SPF for a domain that claims to be a company are signals the AI takes into account.
+
 The answer is saved and shows as an "AI: …" badge on the domain's row; clicking again shows the
 saved answer at no cost, and **Ask again** queries the provider again. **Ask the AI about all…** at
 the top of the table asks about every visible domain (it follows the table filter) that has no
@@ -747,7 +764,8 @@ outbound connections are downloads and queries to vulnerability databases, plus 
 | Image registries (`ghcr.io`, Docker Hub and whichever registry each add-on uses) | Download image manifests and layers | Trivy |
 | `mirror.gcr.io`, `ghcr.io` | Download Trivy's vulnerability database | Trivy |
 | The `adguard_url` and `pihole_url` hosts | Read your DNS servers' query log (optional) | Auditor (Python) |
-| `generativelanguage.googleapis.com` (Gemini) or `api.anthropic.com` (Claude) | Only with `ia_provedor` set and only when you click **Ask the AI**: sends **only the host (domain or IP) name** | Auditor (Python) |
+| `generativelanguage.googleapis.com` (Gemini) or `api.anthropic.com` (Claude) | Only with `ia_provedor` set and only when you click **Ask the AI**: sends **only the host (domain or IP) name** and its public data (DNS and RDAP) | Auditor (Python) |
+| `data.iana.org` and the RDAP servers in IANA's list (e.g. `rdap.verisign.com`, `rdap.registro.br`, `rdap.arin.net`) | Only when you click **Ask the AI**: registration date and owner of the domain or IP (sends only the registered domain or the IP) | Auditor (Python) |
 
 In the Python code, every connection goes through a single client that requires HTTPS and checks
 the host of every request **and every redirect** against the list above. The GitHub token is only

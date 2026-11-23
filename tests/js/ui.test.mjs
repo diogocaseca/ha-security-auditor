@@ -134,12 +134,17 @@ test("DNS: com 'Mostrar domínios ignorados', os botões em massa somem", () => 
 
 test("Perguntar à IA: envia só o host e mostra o veredito", async () => {
   const p = open("?ver=dns", { "api/dns/ia": { status: 200, json: {
-    veredito: "malicioso", explicacao: "Pool de mineração.", modelo: "claude-opus-5-5", guardada: false, data: "2026-11-18" } } });
+    veredito: "malicioso", explicacao: "Pool de mineração.", modelo: "claude-opus-5-5", guardada: false, data: "2026-11-18",
+    fatos: ["Registrado em 2026-11-19 (há 3 dias)", "Endereços: 203.0.113.7"] } } });
   p.$('[data-dns-ai="api.fabricante.com"]').click();
   await waitFor(() => !p.$("#dns-ai-result").hidden);
   assert.deepEqual(p.calls.find((c) => c.url === "api/dns/ia").body, { dominio: "api.fabricante.com", refazer: false });
   assert.equal(p.$("#dns-ai-verdict").textContent, "Malicioso");
   assert.equal(p.$("#dns-ai-explanation").textContent, "Pool de mineração.");
+  // Os dados públicos que foram junto aparecem numa lista, como texto (nunca HTML).
+  assert.ok(!p.$("#dns-ai-facts-box").hidden);
+  assert.deepEqual(p.$$("#dns-ai-facts li").map((li) => li.textContent),
+    ["Registrado em 2026-11-19 (há 3 dias)", "Endereços: 203.0.113.7"]);
 });
 
 test("Perguntar à IA sobre todos: só os visíveis sem resposta, um por vez", async () => {

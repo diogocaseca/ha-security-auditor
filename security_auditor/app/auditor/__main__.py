@@ -8,12 +8,13 @@ import logging
 import os
 import signal
 from datetime import UTC, tzinfo
+from pathlib import Path
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import aiohttp
 from aiohttp import web
 
-from . import __version__
+from . import __version__, domain_facts
 from .ai import PROVIDERS, AiError, ask_domain, model_for
 from .config import MODE_FIXED_TIME, load_options, load_paths
 from .engine import ScanEngine
@@ -118,7 +119,7 @@ async def main() -> None:
         async def on_ignored_change() -> None:
             await on_status(status_holder["status"])
 
-        ai = _ai_settings(options)
+        ai = _ai_settings(options, paths.cache_dir / "rdap")
         app = create_app(storage, scheduler, engine.progress, config_allowlist=options.allowlist,
                          on_change=on_ignored_change, dns_state=dns_state, dns_check=check_dns,
                          blocklist_cache_dir=paths.cache_dir,
@@ -190,7 +191,7 @@ async def main() -> None:
         await runner.cleanup()
 
 
-def _ai_settings(options) -> dict | None:
+def _ai_settings(options, rdap_cache: Path | None = None) -> dict | None:
     """Consulta à IA na aba DNS (opção ia_provedor). None = desligada ou incompleta."""
     if options.ai_provider not in PROVIDERS:
         _LOGGER.info("Consulta de domínios à IA desligada (ia_provedor: desligado)")
@@ -208,8 +209,11 @@ def _ai_settings(options) -> dict | None:
                  "usuário clica em Perguntar à IA", label, model, ", com pesquisa na web" if options.ai_web_search else "")
 
     async def ask(domain: str, lang: str) -> dict:
-        return await ask_domain(options.ai_provider, options.ai_api_key, model, domain, lang,
-                                web=options.ai_web_search)
+        # Dados públicos do domínio (DNS pelo resolvedor da casa e registro via RDAP) vão junto como evidência.
+        facts = await domain_facts.collect(domain, rdap_cache)
+        answer = await ask_domain(options.ai_provider, options.ai_api_key, model, domain, lang,
+                                  web=options.ai_web_search, facts=facts)
+        return {**answer, "fatos": domain_facts.summary(facts, lang)}
 
     return {"label": label, "modelo": model, "ask": ask}
 

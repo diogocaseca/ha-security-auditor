@@ -332,6 +332,23 @@ por isso segue regras estritas:
   nos achados;
 - a conexão só aceita o host do provedor escolhido, e a chave nunca aparece nos logs.
 
+**Dados públicos que vão junto.** Antes de perguntar, o auditor junta dados públicos do host e manda
+para a IA como evidência; eles também aparecem no diálogo, abaixo da resposta:
+
+- **DNS**, consultado pelo DNS que a sua casa já usa (nenhum destino novo): IPs, cadeia de CNAME,
+  servidores de nome e se o domínio tem MX, SPF e DMARC (o TTL fica de fora: o cache da casa mostra
+  só o tempo que falta, o que enganaria a IA). O texto dos registros TXT não é
+  enviado. Se o AdGuard/Pi-hole bloquear o domínio (`0.0.0.0` ou NXDOMAIN), a IA é avisada, para não
+  concluir que ele não existe. A consulta é feita em Python (`dnspython`), sem rodar `dig`;
+- **registro (RDAP)**, o "whois" moderno: data de registro (e há quantos dias), expiração,
+  registrador e status do domínio; para um IP, a rede, a organização dona e o país. O servidor é o
+  indicado pela lista oficial da IANA (`data.iana.org/rdap`, guardada por uma semana), e só sai o
+  domínio registrado (ex.: `exemplo.com.br`) ou o IP.
+
+Um domínio registrado há poucos dias, CNAME para serviços de túnel ou hospedagem
+gratuita e ausência de MX/SPF num domínio que diz ser de uma empresa são sinais que a IA leva em
+conta.
+
 A resposta fica guardada e aparece como selo "IA: …" na linha do domínio; clicar de novo mostra a
 resposta guardada sem custo, e **Perguntar de novo** consulta o provedor outra vez. **Perguntar à IA
 sobre todos…**, no topo da tabela, pergunta por todos os domínios visíveis (respeita o filtro da
@@ -754,7 +771,8 @@ O auditor **nunca envia dados da sua instalação para serviços externos por co
 | Registros das imagens (`ghcr.io`, Docker Hub e o registro que cada add-on usar) | Baixar manifesto e camadas das imagens | Trivy |
 | `mirror.gcr.io`, `ghcr.io` | Baixar a base de vulnerabilidades do Trivy | Trivy |
 | Os hosts de `adguard_url` e `pihole_url` | Ler o log de consultas dos seus servidores DNS (Fase 3, opcional) | Auditor (Python) |
-| `generativelanguage.googleapis.com` (Gemini) ou `api.anthropic.com` (Claude) | Só com `ia_provedor` preenchido e só quando você clica em **Perguntar à IA**: envia **só o host (domínio ou IP)** | Auditor (Python) |
+| `generativelanguage.googleapis.com` (Gemini) ou `api.anthropic.com` (Claude) | Só com `ia_provedor` preenchido e só quando você clica em **Perguntar à IA**: envia **só o host (domínio ou IP)** e os dados públicos dele (DNS e RDAP) | Auditor (Python) |
+| `data.iana.org` e os servidores RDAP da lista da IANA (ex.: `rdap.verisign.com`, `rdap.registro.br`, `rdap.arin.net`) | Só quando você clica em **Perguntar à IA**: data de registro e dono do domínio ou IP (envia só o domínio registrado ou o IP) | Auditor (Python) |
 
 No código Python, toda conexão passa por um cliente único que exige HTTPS e confere o host de
 cada requisição **e de cada redirecionamento** contra a lista acima. O token do GitHub só é

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.31.0
+
+- **Mais dados para a IA:** ao clicar em **Perguntar à IA**, o auditor junta dados públicos do host e
+  manda como evidência, e eles aparecem no diálogo abaixo da resposta:
+  - **DNS** (pelo DNS da sua casa, sem destino novo): IPs, cadeia de CNAME, servidores de nome e se há
+    MX, SPF e DMARC (sem o TTL, que no cache da casa engana). Diz quando o AdGuard/Pi-hole bloqueia o domínio. Feito em Python
+    (`dnspython`), sem rodar `dig`; o texto dos registros TXT não é enviado;
+  - **registro (RDAP)**: data de registro e idade, expiração, registrador e status do domínio; para
+    IP, rede, organização e país. O servidor vem da lista oficial da IANA (`data.iana.org/rdap`,
+    guardada por uma semana) e só sai o domínio registrado ou o IP.
+- **Saídas novas:** `data.iana.org` e os servidores RDAP listados pela IANA, só no clique.
+- **Dependência nova:** `dnspython` 2.9.2 (com hash fixo, sem dependências).
+
 ## 0.30.8
 
 - **HACS virou Marketplace:** o registro agora fica em `.storage/marketplace.repositories` (antes,

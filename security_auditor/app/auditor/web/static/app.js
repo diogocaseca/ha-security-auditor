@@ -833,6 +833,17 @@
       badge.className = "badge " + (AI_BADGE[data.veredito] || "badge-muted");
       badge.textContent = T(AI_VERDICTS[data.veredito] || data.veredito);
       document.getElementById("dns-ai-explanation").textContent = data.explicacao;
+      // Dados públicos que foram junto com o host (DNS e RDAP), para a pessoa conferir também.
+      const factsBox = document.getElementById("dns-ai-facts-box");
+      const factsList = document.getElementById("dns-ai-facts");
+      if (factsBox && factsList) {
+        factsList.replaceChildren(...(data.fatos || []).map((line) => {
+          const li = document.createElement("li");
+          li.textContent = line;
+          return li;
+        }));
+        factsBox.hidden = !(data.fatos || []).length;
+      }
       let when = data.data || "";
       try { when = new Date(data.data).toLocaleString(); } catch (e) { /* data como veio */ }
       document.getElementById("dns-ai-meta").textContent =

@@ -145,6 +145,14 @@ CREATE TABLE IF NOT EXISTS traffic_events (
 """
 
 
+
+def _json_list(raw: str | None) -> list[str]:
+    try:
+        data = json.loads(raw or "[]")
+    except json.JSONDecodeError:
+        return []
+    return [str(x) for x in data] if isinstance(data, list) else []
+
 class Storage:
     def __init__(self, db_path: Path, reports_dir: Path) -> None:
         self.db_path = db_path
@@ -180,6 +188,9 @@ class Storage:
                         conn.execute("UPDATE ignored SET skip = 1 WHERE id = ?", (r["id"],))
                 conn.execute("INSERT INTO settings (key, value) VALUES ('migracao_ignorar_componente', '1')")
             # Migração (0.17.0): varreduras parciais, feitas ao instalar ou atualizar um componente.
+            # Migração (0.31.0): dados públicos (DNS e RDAP) mostrados junto da resposta da IA.
+            if "facts_json" not in {r["name"] for r in conn.execute("PRAGMA table_info(dns_ai)")}:
+                conn.execute("ALTER TABLE dns_ai ADD COLUMN facts_json TEXT NOT NULL DEFAULT '[]'")
             cols = {r["name"] for r in conn.execute("PRAGMA table_info(scans)")}
             if "kind" not in cols:
                 conn.execute("ALTER TABLE scans ADD COLUMN kind TEXT NOT NULL DEFAULT 'completa'")
@@ -521,13 +532,15 @@ class Storage:
             rows = (conn.execute("SELECT * FROM dns_ai WHERE domain = ?", (domain,)) if domain
                     else conn.execute("SELECT * FROM dns_ai")).fetchall()
         return {r["domain"]: {"veredito": r["verdict"], "explicacao": r["explanation"], "provedor": r["provider"],
-                              "modelo": r["model"], "idioma": r["lang"], "data": r["created_at"]} for r in rows}
+                              "modelo": r["model"], "idioma": r["lang"], "data": r["created_at"],
+                              "fatos": _json_list(r["facts_json"])} for r in rows}
 
     def save_dns_ai(self, domain: str, answer: dict[str, str], lang: str, created_at: str) -> None:
         with self._conn() as conn:
-            conn.execute("INSERT OR REPLACE INTO dns_ai VALUES (?, ?, ?, ?, ?, ?, ?)",
+            conn.execute("INSERT OR REPLACE INTO dns_ai (domain, provider, model, verdict, explanation, lang, "
+                         "created_at, facts_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
                          (domain, answer["provedor"], answer["modelo"], answer["veredito"], answer["explicacao"],
-                          lang, created_at))
+                          lang, created_at, json.dumps([str(x) for x in answer.get("fatos") or []])))
 
     def dns_first_seen(self) -> dict[str, str | None]:
         """Domínios já vistos e a data da primeira consulta de cada um."""

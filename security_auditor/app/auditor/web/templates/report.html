@@ -636,10 +636,14 @@
     <div id="dns-ai-result" hidden>
       <p><span class="badge" id="dns-ai-verdict"></span></p>
       <p id="dns-ai-explanation"></p>
+      <div id="dns-ai-facts-box" hidden>
+        <p class="muted small">{{ _("Dados públicos consultados (DNS e registro):") }}</p>
+        <ul class="small" id="dns-ai-facts"></ul>
+      </div>
       <p class="muted small" id="dns-ai-meta"></p>
     </div>
     <p class="error small" id="dns-ai-error" hidden></p>
-    <p class="notice small">{{ _("Só o host (nome do domínio ou IP) é enviado ao {provedor}, e só quando você pede. A resposta é a opinião de um modelo de linguagem: pode errar e não substitui a sua verificação.", provedor=ai.label) }}</p>
+    <p class="notice small">{{ _("Só o host (nome do domínio ou IP) é enviado ao {provedor}, e só quando você pede, junto com os dados públicos dele: registros DNS (consultados pelo DNS da sua casa) e o registro do domínio ou do IP (RDAP, consultado no servidor oficial indicado pela IANA). A resposta é a opinião de um modelo de linguagem: pode errar e não substitui a sua verificação.", provedor=ai.label) }}</p>
     <div class="dialog-actions">
       <button type="button" class="btn btn-ghost" id="dns-ai-again">{{ _("Perguntar de novo") }}</button>
       <button type="button" class="btn btn-primary" id="dns-ai-close">{{ _("Fechar") }}</button>
