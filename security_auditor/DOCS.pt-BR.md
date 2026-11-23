@@ -115,7 +115,7 @@ também são analisados. Quando o Bandit e o Semgrep apontam a mesma linha, fica
 | `auditor.py.destino-suspeito` | webhooks, pastebins, túneis, bots do Discord e do Telegram | Alta |
 | `auditor.py.acesso-secrets-yaml` | leitura direta do `secrets.yaml` | Alta |
 | `auditor.py.compara-secrets-yaml` | nome comparado com `secrets.yaml` (quase sempre para pular o arquivo) | Baixa |
-| `auditor.codigo.dominio-em-lista-de-ameacas` | domínio citado no código (integrações e cards) que está na lista de ameaças do HaGeZi, mesmo sem nunca ter sido consultado | Alta |
+| `auditor.codigo.dominio-em-lista-de-ameacas` | domínio citado no código (integrações e cards) que está na lista de ameaças do HaGeZi, mesmo sem nunca ter sido consultado. Só conta nome numa URL ou sozinho entre aspas, não chamadas como `console.info(` | Alta (numa URL); Média (só entre aspas) |
 | `auditor.py.acesso-storage` | outros usos da `.storage` (normalmente o arquivo de dados da própria integração) | Baixa |
 | `auditor.py.execucao-de-comandos` | `subprocess`, `os.system`, `os.exec*` | Média |
 | `auditor.py.carregamento-dinamico-de-modulo` | módulos carregados de caminhos arbitrários | Média |
@@ -205,9 +205,16 @@ versão instalada e compara arquivo a arquivo por SHA-256:
 registrou. Cada arquivo instalado é comparado com o de mesmo nome nos anexos da release, em `dist/`
 ou na raiz do repositório (de onde o HACS o tira). As cópias `.js.gz` que o HACS cria são
 descompactadas e comparadas com o `.js` delas: o Home Assistant serve o `.gz` no lugar do original,
-então um `.gz` diferente trocaria o código que roda no navegador. Arquivo alterado, arquivo
-JavaScript extra ou `.gz` diferente = Alta; outro arquivo extra = Baixa. Cards sem registro no HACS
-não são comparados (a linha diz o motivo).
+então um `.gz` diferente trocaria o código que roda no navegador. JavaScript alterado ou extra, ou
+`.gz` diferente = Alta; outro arquivo alterado ou extra (README, imagem…) = Baixa. Cards sem registro
+no HACS não são comparados (a linha diz o motivo).
+
+O HACS não apaga os arquivos da versão anterior ao atualizar. Por isso, um arquivo que não bate com
+a versão registrada é procurado nas outras releases do repositório, pelo SHA-256 que o GitHub
+informa de cada anexo (sem baixar nada a mais): se bater, vira **Sobra de uma versão anterior**
+(pode ser apagado) ou **Arquivo de outra versão** (atualização interrompida), as duas Informativas.
+Só a pasta com o nome exato do repositório fica ligada ao registro do HACS; uma pasta que só difere
+em maiúsculas (instalação antiga ou manual) aparece como manual.
 
 ### Outros add-ons (via API do Supervisor)
 

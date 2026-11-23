@@ -54,26 +54,32 @@ class CodeThreatScanner:
             for host, rel in sorted(index.per_component.get(key, {}).items()):
                 if host in hits:
                     line, text = await asyncio.to_thread(_line_of, inv.config_dir / rel, host)
-                    findings.append(_finding(comp, host, hits[host], rel, line, text))
+                    findings.append(_finding(comp, host, hits[host], rel, line, text,
+                                             in_url=host in index.in_url.get(key, set())))
         if findings:
             _LOGGER.info("Domínios em lista de ameaças no código: %d", len(findings))
         return findings
 
 
-def _finding(comp: Component, host: str, entry: str, rel: str, line: int | None, text: str | None) -> Finding:
+def _finding(comp: Component, host: str, entry: str, rel: str, line: int | None, text: str | None,
+             in_url: bool = True) -> Finding:
+    quoted_pt = ("" if in_url else " Ele aparece só entre aspas, não numa URL: pode ser apenas um nome parecido com "
+                 "um domínio (uma chave de tradução, por exemplo).")
+    quoted_en = ("" if in_url else " It only appears between quotes, not in a URL: it may just be a name that looks "
+                 "like a domain (a translation key, for example).")
     return Finding(
         component=comp.name, component_type=comp.component_type, category="lista_ameacas",
-        rule_id="auditor.codigo.dominio-em-lista-de-ameacas", severity=Severity.HIGH,
+        rule_id="auditor.codigo.dominio-em-lista-de-ameacas", severity=Severity.HIGH if in_url else Severity.MEDIUM,
         title=f"Domínio em lista de ameaças no código: {host}",
         explanation=(f"O código cita {host}, que está na lista de ameaças do HaGeZi (como {entry}): malware, "
                      "phishing, comando e controle ou golpes. Pode ser um endereço antigo que mudou de dono, mas "
-                     "também o servidor para onde o componente manda dados."),
+                     "também o servidor para onde o componente manda dados." + quoted_pt),
         recommendation=("Veja no trecho como o domínio é usado e pergunte à IA sobre ele. Sem explicação do autor, "
                         "desative o componente e bloqueie o domínio no AdGuard/Pi-hole."),
         en=en_text(f"Domain on a threat list in the code: {host}",
                    f"The code mentions {host}, which is on HaGeZi's threat list (as {entry}): malware, phishing, "
                    "command and control or scams. It may be an old address that changed owners, but also the "
-                   "server the component sends data to.",
+                   "server the component sends data to." + quoted_en,
                    "Check in the snippet how the domain is used and ask the AI about it. Without an explanation "
                    "from the author, disable the component and block the domain in AdGuard/Pi-hole."),
         file=rel, line=line, snippet=text, source="auditor",

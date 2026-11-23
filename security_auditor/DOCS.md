@@ -111,7 +111,7 @@ too. When Bandit and Semgrep flag the same line, only one finding is kept.
 | `auditor.py.destino-suspeito` | webhooks, pastebins, tunnels, Discord and Telegram bots | High |
 | `auditor.py.acesso-secrets-yaml` | direct read of `secrets.yaml` | High |
 | `auditor.py.compara-secrets-yaml` | name compared with `secrets.yaml` (almost always to skip the file) | Low |
-| `auditor.codigo.dominio-em-lista-de-ameacas` | domain mentioned in the code (integrations and cards) that is on HaGeZi's threat list, even if never queried | High |
+| `auditor.codigo.dominio-em-lista-de-ameacas` | domain mentioned in the code (integrations and cards) that is on HaGeZi's threat list, even if never queried. Only names in a URL or alone between quotes count, not calls like `console.info(` | High (in a URL); Medium (only between quotes) |
 | `auditor.py.acesso-storage` | other uses of `.storage` (usually the integration's own data file) | Low |
 | `auditor.py.execucao-de-comandos` | `subprocess`, `os.system`, `os.exec*` | Medium |
 | `auditor.py.carregamento-dinamico-de-modulo` | modules loaded from arbitrary paths | Medium |
@@ -197,9 +197,16 @@ installed version from GitHub and compares it file by file with SHA-256:
 Each installed file is compared with the file of the same name in the release assets, in `dist/` or
 in the repository root (where HACS takes it from). The `.js.gz` copies HACS creates are unpacked and
 compared with their `.js`: Home Assistant serves the `.gz` instead of the original, so a different
-`.gz` would swap the code that runs in the browser. Modified file, extra JavaScript file or
-different `.gz` = High; other extra file = Low. Cards not registered in HACS are not compared (the
-row says why).
+`.gz` would swap the code that runs in the browser. Modified or extra JavaScript, or different
+`.gz` = High; other modified or extra file (README, image…) = Low. Cards not registered in HACS are
+not compared (the row says why).
+
+HACS does not delete the previous version's files when updating. So a file that does not match the
+recorded version is looked up in the repository's other releases, by the SHA-256 GitHub gives for
+each asset (nothing else is downloaded): if it matches, it becomes **Leftover from an earlier
+version** (can be deleted) or **File from another version** (interrupted update), both Info. Only
+the folder with the repository's exact name is linked to the HACS record; a folder that only
+differs in letter case (an old or manual install) shows as manual.
 
 ### Other add-ons (through the Supervisor API)
 

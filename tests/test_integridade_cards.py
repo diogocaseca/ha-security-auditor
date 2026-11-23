@@ -107,3 +107,85 @@ def test_www_rest_is_never_compared(tmp_path):
     (tmp_path / "www/foto.jpg").write_bytes(b"x")
     inv = discover(Path(tmp_path))
     assert [c.name for c in inv.frontend] == ["www"]
+
+
+def _sha256(data: bytes) -> str:
+    import hashlib
+
+    return "sha256:" + hashlib.sha256(data).hexdigest()
+
+
+async def test_leftover_and_other_version_files_are_info(tmp_path):
+    """O HACS não apaga arquivos de versões anteriores: eles são reconhecidos pelo SHA-256 das releases."""
+    old_chunk, old_main = b"// pedaco da 1.9\n", b"// card da 1.9\n"
+    files = {"meu-card.js": old_main, "chunk-ABC123.js": old_chunk, "novo.js": b"// desconhecido\n"}
+    routes = {
+        "https://codeload.github.com/dono/meu-card/tar.gz/v2.0.0": _tar_of("meu-card-2.0.0", {"README.md": b"#\n"}),
+        "https://api.github.com/repos/dono/meu-card/releases/tags/v2.0.0": {"assets": [
+            {"name": "meu-card.js", "digest": _sha256(JS), "size": len(JS),
+             "browser_download_url": "https://github.com/dono/meu-card/meu-card.js"}]},
+        "https://github.com/dono/meu-card/meu-card.js": JS,
+        "https://api.github.com/repos/dono/meu-card/releases?per_page=30": [
+            {"tag_name": "v2.0.0", "assets": []},
+            {"tag_name": "v1.9.0", "assets": [{"name": "meu-card.js", "digest": _sha256(old_main)},
+                                              {"name": "chunk-ABC123.js", "digest": _sha256(old_chunk)}]}],
+    }
+    paths, gh = _setup(tmp_path, files, routes=routes)
+    findings, _ = await _scan(paths, tmp_path, gh)
+    by = {f.file.rsplit("/", 1)[-1]: f for f in findings}
+    assert by["chunk-ABC123.js"].rule_id == "auditor.integridade.card-outra-versao"
+    assert by["chunk-ABC123.js"].severity is Severity.INFO and "Sobra" in by["chunk-ABC123.js"].title
+    assert by["meu-card.js"].rule_id == "auditor.integridade.card-outra-versao"
+    assert "outra versão" in by["meu-card.js"].title and "v1.9.0" in by["meu-card.js"].explanation
+    assert by["novo.js"].rule_id == "auditor.integridade.card-arquivo-extra"  # nenhuma release tem: continua Alto
+    assert by["novo.js"].severity is Severity.HIGH
+
+
+async def test_more_than_twenty_assets_are_all_checked(tmp_path):
+    names = [f"lang-{i:02d}.json" for i in range(25)]
+    files = {n: f'{{"n": {i}}}'.encode() for i, n in enumerate(names)}
+    routes = {
+        "https://codeload.github.com/dono/meu-card/tar.gz/v2.0.0": _tar_of("meu-card-2.0.0", {"README.md": b"#\n"}),
+        "https://api.github.com/repos/dono/meu-card/releases/tags/v2.0.0": {"assets": [
+            {"name": n, "browser_download_url": f"https://github.com/dono/meu-card/{n}"} for n in names]},
+        **{f"https://github.com/dono/meu-card/{n}": files[n] for n in names},
+    }
+    paths, gh = _setup(tmp_path, files, routes=routes)
+    findings, status = await _scan(paths, tmp_path, gh)
+    assert findings == [] and status == "verificada contra dono/meu-card@v2.0.0"
+
+
+async def test_changed_readme_is_low(tmp_path):
+    paths, gh = _setup(tmp_path, {"meu-card.js": JS, "README.md": b"# editado por mim\n"}, routes={
+        "https://codeload.github.com/dono/meu-card/tar.gz/v2.0.0": _tar_of("meu-card-2.0.0", {
+            "README.md": b"# Meu card\n"}),
+        "https://api.github.com/repos/dono/meu-card/releases/tags/v2.0.0": {"assets": [
+            {"name": "meu-card.js", "browser_download_url": "https://github.com/dono/meu-card/meu-card.js"}]},
+        "https://github.com/dono/meu-card/meu-card.js": JS,
+    })
+    (f,) = (await _scan(paths, tmp_path, gh))[0]
+    assert f.rule_id == "auditor.integridade.card-alterado" and f.severity is Severity.LOW
+
+
+def test_only_the_exact_folder_name_gets_the_hacs_record(tmp_path):
+    from auditor.inventory import discover
+
+    paths, _ = _setup(tmp_path, {"meu-card.js": JS})
+    old = paths.config_dir / "www/community/Meu-Card"  # instalação antiga, só difere em maiúsculas
+    old.mkdir()
+    (old / "meu-card.js").write_bytes(b"// antigo\n")
+    by = {c.name: c for c in discover(paths.config_dir).frontend}
+    assert by["meu-card"].hacs is not None and by["Meu-Card"].hacs is None
+
+
+async def test_old_cache_is_upgraded_without_downloading_the_source_again(tmp_path):
+    paths, gh = _setup(tmp_path, {"meu-card.js": JS})
+    await _scan(paths, tmp_path, gh)
+    meta = next((paths.cache_dir / "integrity" / "cards").glob("*/meta.json"))
+    data = json.loads(meta.read_text())
+    data.pop("formato")  # como gravava a versão anterior do auditor
+    meta.write_text(json.dumps(data))
+    gh.calls.clear()
+    findings, _ = await _scan(paths, tmp_path, gh)
+    assert findings == [] and not any("codeload" in c for c in gh.calls)
+    assert any("/releases/tags/" in c for c in gh.calls) and json.loads(meta.read_text())["formato"] == 2

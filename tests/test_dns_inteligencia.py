@@ -78,7 +78,8 @@ async def test_stale_list_is_downloaded_again(tmp_path):
 def _components(config):
     (config / "custom_components/minha").mkdir(parents=True)
     (config / "custom_components/minha/api.py").write_text(
-        'URL = "https://api.minha-nuvem.com/v1"\nx = e.target\nwindow.location.app\n')
+        'URL = "https://api.minha-nuvem.com/v1"\nx = e.target\nwindow.location.app\nconsole.info("oi")\n'
+        'CHAVE = "profile.name"\n')
     (config / "www/community/meu-card").mkdir(parents=True)
     (config / "www/community/meu-card/card.js").write_text('fetch("https://cdn.cardhost.io/x.js");t.length;')
 
@@ -89,9 +90,12 @@ def test_code_hosts_index_and_cache(tmp_path, monkeypatch):
     index = code_hosts.build(discover(config), cache, RULES)
     assert index.users("api.minha-nuvem.com") == {"integracao/minha": "custom_components/minha/api.py"}
     assert "frontend/meu-card" in index.users("cdn.cardhost.io")
-    # "t.length" não termina num TLD real: fica de fora. ("window.location.app" e "e.target" entram, porque
-    # .app e .target existem; é ruído inofensivo, já que o índice só é consultado com domínios de verdade.)
-    assert "t.length" not in index.exact
+    # Só conta nome numa URL ou sozinho entre aspas: chamadas como console.info( e performance.now() ficam de
+    # fora, mesmo terminando num TLD real (.info, .now).
+    for junk in ("t.length", "e.target", "window.location.app", "console.info"):
+        assert junk not in index.exact, junk
+    assert "profile.name" in index.exact  # entre aspas: entra, mas não como URL
+    assert index.in_url["integracao/minha"] == {"api.minha-nuvem.com"}
     # Segunda vez: nada mudou, nada é relido.
     reads = []
     monkeypatch.setattr(code_hosts, "_scan_component", lambda *a: reads.append(a) or {})
@@ -103,11 +107,14 @@ async def test_code_threat_scanner(tmp_path, storage):
     config = tmp_path / "config"
     _components(config)
     paths = Paths(config_dir=config, data_dir=tmp_path / "dados", rules_dir=RULES)
-    _feed(paths.cache_dir, "ameacas", ["minha-nuvem.com"])
+    _feed(paths.cache_dir, "ameacas", ["minha-nuvem.com", "profile.name", "console.info"])
     findings = await CodeThreatScanner().scan(_ctx(paths, tmp_path, http=None, storage=storage))
-    (f,) = findings
+    by = {f.title.split(": ", 1)[1]: f for f in findings}
+    assert set(by) == {"api.minha-nuvem.com", "profile.name"}  # console.info( é chamada de função
+    f = by["api.minha-nuvem.com"]
     assert f.component == "minha" and f.severity is Severity.HIGH and f.category == "lista_ameacas"
     assert f.file == "custom_components/minha/api.py" and f.line == 1 and "api.minha-nuvem.com" in f.snippet
+    assert by["profile.name"].severity is Severity.MEDIUM and "só entre aspas" in by["profile.name"].explanation
 
 
 # --- Análise do DNS --------------------------------------------------------------------

@@ -239,6 +239,19 @@ def discover(config_dir: Path) -> Inventory:
     if www.is_dir():
         community = www / "community"
         if community.is_dir() and not community.is_symlink():
+            folders = {d.name for d in community.iterdir() if d.is_dir() and not d.is_symlink()}
+            exact = {e.full_name.split("/")[-1]: e for e in inv.hacs_entries if e.category != "integration"}
+
+            def card_entry(folder: str) -> HacsEntry | None:
+                """O HACS instala na pasta com o nome exato do repositório. Outra pasta que só difere em
+                maiúsculas (uma instalação manual ou antiga) não herda o registro."""
+                if folder in exact:
+                    return exact[folder]
+                entry = by_repo_name.get(folder.lower())
+                if entry is not None and entry.full_name.split("/")[-1] in folders:
+                    return None
+                return entry
+
             for d in sorted(community.iterdir()):
                 if d.is_dir() and not d.is_symlink():
                     files, links = walk_files(d)
@@ -250,7 +263,7 @@ def discover(config_dir: Path) -> Inventory:
                             rel_path=inv.rel(d),
                             files=files,
                             symlinks=links,
-                            hacs=by_repo_name.get(d.name.lower()),
+                            hacs=card_entry(d.name),
                         )
                     )
         # Demais arquivos de www/ (fora de community/) formam o componente "www".

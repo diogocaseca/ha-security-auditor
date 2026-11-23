@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.32.1
+
+Correções a partir da primeira varredura real com o registro do Marketplace e as listas de ameaças:
+
+- **Domínios no código:** só contam nomes numa URL (`https://…`) ou sozinhos entre aspas. Antes,
+  chamadas como `console.info(`, `performance.now()` e `subprocess.run` viravam "domínios" (os TLDs
+  .info, .now e .run existem, e golpistas registraram esses nomes), o que gerou 195 achados Altos
+  falsos. Domínio só entre aspas (pode ser uma chave de tradução) agora é Média.
+- **Integridade dos cards:**
+  - todos os anexos da release são conferidos (antes, só os 20 primeiros; cards com mais anexos
+    tinham arquivos legítimos marcados como "extras");
+  - arquivo idêntico ao de outra release do repositório (pelo SHA-256 que o GitHub informa) vira
+    "Sobra de uma versão anterior" ou "Arquivo de outra versão", Informativa: o HACS não apaga os
+    arquivos antigos ao atualizar;
+  - arquivo alterado que não é código (README, imagem) é Baixa;
+  - o cache antigo é completado no lugar, sem baixar de novo o código-fonte dos cards.
+- **Pastas com maiúsculas diferentes:** só a pasta com o nome exato do repositório fica ligada ao
+  registro do HACS (uma instalação antiga em `tradingview-widget-card` herdava o registro de
+  `Tradingview-Widget-Card` e era comparada com a versão errada).
+
 ## 0.32.0
 
 DNS mais esperto, sem mandar nada da sua casa para fora:

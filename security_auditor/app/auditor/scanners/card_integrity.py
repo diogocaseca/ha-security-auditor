@@ -10,6 +10,11 @@ ou copiando ``dist/`` (ou a raiz) do repositório. Depois grava uma cópia ``<ar
   trocaria, sem ninguém ver, o código que roda no navegador).
 
 Arquivos da release que não foram instalados não contam: o HACS baixa só parte deles.
+
+O HACS não apaga os arquivos da versão anterior ao atualizar. Por isso, um arquivo que não bate
+com a versão registrada é procurado nas outras releases do repositório pelo SHA-256 que o GitHub
+informa de cada anexo: se bater, é "sobra de uma versão anterior" (ou "arquivo de outra versão"),
+Informativa, em vez de arquivo desconhecido.
 """
 
 from __future__ import annotations
@@ -33,6 +38,10 @@ CACHE_TTL = 30 * 24 * 3600
 MISSING_TTL = 24 * 3600
 MAX_GZ_BYTES = 64 * 1024 * 1024  # descompactação de .gz limitada (contra "bombas" de compressão)
 MAX_SOURCE_FILE = 32 * 1024 * 1024
+MAX_ASSETS = 300
+MAX_ASSETS_BYTES = 128 * 1024 * 1024
+OTHER_RELEASES = 30  # releases do repositório consultadas para reconhecer arquivos de outras versões
+CACHE_FORMAT = 2  # 2: todos os anexos e os SHA-256 das outras releases
 _CODE_SUFFIXES = (".js", ".mjs", ".cjs")
 
 
@@ -94,7 +103,13 @@ async def fetch_card_sources(ctx: ScanContext, owner: str, name: str, refs: list
         except OSError:
             pass
         try:
-            if time.time() - float(json.loads(meta.read_text(encoding="utf-8")).get("created", 0)) < CACHE_TTL:
+            data = json.loads(meta.read_text(encoding="utf-8"))
+            if time.time() - float(data.get("created", 0)) < CACHE_TTL and (cached / "tree").is_dir():
+                if data.get("formato") != CACHE_FORMAT:
+                    # Cache de uma versão anterior do auditor: aproveita o código já baixado e só completa
+                    # os anexos (antes eram no máximo 20) e os SHA-256 das releases.
+                    await _fetch_release(ctx, owner, name, ref, cached)
+                    meta.write_text(json.dumps({**data, "formato": CACHE_FORMAT}), encoding="utf-8")
                 return ref, cached
         except (OSError, ValueError, json.JSONDecodeError):
             pass
@@ -113,26 +128,75 @@ async def fetch_card_sources(ctx: ScanContext, owner: str, name: str, refs: list
         src = work / "src"
         out = work / "out"
         await asyncio.to_thread(_unpack_tree, tarball, src, out / "tree")
-        assets = out / "assets"
-        assets.mkdir(parents=True)
-        try:
-            release = await ctx.http.get_json(f"https://api.github.com/repos/{owner}/{name}/releases/tags/{ref}")
-        except HttpError as err:
-            if err.status != 404:  # sem release (instalado por commit): só a árvore
-                raise
-            release = {}
-        for asset in (release.get("assets") or [])[:20] if isinstance(release, dict) else []:
-            asset_name = str(asset.get("name") or "")
-            url = str(asset.get("browser_download_url") or "")
-            if asset_name and "/" not in asset_name and asset_name not in (".", "..") and url.startswith("https://"):
-                await ctx.http.download(url, assets / asset_name, max_bytes=MAX_SOURCE_FILE)
-        (out / "meta.json").write_text(json.dumps({"created": time.time(), "ref": ref}), encoding="utf-8")
+        await _fetch_release(ctx, owner, name, ref, out)
+        (out / "meta.json").write_text(json.dumps({"created": time.time(), "ref": ref, "formato": CACHE_FORMAT}),
+                                       encoding="utf-8")
         shutil.rmtree(cached, ignore_errors=True)
         cached.parent.mkdir(parents=True, exist_ok=True)
         shutil.move(str(out), cached)
         return ref, cached
     raise CardNotVerifiable(f"nenhuma versão correspondente em {owner}/{name} (tentado: {', '.join(refs)})",
                             f"no matching version in {owner}/{name} (tried: {', '.join(refs)})")
+
+
+async def _fetch_release(ctx: ScanContext, owner: str, name: str, ref: str, out: Path) -> None:
+    """Anexos da release em ``out/assets`` (pula os que já estão lá) e ``out/digests.json``."""
+    assets = out / "assets"
+    assets.mkdir(parents=True, exist_ok=True)
+    try:
+        release = await ctx.http.get_json(f"https://api.github.com/repos/{owner}/{name}/releases/tags/{ref}")
+    except HttpError as err:
+        if err.status != 404:  # sem release (instalado por commit): só a árvore
+            raise
+        release = {}
+    total = 0
+    current: dict[str, str] = {}
+    for asset in (release.get("assets") or [])[:MAX_ASSETS] if isinstance(release, dict) else []:
+        asset_name = str(asset.get("name") or "")
+        url = str(asset.get("browser_download_url") or "")
+        if not asset_name or "/" in asset_name or asset_name in (".", "..") or not url.startswith("https://"):
+            continue
+        if digest := _digest(asset):
+            current[asset_name] = digest
+        size = int(asset.get("size") or 0)
+        if (assets / asset_name).is_file() or total + size > MAX_ASSETS_BYTES:
+            continue
+        total += size
+        await ctx.http.download(url, assets / asset_name, max_bytes=MAX_SOURCE_FILE)
+    others = await _other_releases(ctx, owner, name, ref)
+    (out / "digests.json").write_text(json.dumps({"atual": current, "outras": others}), encoding="utf-8")
+
+
+def _digest(asset: dict) -> str | None:
+    """SHA-256 que o GitHub informa do anexo ("sha256:…"), ou None."""
+    value = str(asset.get("digest") or "")
+    return value.split(":", 1)[1].lower() if value.startswith("sha256:") else None
+
+
+async def _other_releases(ctx: ScanContext, owner: str, name: str, ref: str) -> dict[str, list[list[str]]]:
+    """{nome do anexo: [[tag, sha256], …]} das outras releases (sem baixar nada além da lista)."""
+    try:
+        releases = await ctx.http.get_json(
+            f"https://api.github.com/repos/{owner}/{name}/releases?per_page={OTHER_RELEASES}")
+    except (HttpError, ValueError):
+        return {}
+    out: dict[str, list[list[str]]] = {}
+    for release in releases if isinstance(releases, list) else []:
+        tag = str(release.get("tag_name") or "")
+        if not tag or tag == ref:
+            continue
+        for asset in release.get("assets") or []:
+            if (digest := _digest(asset)) and (asset_name := str(asset.get("name") or "")):
+                out.setdefault(asset_name, []).append([tag, digest])
+    return out
+
+
+def _load_digests(sources: Path) -> dict:
+    try:
+        data = json.loads((sources / "digests.json").read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {"atual": {}, "outras": {}}
+    return data if isinstance(data, dict) else {"atual": {}, "outras": {}}
 
 
 def _unpack_tree(tarball: Path, src: Path, tree: Path) -> None:
@@ -162,13 +226,20 @@ def compare_card(comp: Component, sources: Path, ref: str, repo: str, diff) -> l
     """Achados do card: arquivos alterados, sem correspondente e .gz diferentes do .js."""
     files, _links = walk_files(comp.path)
     local = {f.relative_to(comp.path).as_posix(): f for f in files}
+    digests = _load_digests(sources)
     findings: list[Finding] = []
     for rel, path in sorted(local.items()):
         if rel.endswith(".gz"):
             continue
         cands = _candidates(sources, rel)
         mine = _sha(path)
-        if any(_sha(c) == mine for c in cands):
+        if any(_sha(c) == mine for c in cands) or ("/" not in rel and (digests.get("atual") or {}).get(rel) == mine):
+            continue
+        other = [tag for tag, digest in (digests.get("outras") or {}).get(rel, []) if digest == mine] \
+            if "/" not in rel else []
+        if other:
+            leftover = not cands and rel not in (digests.get("atual") or {})
+            findings.append(_other_release(comp, rel, ref, repo, other[0], leftover))
             continue
         if cands:
             findings.append(_modified(comp, rel, ref, repo, diff(cands[0], path)))
@@ -188,10 +259,38 @@ def compare_card(comp: Component, sources: Path, ref: str, repo: str, diff) -> l
     return findings
 
 
-def _modified(comp: Component, rel: str, ref: str, repo: str, snippet: str) -> Finding:
+def _other_release(comp: Component, rel: str, ref: str, repo: str, tag: str, leftover: bool) -> Finding:
+    if leftover:
+        title, title_en = "Sobra de uma versão anterior do card", "Leftover from an earlier card version"
+        why = (f"O arquivo não faz parte da versão {ref}, mas é idêntico ao da versão {tag} publicada em {repo}. "
+               "O HACS não apaga os arquivos antigos ao atualizar; a versão atual normalmente não o carrega.")
+        why_en = (f"The file is not part of version {ref}, but it is identical to the one in version {tag} published "
+                  f"at {repo}. HACS does not delete old files when updating; the current version normally does not "
+                  "load it.")
+        todo = "Pode ser apagado com segurança (ou reinstale o card pelo HACS para limpar a pasta)."
+        todo_en = "It can be safely deleted (or reinstall the card from HACS to clean the folder)."
+    else:
+        title, title_en = "Arquivo de outra versão do card", "File from another card version"
+        why = (f"O HACS registrou a versão {ref}, mas este arquivo é idêntico ao da versão {tag} publicada em {repo}. "
+               "Costuma ser uma atualização interrompida ou o registro do HACS desatualizado.")
+        why_en = (f"HACS recorded version {ref}, but this file is identical to the one in version {tag} published at "
+                  f"{repo}. It is usually an interrupted update or an outdated HACS record.")
+        todo = "Reinstale o card pelo HACS para deixar arquivos e versão iguais."
+        todo_en = "Reinstall the card from HACS so files and version match."
     return Finding(
         component=comp.name, component_type=ComponentType.FRONTEND, category="integridade",
-        rule_id="auditor.integridade.card-alterado", severity=Severity.HIGH,
+        rule_id="auditor.integridade.card-outra-versao", severity=Severity.INFO, title=title, explanation=why,
+        recommendation=todo, en=en_text(title_en, why_en, todo_en),
+        file=f"{comp.rel_path}/{rel}", snippet=None, source="integridade",
+        extra={"ref": ref, "repositorio": repo, "versao_do_arquivo": tag},
+    )
+
+
+def _modified(comp: Component, rel: str, ref: str, repo: str, snippet: str) -> Finding:
+    code = rel.lower().endswith(_CODE_SUFFIXES)
+    return Finding(
+        component=comp.name, component_type=ComponentType.FRONTEND, category="integridade",
+        rule_id="auditor.integridade.card-alterado", severity=Severity.HIGH if code else Severity.LOW,
         title="Arquivo do card diferente da release oficial",
         explanation=(f"O arquivo instalado não é igual ao da versão {ref} publicada em {repo}. Cards rodam no "
                      "navegador de quem abre o Home Assistant; pode ser uma edição sua, mas também adulteração."),
