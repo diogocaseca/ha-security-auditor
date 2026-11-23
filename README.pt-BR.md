@@ -56,10 +56,17 @@ Detalhes, motivo de cada permissão e limitações em [`security_auditor/DOCS.pt
 
 Ou manualmente:
 
-1. Em **Configurações → Add-ons → Loja de add-ons → ⋮ → Repositórios**, adicione
+1. Em **Configurações → Apps (Add-ons) → Loja → ⋮ → Repositórios**, adicione
    `https://github.com/diogocaseca/ha-security-auditor`.
 2. Instale **HA Security Auditor**, inicie e ative **Mostrar na barra lateral**.
 3. A primeira varredura começa sozinha; depois use **Varrer agora** quando quiser.
+
+> **Projeto em fase experimental.** Novas versões saem com frequência e as regras ainda estão sendo
+> ajustadas a partir de instalações reais; por isso o app aparece como *experimental* na loja.
+> Falsos positivos são esperados: reporte nas *issues* do repositório.
+
+As imagens (amd64 e aarch64) são montadas pelo GitHub Actions a partir deste repositório, assinadas
+com Cosign e publicadas em `ghcr.io/diogocaseca/security-auditor`.
 
 ## Limitações importantes
 
@@ -74,10 +81,11 @@ Lista completa em [DOCS.pt-BR.md → Limitações](security_auditor/DOCS.pt-BR.m
 ## Estrutura do repositório
 
 ```
-repository.yaml                 repositório customizado de add-ons
+repository.yaml                 repositório customizado de apps
+.github/workflows/build.yaml    monta, assina e publica as imagens no ghcr.io
 art/                            fontes SVG do ícone e do logo
 security_auditor/
-  config.yaml build.yaml        manifesto e build do add-on (amd64, aarch64)
+  config.yaml                   manifesto do app (amd64, aarch64)
   Dockerfile apparmor.txt       imagem e perfil AppArmor
   icon.png logo.png             ícone e logo exibidos no HA
   rootfs/run.sh                 ponto de entrada

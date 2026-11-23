@@ -1,5 +1,5 @@
 name: HA Security Auditor
-version: "0.32.1"
+version: "0.32.2"
 slug: security_auditor
 description: >-
   Audita integrações customizadas (HACS) e add-ons instalados e gera um
@@ -9,6 +9,7 @@ arch:
   - amd64
   - aarch64
 startup: application
+stage: experimental
 boot: auto
 # tini do Docker como PID 1: repassa sinais e recolhe processos zumbis
 # deixados pelos scanners (semgrep, trivy).

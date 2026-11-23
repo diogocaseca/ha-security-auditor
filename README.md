@@ -57,10 +57,17 @@ Details, the reason for each permission and limitations in
 
 Or manually:
 
-1. In **Settings → Add-ons → Add-on store → ⋮ → Repositories**, add
+1. In **Settings → Apps (Add-ons) → Store → ⋮ → Repositories**, add
    `https://github.com/diogocaseca/ha-security-auditor`.
 2. Install **HA Security Auditor**, start it and turn on **Show in sidebar**.
 3. The first scan starts on its own; afterwards use **Scan now** whenever you want.
+
+> **Experimental project.** New versions come out often and the rules are still being tuned on real
+> installations, so the app shows as *experimental* in the store. False positives are expected:
+> please report them in the repository's *issues*.
+
+The images (amd64 and aarch64) are built by GitHub Actions from this repository, signed with
+Cosign and published at `ghcr.io/diogocaseca/security-auditor`.
 
 ## Important limitations
 
@@ -76,10 +83,11 @@ Full list in [DOCS.md → Limitations](security_auditor/DOCS.md#limitations).
 ## Repository layout
 
 ```
-repository.yaml                 custom add-on repository
+repository.yaml                 custom app repository
+.github/workflows/build.yaml    builds, signs and publishes the images to ghcr.io
 art/                            SVG sources of the icon and logo
 security_auditor/
-  config.yaml build.yaml        add-on manifest and build (amd64, aarch64)
+  config.yaml                   app manifest (amd64, aarch64)
   Dockerfile apparmor.txt       image and AppArmor profile
   icon.png logo.png             icon and logo shown in HA
   rootfs/run.sh                 entry point

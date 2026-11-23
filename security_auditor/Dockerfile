@@ -1,5 +1,11 @@
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base-python:3.12-alpine3.22
-FROM ${BUILD_FROM}
+# Imagem base multiarquitetura do Home Assistant (o Docker escolhe a da máquina).
+FROM ghcr.io/home-assistant/base-python:3.12-alpine3.22
+
+LABEL \
+    org.opencontainers.image.title="HA Security Auditor" \
+    org.opencontainers.image.description="Auditor de segurança para Home Assistant" \
+    org.opencontainers.image.source="https://github.com/diogocaseca/ha-security-auditor" \
+    org.opencontainers.image.licenses="MIT"
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

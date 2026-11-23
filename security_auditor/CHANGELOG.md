@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.32.2
+
+Preparação para distribuir o app com imagens prontas:
+
+- **GitHub Actions** (`.github/workflows/build.yaml`): a cada versão, monta as imagens amd64 e
+  aarch64 (em máquinas ARM nativas, sem emulação), assina com Cosign e publica em
+  `ghcr.io/diogocaseca/security-auditor`, com manifesto multiarquitetura. Uma versão publicada
+  nunca é sobrescrita. Todas as actions são fixadas por commit. Pull requests só montam, sem publicar.
+- **Dockerfile no formato novo do Home Assistant:** imagem base multiarquitetura
+  (`ghcr.io/home-assistant/base-python:3.12-alpine3.22`) direto no `FROM` e rótulos no próprio
+  Dockerfile; o `build.yaml` (formato antigo, que o Supervisor vai deixar de ler) saiu.
+- **Estágio experimental:** o app aparece como *experimental* na loja enquanto as regras são
+  ajustadas a partir de instalações reais.
+- README: instalação com o nome novo do menu (**Apps**) e aviso de projeto experimental.
+
+Por enquanto o HA ainda monta a imagem na própria máquina: o `config.yaml` só passa a apontar para
+a imagem pronta depois que a primeira publicação for conferida.
+
 ## 0.32.1
 
 Correções a partir da primeira varredura real com o registro do Marketplace e as listas de ameaças:

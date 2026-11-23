@@ -1,3 +1,3 @@
 """HA Security Auditor: auditoria de segurança para instalações do Home Assistant."""
 
-__version__ = "0.32.1"
+__version__ = "0.32.2"
