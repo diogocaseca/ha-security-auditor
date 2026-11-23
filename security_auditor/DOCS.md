@@ -175,7 +175,7 @@ the installed version's tag now points to another commit = High; the repository 
 since HACS installed it = Medium; the repository was archived = Info.
 
 **Integrity.** For each integration with an identifiable repository (through HACS, in
-`.storage/hacs.repositories`, or through the URLs in `manifest.json`), the auditor downloads the
+`.storage/marketplace.repositories` of Marketplace, formerly HACS, or through the URLs in `manifest.json`), the auditor downloads the
 installed version from GitHub and compares it file by file with SHA-256:
 
 - it tries the tag with and without the `v` prefix and the commit recorded by HACS;
@@ -707,7 +707,7 @@ it needs:
 
 | Permission | Why |
 |---|---|
-| `map: homeassistant_config` **read-only** at `/config` | Read integrations, `www/`, `.storage/hacs.repositories` and `secrets.yaml` (the latter only to mask its values; see [Secrets](#secrets)). Writing to `/config` is not possible. |
+| `map: homeassistant_config` **read-only** at `/config` | Read integrations, `www/`, the Marketplace/HACS registry (`.storage/marketplace.*` or `.storage/hacs.*`) and `secrets.yaml` (the latter only to mask its values; see [Secrets](#secrets)). Writing to `/config` is not possible. |
 | `hassio_api: true` with `hassio_role: manager` | List add-ons and read permissions, statistics, store repositories and host IPs. The `default` role only allows endpoints ending in `/info`; listing add-ons (`/addons`), reading store repositories and **other** add-ons' statistics (`/stats`) requires `manager`. **That role would allow changes**, so the read-only guarantee is in the code: the Supervisor client only does `GET`, and only on a fixed list of paths (`/addons`, `/addons/<slug>/info`, `/addons/<slug>/stats`, `/store`, `/store/repositories`, `/info`, `/core/info`, `/supervisor/info`, `/network/info`). Any other path is refused before leaving the add-on. |
 | `homeassistant_api: true` | Publish the sensors and warn about installs. The client only accepts writing `sensor.security_auditor_*` entities, creating notifications whose id starts with `security_auditor_` and firing the `security_auditor_alerta` event; it does not read or control other entities. |
 | `ingress: true` | Show the report in the sidebar, with HA's own login. The web server only accepts connections from Ingress (`172.30.32.2`), uses a strict CSP and an anti-CSRF token on every action. No port is opened on the network. |

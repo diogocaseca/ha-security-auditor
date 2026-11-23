@@ -63,3 +63,36 @@ def test_unknown_format_is_logged(tmp_path, caplog):
     with caplog.at_level(logging.WARNING):
         assert load_hacs(tmp_path) == []
     assert "hacs.marketplace" in caplog.text
+
+
+def test_marketplace_files(tmp_path, caplog):
+    """O HACS virou Marketplace: os arquivos passaram a ser .storage/marketplace.*."""
+    _install(tmp_path)
+    _store(tmp_path / ".storage/marketplace.repositories", {
+        "1": {"full_name": "dono/ha-minha", "category": "integration", "domain": "minha", "installed": True,
+              "version_installed": "1.2.0"},
+        "3": {"full_name": "dono/meu-card", "category": "plugin", "installed": True, "version_installed": "v2.0.0"},
+        "7": {"full_name": "outro/catalogo", "category": "plugin"},
+    })
+    (tmp_path / ".storage/marketplace.critical").write_text("{}")
+    with caplog.at_level(logging.INFO):
+        inv = discover(tmp_path)
+    by = {c.name: c for c in inv.integrations + inv.frontend}
+    assert by["minha"].hacs.full_name == "dono/ha-minha" and by["meu-card"].hacs.full_name == "dono/meu-card"
+    assert "marketplace.repositories" in caplog.text and "2 repositório(s) baixado(s) de 3" in caplog.text
+
+
+def test_registry_without_downloaded_entries_warns(tmp_path, caplog):
+    _store(tmp_path / ".storage/marketplace.repositories", {"7": {"full_name": "outro/catalogo", "category": "plugin"}})
+    with caplog.at_level(logging.WARNING):
+        assert load_hacs(tmp_path) == []
+    assert "nenhum marcado como baixado" in caplog.text
+
+
+def test_unknown_marketplace_format_is_logged(tmp_path, caplog):
+    (tmp_path / ".storage").mkdir()
+    (tmp_path / ".storage/marketplace.critical").write_text("{}")
+    (tmp_path / ".storage/marketplace.repositories").write_text('{"version": 9, "data": []}')
+    with caplog.at_level(logging.WARNING):
+        assert load_hacs(tmp_path) == []
+    assert "marketplace.critical" in caplog.text and "marketplace.repositories" in caplog.text

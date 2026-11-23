@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.30.8
+
+- **HACS virou Marketplace:** o registro agora fica em `.storage/marketplace.repositories` (antes,
+  `.storage/hacs.repositories`), e o auditor só procurava os arquivos `hacs.*`. Com isso, todas as
+  integrações e cards apareciam como "manual", sem a integridade dos cards e sem os sinais do GitHub.
+  Agora lê os dois nomes, nos dois formatos.
+- **Diagnóstico no log:** avisa também quando o registro existe mas nenhum repositório aparece como
+  baixado.
+
 ## 0.30.7
 
 - **Registro do HACS no formato novo:** o auditor só lia `.storage/hacs.repositories`. Versões novas

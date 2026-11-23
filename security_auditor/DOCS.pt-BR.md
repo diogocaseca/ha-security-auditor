@@ -180,7 +180,7 @@ repositório mudou de nome ou de dono desde que o HACS o instalou = Média; o re
 arquivado = Informativa.
 
 **Integridade.** Para cada integração com repositório identificável (pelo HACS, em
-`.storage/hacs.repositories`, ou pelas URLs do `manifest.json`), o auditor baixa do GitHub a
+`.storage/marketplace.repositories` do Marketplace, antigo HACS, ou pelas URLs do `manifest.json`), o auditor baixa do GitHub a
 versão instalada e compara arquivo a arquivo por SHA-256:
 
 - tenta a tag com e sem o prefixo `v` e o commit gravado pelo HACS;
@@ -714,7 +714,7 @@ necessário:
 
 | Permissão | Por quê |
 |---|---|
-| `map: homeassistant_config` **somente leitura** em `/config` | Ler integrações, `www/`, `.storage/hacs.repositories` e o `secrets.yaml` (este último só para mascarar os valores; veja [Segredos](#segredos)). Não é possível escrever em `/config`. |
+| `map: homeassistant_config` **somente leitura** em `/config` | Ler integrações, `www/`, o registro do Marketplace/HACS (`.storage/marketplace.*` ou `.storage/hacs.*`) e o `secrets.yaml` (este último só para mascarar os valores; veja [Segredos](#segredos)). Não é possível escrever em `/config`. |
 | `hassio_api: true` com `hassio_role: manager` | Listar os add-ons e ler permissões, estatísticas, repositórios da loja e IPs do host. O papel `default` só libera endpoints terminados em `/info`; listar os add-ons (`/addons`), ler os repositórios da loja e as estatísticas de **outros** add-ons (`/stats`) exige `manager`. **Esse papel permitiria alterações**, por isso a garantia de leitura está no código: o cliente do Supervisor só faz `GET`, e só numa lista fixa de caminhos (`/addons`, `/addons/<slug>/info`, `/addons/<slug>/stats`, `/store`, `/store/repositories`, `/info`, `/core/info`, `/supervisor/info`, `/network/info`). Qualquer outro caminho é recusado antes de sair do add-on. |
 | `homeassistant_api: true` | Publicar os sensores e avisar sobre instalações. O cliente só aceita gravar entidades `sensor.security_auditor_*`, criar notificações com id começando por `security_auditor_` e disparar o evento `security_auditor_alerta`; não lê nem controla outras entidades. |
 | `ingress: true` | Mostrar o relatório na barra lateral, com o login do próprio HA. O servidor web só aceita conexões vindas do Ingress (`172.30.32.2`), usa CSP restritiva e token anti-CSRF no botão "Varrer agora". Nenhuma porta é aberta na rede. |

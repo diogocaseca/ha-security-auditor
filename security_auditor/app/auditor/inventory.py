@@ -134,31 +134,36 @@ def _read_store(path: Path) -> dict[str, Any] | None:
     return inner if isinstance(inner, dict) else None
 
 
-def _hacs_raw_entries(storage: Path) -> tuple[list[dict[str, Any]], list[str]]:
-    """Repositórios guardados pelo HACS e os arquivos de onde vieram.
+# O HACS passou a se chamar Marketplace e grava em .storage/marketplace.* (antes, .storage/hacs.*).
+_STORE_PREFIXES = ("marketplace", "hacs")
 
-    Formatos conhecidos:
-    - ``hacs.repositories``: ``{"data": {"<id>": {"full_name", "category", "installed", ...}}}``;
-    - ``hacs.data`` (formato novo): ``{"data": {"repositories": {"<categoria>": [{"id", "full_name", ...}]}}}``.
+
+def _hacs_raw_entries(storage: Path) -> tuple[list[dict[str, Any]], list[str]]:
+    """Repositórios guardados pelo HACS/Marketplace e os arquivos de onde vieram.
+
+    Formatos conhecidos (com o prefixo ``marketplace.`` ou ``hacs.``):
+    - ``<prefixo>.repositories``: ``{"data": {"<id>": {"full_name", "category", "installed", ...}}}``;
+    - ``<prefixo>.data``: ``{"data": {"repositories": {"<categoria>": [{"id", "full_name", ...}]}}}``.
       Aqui a categoria é a chave da lista, não um campo do repositório.
-    O HACS pode gravar os dois; as entradas são juntadas pelo id (o primeiro arquivo vence).
+    Podem existir vários; as entradas são juntadas pelo id (o primeiro arquivo vence).
     """
     found: dict[str, dict[str, Any]] = {}
     sources: list[str] = []
-    old = _read_store(storage / "hacs.repositories")
-    if old:
-        sources.append("hacs.repositories")
-        for key, raw in old.items():
-            if isinstance(raw, dict):
-                found.setdefault(str(raw.get("id") or key), raw)
-    new = _read_store(storage / "hacs.data")
-    repos = new.get("repositories") if new else None
-    if isinstance(repos, dict):
-        sources.append("hacs.data")
-        for category, items in repos.items():
-            for raw in items if isinstance(items, list) else []:
+    for prefix in _STORE_PREFIXES:
+        old = _read_store(storage / f"{prefix}.repositories")
+        if old:
+            sources.append(f"{prefix}.repositories")
+            for key, raw in old.items():
                 if isinstance(raw, dict):
-                    found.setdefault(str(raw.get("id") or raw.get("full_name")), {"category": category, **raw})
+                    found.setdefault(str(raw.get("id") or key), raw)
+        new = _read_store(storage / f"{prefix}.data")
+        repos = new.get("repositories") if new else None
+        if isinstance(repos, dict):
+            sources.append(f"{prefix}.data")
+            for category, items in repos.items():
+                for raw in items if isinstance(items, list) else []:
+                    if isinstance(raw, dict):
+                        found.setdefault(str(raw.get("id") or raw.get("full_name")), {"category": category, **raw})
     return list(found.values()), sources
 
 
@@ -182,17 +187,20 @@ def load_hacs(config_dir: Path) -> list[HacsEntry]:
                 raw=raw,
             )
         )
-    if sources:
-        _LOGGER.info("Registro do HACS (%s): %d repositório(s) baixado(s) de %d guardado(s)",
+    if sources and raws and not entries:
+        _LOGGER.warning("Registro do HACS/Marketplace (%s) com %d repositório(s), mas nenhum marcado como baixado; "
+                        "integrações e cards vão aparecer como instalados manualmente", ", ".join(sources), len(raws))
+    elif sources:
+        _LOGGER.info("Registro do HACS/Marketplace (%s): %d repositório(s) baixado(s) de %d guardado(s)",
                      ", ".join(sources), len(entries), len(raws))
     else:
         try:
-            names = sorted(p.name for p in storage.glob("hacs*"))
+            names = sorted(p.name for prefix in _STORE_PREFIXES for p in storage.glob(f"{prefix}*"))
         except OSError:
             names = []
         if names:
-            _LOGGER.warning("Registro do HACS não reconhecido: há %s em .storage, mas em nenhum formato conhecido; "
-                            "integrações e cards vão aparecer como instalados manualmente", ", ".join(names))
+            _LOGGER.warning("Registro do HACS/Marketplace não reconhecido: há %s em .storage, mas em nenhum formato "
+                            "conhecido; integrações e cards vão aparecer como instalados manualmente", ", ".join(names))
     return entries
 
 
