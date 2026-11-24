@@ -185,7 +185,8 @@ URL = "http://93.184.216.34/x"
 def test_fixed_ip_ignores_browser_versions_and_documentation_ranges(tmp_path):
     hits = _semgrep(tmp_path, IP_CODE)
     lines = sorted(n for n, rules in hits.items() if "py.ip-fixo-publico" in rules)
-    assert lines == [4, 5]
+    assert lines == [5]  # o 1.1.1.1 (linha 4) é DNS público conhecido: vai para ip-dns-publico
+    assert "py.ip-dns-publico" in hits[4]
 
 
 def test_insecure_healthcheck_on_localhost_is_not_flagged(tmp_path):

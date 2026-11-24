@@ -11,7 +11,7 @@ from pathlib import Path
 
 from . import __version__
 from .allowlist import apply_allowlist
-from .capabilities import CHANGE_RULE, DERIVED, build_chains, capability_changes, profile
+from .capabilities import CHANGE_RULE, DERIVED, build_chains, cap_test_files, capability_changes, profile
 from .config import Options, Paths
 from .diff import compare
 from .masking import Masker
@@ -215,6 +215,7 @@ class ScanEngine:
 
     def _finalize(self, result: ScanResult, ctx: ScanContext) -> None:
         result.findings = _group_repeats(_dedupe(result.findings))
+        cap_test_files(result.findings)
         # Antes da comparação: a identidade de cada achado usa o trecho já mascarado.
         self._sanitize(result)
         # Cadeias e capacidade nova são recalculadas a cada varredura (inclusive sobre o que veio da base).

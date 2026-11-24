@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.33.1
+
+Ajustes a partir da varredura de 24/11:
+
+- **Diff de cards minificados:** quando o arquivo alterado é uma linha só, enorme (código minificado),
+  o diff agora mostra o trecho a partir de pouco antes da primeira diferença, com a coluna. Antes ele
+  cortava a linha no começo, igual nas duas versões, e não dava para ver o que mudou.
+- **Bandit:** `autoescape` desligado no Jinja2 (B701) passa a Baixa, porque nas integrações o Jinja
+  monta templates do HA, não páginas HTML. O aviso de "pyCrypto" (B413) também passa a Baixa: o
+  pycryptodome, mantido, usa o mesmo nome `Crypto`. A cifra fraca continua marcada à parte.
+- **`tarfile.extractall` sem filtro (B202):** passa a Baixa quando é só o caminho alternativo, para
+  Pythons antigos, logo depois do mesmo `extractall` com `filter="data"`.
+- **Arquivos de testes:** achados da análise de código em `tests/`, `test_*.py`, `conftest.py` e
+  similares ficam no máximo em Baixa, com uma nota explicando. O Home Assistant não carrega esses
+  arquivos. A verificação de integridade (arquivo alterado ou extra) continua com a severidade normal.
+- **DNS públicos conhecidos:** IPs de Cloudflare, Google, Quad9, OpenDNS e AdGuard (como `1.1.1.1`)
+  saem de "IP público fixo" (Média) e viram um achado informativo próprio.
+
 ## 0.33.0
 
 - **Imagem pronta:** o app agora baixa a imagem publicada em `ghcr.io/diogocaseca/security-auditor`

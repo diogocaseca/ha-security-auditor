@@ -526,10 +526,56 @@ def _diff(upstream: Path, local: Path) -> str:
     a, b = _read_text(upstream), _read_text(local)
     if a is None or b is None:
         return "(arquivo binário: conteúdo diferente)"
-    lines = list(difflib.unified_diff(a, b, "release oficial", "instalado", n=1, lineterm=""))
+    lines = _focus_long_lines(list(difflib.unified_diff(a, b, "release oficial", "instalado", n=1, lineterm="")))
     if len(lines) > _MAX_DIFF_LINES:
         lines = lines[:_MAX_DIFF_LINES] + [f"… (+{len(lines) - _MAX_DIFF_LINES} linhas)"]
-    return "\n".join(line[:240] for line in lines) or "(diferença só em espaços ou fim de linha)"
+    return "\n".join(_clip(line) for line in lines) or "(diferença só em espaços ou fim de linha)"
+
+
+_MAX_LINE = 240
+_BEFORE_DIFF = 60  # caracteres mostrados antes da primeira diferença
+
+
+def _clip(line: str) -> str:
+    return line if len(line) <= _MAX_LINE else line[:_MAX_LINE] + " …"
+
+
+def _focus_long_lines(lines: list[str]) -> list[str]:
+    """Em linhas longas alteradas (código minificado numa linha só), mostra o trecho da primeira diferença.
+
+    Sem isso o corte em 240 caracteres mostra só o começo, igual nas duas versões. Cada par removida/adicionada
+    de um bloco vira "…<trecho>" a partir de pouco antes do primeiro caractere diferente, com a coluna.
+    """
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        if not lines[i].startswith("-") or lines[i].startswith("---"):
+            out.append(lines[i])
+            i += 1
+            continue
+        j = i
+        while j < len(lines) and lines[j].startswith("-") and not lines[j].startswith("---"):
+            j += 1
+        k = j
+        while k < len(lines) and lines[k].startswith("+") and not lines[k].startswith("+++"):
+            k += 1
+        removed, added = lines[i:j], lines[j:k]
+        pairs = min(len(removed), len(added))
+        for n in range(pairs):
+            old, new = removed[n][1:], added[n][1:]
+            if max(len(old), len(new)) <= _MAX_LINE:
+                continue
+            col = next((c for c, (x, y) in enumerate(zip(old, new, strict=False)) if x != y), min(len(old), len(new)))
+            start = max(0, col - _BEFORE_DIFF)
+            mark = "…" if start else ""
+            removed[n] = f"-{mark}{old[start:]}"
+            added[n] = f"+{mark}{new[start:]}"
+            if n == 0:
+                out.append(f"(linha longa: primeira diferença na coluna {col + 1})")
+        out.extend(removed[:pairs] + removed[pairs:])
+        out.extend(added)
+        i = k
+    return out
 
 
 def _head(path: Path, n: int = 12) -> str:

@@ -136,7 +136,7 @@ rules:
       - pattern: '"$S"'
       - metavariable-regex:
           metavariable: $S
-          regex: (?:.*?(?:[^\w./-]|://))?(?!(?:10|127|0)\.)(?!192\.168\.)(?!192\.0\.2\.)(?!198\.51\.100\.)(?!203\.0\.113\.)(?!172\.(?:1[6-9]|2\d|3[01])\.)(?!169\.254\.)(?!2(?:2[4-9]|[3-5]\d)\.)(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])
+          regex: (?:.*?(?:[^\w./-]|://))?(?!(?:1\.1\.1\.1|1\.0\.0\.1|8\.8\.8\.8|8\.8\.4\.4|9\.9\.9\.9|149\.112\.112\.112|208\.67\.22[02]\.22[02]|94\.140\.1[45]\.1[45])(?![\d.]))(?!(?:10|127|0)\.)(?!192\.168\.)(?!192\.0\.2\.)(?!198\.51\.100\.)(?!203\.0\.113\.)(?!172\.(?:1[6-9]|2\d|3[01])\.)(?!169\.254\.)(?!2(?:2[4-9]|[3-5]\d)\.)(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|1?\d?\d)(?![\d.])
     metadata:
       titulo: IP público fixo no código
       categoria: url_ip_fixo
@@ -149,6 +149,30 @@ rules:
       titulo_en: "Hard-coded public IP in the code"
       explicacao_en: "A hard-coded public IP usually points to a server controlled by the author (no DNS, harder to trace). It may be a public DNS or a vendor device, but it deserves a check."
       recomendacao_en: "Find out who owns the IP and what the integration exchanges with it."
+
+  # Resolvedores DNS públicos conhecidos (Cloudflare, Google, Quad9, OpenDNS, AdGuard): o uso como DNS padrão
+  # é comum e não indica servidor do autor. Ficam fora de ip-fixo-publico e aparecem só como informativo.
+  - id: auditor.py.ip-dns-publico
+    languages: [python]
+    severity: INFO
+    message: IP de DNS público conhecido no código
+    patterns:
+      - pattern: '"$S"'
+      - metavariable-regex:
+          metavariable: $S
+          regex: (?:.*?(?:[^\w./-]|://))?(?:1\.1\.1\.1|1\.0\.0\.1|8\.8\.8\.8|8\.8\.4\.4|9\.9\.9\.9|149\.112\.112\.112|208\.67\.22[02]\.22[02]|94\.140\.1[45]\.1[45])(?![\d.])
+    metadata:
+      titulo: IP de DNS público conhecido no código
+      categoria: url_ip_fixo
+      severidade: info
+      explicacao: >-
+        O código cita o IP de um resolvedor DNS público conhecido (Cloudflare,
+        Google, Quad9, OpenDNS ou AdGuard). Costuma ser o DNS padrão de uma
+        opção ou um teste de conexão com a internet.
+      recomendacao: Confira se o IP é usado como DNS ou para testar a conexão, e não para enviar dados.
+      titulo_en: "Well-known public DNS IP in the code"
+      explicacao_en: "The code mentions the IP of a well-known public DNS resolver (Cloudflare, Google, Quad9, OpenDNS or AdGuard). It is usually the default DNS of an option or an internet connectivity check."
+      recomendacao_en: "Check that the IP is used as DNS or to test the connection, not to send data."
 
   - id: auditor.py.url-fixa
     languages: [python]

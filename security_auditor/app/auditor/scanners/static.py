@@ -296,7 +296,29 @@ def _from_semgrep(r: dict[str, Any], inv: Inventory) -> Finding | None:
 # identificadores, é comum e inofensivo): nível fixo.
 # B324: md5/sha1 para gerar identificadores. B104: qualquer texto "0.0.0.0", inclusive comparações e listas;
 # abrir uma porta em todas as interfaces só às vezes é o caso.
-BANDIT_FIXED_SEVERITY = {"B324": Severity.LOW, "B104": Severity.LOW}
+# B701: autoescape do Jinja2 só protege HTML; nas integrações o Jinja monta templates do HA, não páginas.
+# B413: o pycryptodome (mantido) usa o mesmo nome de pacote "Crypto" do pyCrypto antigo; a cifra fraca usada,
+# quando houver, aparece à parte (B304/B305).
+BANDIT_FIXED_SEVERITY = {"B324": Severity.LOW, "B104": Severity.LOW, "B701": Severity.LOW, "B413": Severity.LOW}
+
+
+# B202 (tarfile.extractall sem filtro): é comum o caminho seguro (filter="data") com um "else" sem filtro só
+# para Pythons antigos. O HA roda num Python que tem o filtro, então esse "else" nunca é usado.
+_TAR_FILTER_GUARD = re.compile(r"\bdata_filter\b|\bfilter\s*=\s*[\"'](?:data|tar)[\"']")
+_TAR_GUARD_LINES = 4
+
+
+def _tar_fallback(path: Path, line: int | None) -> bool:
+    """True se o extractall sem filtro (B202) está logo depois do mesmo extractall com filtro."""
+    if not line:
+        return False
+    try:
+        with path.open(encoding="utf-8", errors="replace") as fh:
+            text = fh.read().splitlines()
+    except OSError:
+        return False
+    before = text[max(0, line - 1 - _TAR_GUARD_LINES):line - 1]
+    return any(_TAR_FILTER_GUARD.search(t) for t in before)
 
 
 # B506 (yaml.load): só é perigoso com um loader inseguro. O Bandit marca qualquer loader que não seja o
@@ -344,6 +366,8 @@ def _from_bandit(r: dict[str, Any], inv: Inventory) -> Finding | None:
     severity = _bandit_severity(str(r.get("issue_severity", "LOW")), str(r.get("issue_confidence", "LOW")), test_id)
     if test_id == "B506":
         severity = _yaml_load_severity(str(r.get("code") or snippet or ""), severity)
+    elif test_id == "B202" and _tar_fallback(path, line):
+        severity = Severity.LOW
     return Finding(
         component=comp.name,
         component_type=comp.component_type,

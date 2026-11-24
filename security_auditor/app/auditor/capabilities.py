@@ -31,7 +31,7 @@ LABELS = {
 
 RULES: dict[str, set[str]] = {
     "rede": {
-        "auditor.py.url-fixa", "auditor.py.ip-fixo-publico", "auditor.py.destino-suspeito", "auditor.py.conteudo-github",
+        "auditor.py.url-fixa", "auditor.py.ip-fixo-publico", "auditor.py.ip-dns-publico", "auditor.py.destino-suspeito", "auditor.py.conteudo-github",
         "auditor.py.download-e-execucao", "auditor.js.destino-suspeito", "auditor.js.ip-fixo-publico",
         "auditor.js.codigo-remoto", "auditor.sh.baixa-e-executa", "auditor.sh.destino-suspeito",
         "auditor.docker.add-de-url", "bandit.B310", "bandit.B113",
@@ -87,6 +87,28 @@ def is_test_file(path: str | None) -> bool:
     return (any(p.lower() in _TEST_DIRS for p in parts[:-1]) or name == "conftest.py"
             or (name.startswith("test_") and name.endswith(".py"))
             or name.endswith(("_test.py", ".test.js", ".spec.js", ".test.ts", ".spec.ts")))
+
+
+_TEST_NOTE = (" Este arquivo é de testes do projeto: o Home Assistant não o carrega, então o achado foi limitado a "
+              "Baixa.")
+_TEST_NOTE_EN = (" This is one of the project's test files: Home Assistant does not load it, so the finding was "
+                 "capped at Low.")
+
+
+def cap_test_files(findings: list[Finding]) -> None:
+    """Achados da análise de código (Semgrep/Bandit) em arquivos de testes ficam no máximo Baixa.
+
+    A integridade (arquivo alterado ou extra) não entra: um arquivo de testes que não veio da release continua
+    merecendo a severidade normal.
+    """
+    for f in findings:
+        if f.source not in ("semgrep", "bandit") or f.severity <= Severity.LOW or not is_test_file(f.file):
+            continue
+        f.severity = Severity.LOW
+        f.extra["arquivo_de_teste"] = True
+        f.explanation += _TEST_NOTE
+        if f.en:
+            f.en = {**f.en, "explanation": f.en.get("explanation", "") + _TEST_NOTE_EN}
 
 
 def profile(findings: list[Finding]) -> dict[tuple[str, str], dict[str, list[Finding]]]:
