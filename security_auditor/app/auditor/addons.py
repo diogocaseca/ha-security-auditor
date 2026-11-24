@@ -27,6 +27,9 @@ class AddonInfo:
     info: dict[str, Any]
     repository_source: str | None = None  # URL do repositório na loja
     errors: list[str] = field(default_factory=list)
+    arch: str | None = None  # arquitetura da máquina (do /info do Supervisor)
+    # Imagem declarada no config.yaml do código-fonte (o Supervisor não informa a imagem no /addons/<slug>/info).
+    source_image: str | None = None
 
     @property
     def inner_slug(self) -> str:
@@ -36,12 +39,20 @@ class AddonInfo:
 
     @property
     def image(self) -> str | None:
-        img = self.info.get("image")
+        img = self.info.get("image") or self.source_image
         return str(img) if img else None
 
     @property
     def is_local_build(self) -> bool:
-        return self.repository == "local" or bool(self.info.get("build")) or not self.image
+        """Montado na própria máquina (repositório local ou sem ``image`` no config.yaml: ``build`` do Supervisor)."""
+        return self.repository == "local" or bool(self.info.get("build"))
+
+    def set_source_image(self, config: dict[str, Any]) -> None:
+        """Guarda a imagem do ``config.yaml`` do código-fonte, com ``{arch}`` trocado pela arquitetura."""
+        image = str(config.get("image") or "").strip()
+        if not image or ("{arch}" in image and not self.arch):
+            return
+        self.source_image = image.replace("{arch}", self.arch or "")
 
     def github_candidates(self) -> list[tuple[str, str]]:
         """Repositórios do GitHub onde o código-fonte pode estar, em ordem de preferência."""
@@ -77,6 +88,11 @@ async def collect(supervisor: SupervisorClient, include: Callable[[str], bool] |
         _LOGGER.warning("Não foi possível listar os repositórios da loja: %s", err)
 
     own = await supervisor.self_slug()
+    try:
+        arch = str((await supervisor.info()).get("arch") or "") or None
+    except SupervisorError as err:
+        _LOGGER.warning("Não foi possível ler a arquitetura da máquina: %s", err)
+        arch = None
     result: list[AddonInfo] = []
     for item in await supervisor.addons():
         slug = str(item.get("slug", ""))
@@ -102,6 +118,7 @@ async def collect(supervisor: SupervisorClient, include: Callable[[str], bool] |
                 repository=repo,
                 info=info,
                 repository_source=repos.get(repo),
+                arch=arch,
             )
         )
     return result

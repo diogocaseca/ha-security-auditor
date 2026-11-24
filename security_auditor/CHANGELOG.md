@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.33.2
+
+- **Correção: as imagens dos add-ons não eram analisadas pelo Trivy.** O Supervisor não informa a
+  imagem no `/addons/<slug>/info`, então todo add-on parecia "construído localmente" e a etapa era
+  pulada. A imagem agora vem do `config.yaml` do código-fonte do add-on, que o auditor já baixa, com
+  `{arch}` trocado pela arquitetura da máquina. A próxima varredura completa vai analisar as imagens
+  pela primeira vez, e é normal aparecerem CVEs novas.
+- **"Código analisado é de outra versão" falso:** os repositórios oficiais gravam `version: dev` no
+  `config.yaml` e só põem a versão certa na hora de montar a imagem. Se o código veio da tag da
+  versão instalada, o aviso não aparece mais.
+- **"Arquivo analisado só em parte":** o achado agora mostra a linha e a mensagem de erro do
+  Semgrep, para dar para ver o trecho que ele não entendeu. Em arquivos Python o achado avisa que o
+  Bandit continua analisando o arquivo.
+
 ## 0.33.1
 
 Ajustes a partir da varredura de 24/11:

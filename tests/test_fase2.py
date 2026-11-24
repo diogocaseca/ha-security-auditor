@@ -57,6 +57,9 @@ class FakeSupervisor:
     async def store_repositories(self):
         return self._repos
 
+    async def info(self):
+        return {"arch": "amd64"}
+
 
 def _addon(**kw) -> dict:
     base = {"slug": "abc123_exemplo", "name": "Exemplo", "version": "1.2.0", "version_latest": "1.2.0",
@@ -137,6 +140,31 @@ def test_image_ref():
     assert image_ref(_info(image=None)) is None
     assert image_ref(_info(repository="local", slug="local_x")) is None
     assert image_ref(_info(image="ghcr.io/x/y:fixa")) == "ghcr.io/x/y:fixa"
+
+
+def test_image_comes_from_source_config_yaml():
+    # O Supervisor não informa a imagem no /addons/<slug>/info: ela vem do config.yaml do código-fonte.
+    addon = _info(image=None)
+    addon.arch = "aarch64"
+    addon.set_source_image({"image": "ghcr.io/hassio-addons/ssh/{arch}"})
+    assert image_ref(addon) == "ghcr.io/hassio-addons/ssh/aarch64:1.2.0"
+    generic = _info(image=None)
+    generic.set_source_image({"image": "ghcr.io/diogocaseca/security-auditor"})
+    assert image_ref(generic) == "ghcr.io/diogocaseca/security-auditor:1.2.0"
+    no_arch = _info(image=None)
+    no_arch.set_source_image({"image": "ghcr.io/x/{arch}-y"})
+    assert image_ref(no_arch) is None and not no_arch.is_local_build
+    built = _info(image=None, build=True)
+    built.set_source_image({})
+    assert image_ref(built) is None and built.is_local_build
+
+
+def test_tag_of_installed_version_with_dev_config_is_not_another_version():
+    from auditor.scanners.addon_source import AddonSource, _version_note
+    src = AddonSource("home-assistant", "app-samba", "12.11.0", Path("."), "samba", {"version": "dev"})
+    assert _version_note(_info(version="12.11.0"), src) == []
+    head = AddonSource("home-assistant", "app-samba", "HEAD", Path("."), "samba", {"version": "dev"})
+    assert _version_note(_info(version="12.11.0"), head)
 
 
 TRIVY_SAMPLE = {

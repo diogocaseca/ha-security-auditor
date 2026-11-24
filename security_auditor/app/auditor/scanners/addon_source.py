@@ -125,7 +125,8 @@ class AddonSourceScanner:
                                       ("Source code not analysed",
                                        f"Failed to download the add-on's code: {type(err).__name__}: {err}.")))
                 continue
-            ctx.register_component(ComponentType.ADDON, addon.slug, codigo_fonte=src.label)
+            addon.set_source_image(src.config)
+            ctx.register_component(ComponentType.ADDON, addon.slug, codigo_fonte=src.label, imagem=addon.image)
             findings.extend(_version_note(addon, src))
             findings.extend(evaluate_map(addon, src))
             files = select_files(src.root)
@@ -296,6 +297,10 @@ def evaluate_map(addon: AddonInfo, src: AddonSource) -> list[Finding]:
 def _version_note(addon: AddonInfo, src: AddonSource) -> list[Finding]:
     declared = str(src.config.get("version", "")) or None
     if not addon.version or declared == addon.version:
+        return []
+    # A tag da versão instalada é o código certo, mesmo que o config.yaml dela diga "dev" (repositórios que
+    # gravam a versão só na hora de montar a imagem, como os add-ons oficiais).
+    if src.ref.removeprefix("v") == addon.version.removeprefix("v"):
         return []
     return [Finding(
         component=addon.slug,

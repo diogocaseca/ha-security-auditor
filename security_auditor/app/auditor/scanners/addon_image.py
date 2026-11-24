@@ -37,8 +37,13 @@ class AddonImageScanner:
                 continue
             ref = image_ref(addon)
             if ref is None:
-                findings.append(_not_scanned(addon, "add-on construído localmente (sem imagem no registro)",
-                                             "add-on built locally (no image in a registry)"))
+                if addon.is_local_build or not addon.version:
+                    findings.append(_not_scanned(addon, "add-on construído localmente (sem imagem no registro)",
+                                                 "add-on built locally (no image in a registry)"))
+                else:
+                    findings.append(_not_scanned(
+                        addon, "imagem desconhecida (o código-fonte do add-on, com o config.yaml, não foi localizado)",
+                        "unknown image (the add-on's source code, with its config.yaml, was not found)"))
                 continue
             if (reason := await ctx.wait_resources(self.name)) is not None:
                 findings.append(postponed(addon.slug, ComponentType.ADDON, "varredura da imagem (Trivy)", reason))
@@ -83,9 +88,9 @@ class AddonImageScanner:
 
 
 def image_ref(addon: AddonInfo) -> str | None:
-    if addon.is_local_build or not addon.version:
+    if addon.is_local_build or not addon.version or not addon.image:
         return None
-    image = addon.image or ""
+    image = addon.image
     if "@" in image or ":" in image.rsplit("/", 1)[-1]:
         return image
     return f"{image}:{addon.version}"

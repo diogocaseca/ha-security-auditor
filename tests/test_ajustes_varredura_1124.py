@@ -81,3 +81,28 @@ def test_public_dns_resolvers_are_info(tmp_path):
         assert hits[line] & {"py.ip-dns-publico"} and "py.ip-fixo-publico" not in hits[line]
     assert "py.ip-fixo-publico" in hits[4] and "py.ip-dns-publico" not in hits[4]
     assert "py.ip-fixo-publico" in hits[5]
+
+
+def test_semgrep_error_keeps_line_and_message():
+    from auditor.scanners.static import _semgrep_error
+    partial = {"type": ["PartialParsing", [{"path": "a.py", "start": {"line": 3, "col": 7}}]],
+               "message": "Syntax error at line a.py:3:\n `T =` was unexpected", "path": "a.py"}
+    assert _semgrep_error(partial) == {"tipo": "PartialParsing", "linha": 3,
+                                       "mensagem": "Syntax error at line a.py:3: `T =` was unexpected"}
+    plain = {"type": "Syntax error", "spans": [{"file": "b.js", "start": {"line": 1}}], "message": "x"}
+    assert _semgrep_error(plain)["linha"] == 1
+    assert _semgrep_error({"type": "Timeout"}) == {"tipo": "Timeout", "linha": None, "mensagem": ""}
+
+
+def test_incomplete_finding_shows_where_and_keeps_identity(tmp_path):
+    from auditor.scanners.static import _incomplete_finding
+    f = tmp_path / "x.py"
+    f.write_text("a = 1\ndef g[T = int](x): ...\n")
+    out = _incomplete_finding(type("C", (), {"name": "c", "component_type": "integracao"}),
+                              "custom_components/c/x.py", f,
+                              {"tipo": "Syntax error", "linha": 2, "mensagem": "`T =` was unexpected"})
+    assert out.line == 2 and "def g" in (out.snippet or "")
+    assert "na linha 2" in out.explanation and "Bandit" in out.explanation and "`T =`" in out.explanation
+    old = _incomplete_finding(type("C", (), {"name": "c", "component_type": "integracao"}),
+                              "custom_components/c/x.py", f, {"tipo": "Syntax error", "linha": None})
+    assert old.fingerprint == out.fingerprint

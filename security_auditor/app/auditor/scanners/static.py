@@ -119,10 +119,10 @@ PHASE1_RULE_DIRS = ("python", "javascript")
 
 async def run_semgrep(
     ctx: ScanContext, targets: list[Path], rule_dirs: tuple[str, ...]
-) -> tuple[list[dict[str, Any]], dict[str, str]]:
+) -> tuple[list[dict[str, Any]], dict[str, dict[str, Any]]]:
     """Roda o Semgrep em lotes sobre ``targets`` com as pastas de regras indicadas.
 
-    Devolve (resultados brutos, {arquivo: tipo de erro} dos analisados só em parte).
+    Devolve (resultados brutos, {arquivo: {tipo, linha, mensagem}} dos analisados só em parte).
     """
     if not targets:
         return [], {}
@@ -131,7 +131,7 @@ async def run_semgrep(
         configs += ["--config", str(ctx.paths.rules_dir / "semgrep" / d)]
     home = ctx.workdir / "semgrep-home"
     results: list[dict[str, Any]] = []
-    incomplete: dict[str, str] = {}
+    incomplete: dict[str, dict[str, Any]] = {}
     extra: list[str] = []
     if ctx.profile.semgrep_max_memory_mb:
         extra += ["--max-memory", str(ctx.profile.semgrep_max_memory_mb)]
@@ -160,9 +160,22 @@ async def run_semgrep(
         results.extend(data.get("results", []))
         for err in data.get("errors", []):
             path = err.get("path") or (err.get("spans") or [{}])[0].get("file")
-            if path:
-                incomplete.setdefault(path, str(err.get("type", "erro")))
+            if path and path not in incomplete:
+                incomplete[path] = _semgrep_error(err)
     return results, incomplete
+
+
+def _semgrep_error(err: dict[str, Any]) -> dict[str, Any]:
+    """Tipo, linha e mensagem (primeira linha, curta) de um erro do Semgrep num arquivo."""
+    kind = err.get("type", "erro")
+    if isinstance(kind, list):  # ["PartialParsing", [trechos]]
+        kind = kind[0] if kind else "erro"
+    spans = err.get("spans") or []
+    if not spans and isinstance(err.get("type"), list) and len(err["type"]) > 1:
+        spans = err["type"][1] or []
+    line = (spans[0].get("start") or {}).get("line") if spans and isinstance(spans[0], dict) else None
+    message = " ".join(str(err.get("message") or "").split())[:200]
+    return {"tipo": str(kind), "linha": line if isinstance(line, int) else None, "mensagem": message}
 
 
 class StaticAnalysisScanner:
@@ -207,34 +220,11 @@ class StaticAnalysisScanner:
     async def _semgrep(self, ctx: ScanContext, inv: Inventory, targets: list[Path]) -> list[Finding]:
         raw, incomplete = await run_semgrep(ctx, targets, PHASE1_RULE_DIRS)
         results = [f for f in (_from_semgrep(r, inv) for r in raw) if f]
-        for path, kind in incomplete.items():
+        for path, err in incomplete.items():
             p = Path(path)
             comp = inv.owner_of(p)
             if comp:
-                results.append(
-                    Finding(
-                        component=comp.name,
-                        component_type=comp.component_type,
-                        category="analise_incompleta",
-                        rule_id="auditor.analise-incompleta",
-                        severity=Severity.INFO,
-                        title="Arquivo analisado só em parte",
-                        explanation=(
-                            f"O Semgrep não conseguiu analisar o arquivo inteiro ({kind}). É comum em "
-                            "scripts minificados, mas também pode ser proposital para fugir da análise."
-                        ),
-                        recommendation="Se o componente for pouco conhecido, revise este arquivo manualmente.",
-                        en=en_text(
-                            "File only partially analysed",
-                            f"Semgrep could not analyse the whole file ({kind}). This is common in minified "
-                            "scripts, but it can also be deliberate to evade analysis.",
-                            _MANUAL_REVIEW_EN,
-                        ),
-                        file=inv.rel(p),
-                        source="semgrep",
-                        extra={"fingerprint_key": kind},
-                    )
-                )
+                results.append(_incomplete_finding(comp, inv.rel(p), p, err))
         return results
 
     # --- Bandit -------------------------------------------------------------
@@ -289,6 +279,39 @@ def _from_semgrep(r: dict[str, Any], inv: Inventory) -> Finding | None:
         line=start.get("line"),
         snippet=read_snippet(path, start.get("line"), end.get("line"), start.get("col"), end.get("col")),
         source="semgrep",
+    )
+
+
+def _incomplete_finding(comp: Any, rel: str, path: Path, err: dict[str, Any]) -> Finding:
+    kind, line, message = err["tipo"], err.get("linha"), err.get("mensagem") or ""
+    where = f" na linha {line}" if line else ""
+    where_en = f" at line {line}" if line else ""
+    bandit = (" O Bandit, que usa o analisador do próprio Python, continua analisando o arquivo."
+              if path.suffix == ".py" else "")
+    bandit_en = (" Bandit, which uses Python's own parser, still analyses the file." if path.suffix == ".py" else "")
+    detail = f" Mensagem do Semgrep: {message}" if message else ""
+    detail_en = f" Semgrep message: {message}" if message else ""
+    return Finding(
+        component=comp.name,
+        component_type=comp.component_type,
+        category="analise_incompleta",
+        rule_id="auditor.analise-incompleta",
+        severity=Severity.INFO,
+        title="Arquivo analisado só em parte",
+        explanation=(f"O Semgrep não conseguiu analisar o arquivo inteiro ({kind}{where}). É comum em scripts "
+                     "minificados ou com sintaxe muito nova, mas também pode ser proposital para fugir da análise."
+                     + bandit + detail),
+        recommendation="Se o componente for pouco conhecido, revise este arquivo manualmente.",
+        en=en_text("File only partially analysed",
+                   f"Semgrep could not analyse the whole file ({kind}{where_en}). This is common in minified scripts "
+                   "or with very new syntax, but it can also be deliberate to evade analysis." + bandit_en
+                   + detail_en,
+                   _MANUAL_REVIEW_EN),
+        file=rel,
+        line=line,
+        snippet=read_snippet(path, line, line) if line else None,
+        source="semgrep",
+        extra={"fingerprint_key": kind, "chave_estavel": True},
     )
 
 
