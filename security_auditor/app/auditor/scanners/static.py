@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+import shutil
 from collections import defaultdict
 from pathlib import Path
 from typing import Any
@@ -138,31 +139,130 @@ async def run_semgrep(
     for i in range(0, len(targets), SEMGREP_BATCH):
         if i:
             await ctx.pause()
-        batch = targets[i : i + SEMGREP_BATCH]
-        res = await run_tool(
-            [
-                "semgrep", "scan", *configs,
-                "--json", "--quiet",
-                "--metrics=off", "--disable-version-check", "--oss-only",
-                "--no-git-ignore", "--x-ignore-semgrepignore-files", "--no-rewrite-rule-ids",
-                "--max-target-bytes", str(MAX_ANALYZED_FILE),
-                "--timeout", "30", "--timeout-threshold", "3",
-                "--jobs", str(ctx.profile.semgrep_jobs),
-                *extra,
-                *[str(p) for p in batch],
-            ],
-            home=home,
-            timeout=SEMGREP_TIMEOUT,
-        )
-        if res.returncode not in (0, 1) or not res.stdout.strip():
-            raise RuntimeError(f"semgrep terminou com código {res.returncode}: {res.stderr[-300:]}")
-        data = json.loads(res.stdout)
+        data = await _semgrep_batch(ctx, configs, extra, home, targets[i : i + SEMGREP_BATCH])
         results.extend(data.get("results", []))
         for err in data.get("errors", []):
             path = err.get("path") or (err.get("spans") or [{}])[0].get("file")
             if path and path not in incomplete:
                 incomplete[path] = _semgrep_error(err)
+    if retry := [Path(p) for p, err in incomplete.items() if p.endswith(".py") or _unreadable(err)]:
+        await _retry_in_copies(ctx, configs, extra, home, retry, results, incomplete)
     return results, incomplete
+
+
+async def _semgrep_batch(ctx: ScanContext, configs: list[str], extra: list[str], home: Path,
+                         batch: list[Path]) -> dict[str, Any]:
+    res = await run_tool(
+        [
+            "semgrep", "scan", *configs,
+            "--json", "--quiet",
+            "--metrics=off", "--disable-version-check", "--oss-only",
+            "--no-git-ignore", "--x-ignore-semgrepignore-files", "--no-rewrite-rule-ids",
+            "--max-target-bytes", str(MAX_ANALYZED_FILE),
+            "--timeout", "30", "--timeout-threshold", "3",
+            "--jobs", str(ctx.profile.semgrep_jobs),
+            *extra,
+            *[str(p) for p in batch],
+        ],
+        home=home,
+        timeout=SEMGREP_TIMEOUT,
+    )
+    if res.returncode not in (0, 1) or not res.stdout.strip():
+        raise RuntimeError(f"semgrep terminou com código {res.returncode}: {res.stderr[-300:]}")
+    return json.loads(res.stdout)
+
+
+# Sintaxe nova de tipos (PEP 695, Python 3.12+) que o analisador de Python do Semgrep nem sempre entende. É
+# padrão nas integrações atuais (``type MinhaConfigEntry = ConfigEntry[...]``) e fazia o arquivo inteiro ficar
+# sem análise. Numa cópia, a linha vira a forma antiga equivalente para a análise (sem mudar o número de
+# linhas); os achados voltam para o arquivo original.
+_NEW_SYNTAX = (
+    (re.compile(r"^(\s*)type\s+(\w+)\s*(?:\[[^\]\n]*\])?\s*=", re.MULTILINE), r"\1\2 ="),
+    (re.compile(r"^(\s*(?:async\s+)?def\s+\w+)\s*\[[^\]\n]*\]\s*\(", re.MULTILINE), r"\1("),
+    (re.compile(r"^(\s*class\s+\w+)\s*\[[^\]\n]*\]", re.MULTILINE), r"\1"),
+)
+
+
+def rewrite_new_syntax(text: str) -> str | None:
+    """Troca a sintaxe nova de tipos pela antiga; None se não havia nada para trocar."""
+    out = text
+    for pattern, repl in _NEW_SYNTAX:
+        out = pattern.sub(repl, out)
+    return out if out != text else None
+
+
+def _unreadable(err: dict[str, Any]) -> bool:
+    """O Semgrep não conseguiu abrir o arquivo (no HA acontece em parte dos .js de /config, mas o auditor lê)."""
+    return "Permission denied" in str(err.get("mensagem") or "")
+
+
+async def _retry_in_copies(ctx: ScanContext, configs: list[str], extra: list[str], home: Path,
+                           files: list[Path], results: list[dict[str, Any]],
+                           incomplete: dict[str, dict[str, Any]]) -> None:
+    """Repete a análise numa cópia na pasta de trabalho: arquivos que o Semgrep não abriu e .py com a sintaxe nova
+    de tipos (reescrita na forma antiga). Os achados voltam para o arquivo original; o que continuar com erro na
+    cópia fica como estava."""
+    work = ctx.workdir / "semgrep-compat"
+    copies: dict[str, str] = {}
+    for n, original in enumerate(files):
+        unreadable = _unreadable(incomplete.get(str(original)) or {})
+        try:
+            data = original.read_bytes()
+        except OSError:
+            continue
+        if original.suffix == ".py":
+            try:
+                rewritten = rewrite_new_syntax(data.decode("utf-8"))
+            except UnicodeDecodeError:
+                rewritten = None
+            if rewritten is not None:
+                data = rewritten.encode("utf-8")
+            elif not unreadable:
+                continue
+        copy = work / str(n) / original.name
+        copy.parent.mkdir(parents=True, exist_ok=True)
+        copy.write_bytes(data)
+        copies[str(copy)] = str(original)
+    if not copies:
+        return
+    paths = [Path(c) for c in copies]
+    data: dict[str, Any] = {"results": [], "errors": []}
+    try:
+        for i in range(0, len(paths), SEMGREP_BATCH):
+            await ctx.pause()
+            part = await _semgrep_batch(ctx, configs, extra, home, paths[i : i + SEMGREP_BATCH])
+            data["results"] += part.get("results", [])
+            data["errors"] += part.get("errors", [])
+    except (RuntimeError, ValueError) as err:
+        _LOGGER.warning("Nova análise do Semgrep nas cópias falhou: %s", err)
+        return
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+    errors: dict[str, dict[str, Any]] = {}
+    for err in data.get("errors", []):
+        path = err.get("path") or (err.get("spans") or [{}])[0].get("file")
+        if path in copies and copies[path] not in errors:
+            errors[copies[path]] = _semgrep_error(err)
+    fixed = {original for original in copies.values() if original not in errors}
+    # Os achados da cópia valem quando ela foi analisada por inteiro ou quando o original nem foi aberto.
+    use = fixed | {o for o in copies.values() if _unreadable(incomplete.get(o) or {})}
+    # Cópia de um arquivo que o Semgrep não abria: o erro que sobrar (de sintaxe, por exemplo) é o verdadeiro.
+    for original, err in errors.items():
+        if _unreadable(incomplete.get(original) or {}):
+            incomplete[original] = err
+    results[:] = [r for r in results if r.get("path") not in use]
+    for r in data.get("results", []):
+        original = copies.get(str(r.get("path")))
+        if original in use:
+            results.append({**r, "path": original})
+    for original in fixed:
+        incomplete.pop(original, None)
+    if fixed:
+        _LOGGER.info("Semgrep: %d arquivo(s) analisados numa cópia na pasta de trabalho", len(fixed))
+
+
+_ERROR_LINE = re.compile(r"\bat line \S*?:(\d+)\b")
+_ERROR_PATH = re.compile(r"(?<=at line )\S*?:(?=\d+\b)")
 
 
 def _semgrep_error(err: dict[str, Any]) -> dict[str, Any]:
@@ -174,7 +274,11 @@ def _semgrep_error(err: dict[str, Any]) -> dict[str, Any]:
     if not spans and isinstance(err.get("type"), list) and len(err["type"]) > 1:
         spans = err["type"][1] or []
     line = (spans[0].get("start") or {}).get("line") if spans and isinstance(spans[0], dict) else None
-    message = " ".join(str(err.get("message") or "").split())[:200]
+    message = " ".join(str(err.get("message") or "").split())
+    if not isinstance(line, int) and (m := _ERROR_LINE.search(message)):
+        line = int(m.group(1))
+    # A mensagem traz o caminho completo do arquivo; o achado já mostra o arquivo.
+    message = _ERROR_PATH.sub("", message)[:200]
     return {"tipo": str(kind), "linha": line if isinstance(line, int) else None, "mensagem": message}
 
 

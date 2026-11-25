@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.33.3
+
+Ajustes a partir da primeira varredura com o Trivy funcionando:
+
+- **Python com a sintaxe nova de tipos (PEP 695):** o Semgrep do app não entendia
+  `type MinhaConfigEntry = ConfigEntry[...]`, padrão nas integrações atuais, e deixava o arquivo
+  inteiro sem análise (cerca de 30 arquivos). Esses arquivos agora são analisados de novo numa cópia
+  temporária, com a linha reescrita na forma antiga equivalente e o mesmo número de linhas. Os achados
+  voltam para o arquivo original. O mesmo vale para `def f[T](...)` e `class C[T]:`.
+- **Cards que o Semgrep não conseguia abrir:** a maior parte dos "Arquivo analisado só em parte" em
+  JavaScript (119 de 128) não era erro de sintaxe, e sim `Permission denied` ao abrir o arquivo. O
+  Semgrep não abre parte dos `.js` de `/config` dentro do HA, embora o auditor consiga ler. Esses
+  arquivos agora são copiados para a pasta de trabalho e analisados na cópia, e os achados voltam para o
+  original. Se a cópia tiver um erro de verdade, o achado mostra esse erro.
+- **Trivy na arquitetura certa:** sem indicar a plataforma, o Trivy analisava a variante amd64 das
+  imagens multiarquitetura, mesmo numa máquina aarch64. Assim ele mostrava as CVEs da imagem errada, ou
+  falhava quando ela não existia (Chromium). Agora ele pede a plataforma da máquina.
+- **Imagem dos add-ons da comunidade:** os repositórios `hassio-addons/app-*` não declaram `image` no
+  código. A imagem agora vem do `config.yaml` do repositório da loja (`hassio-addons/repository`), e
+  SSH, AdGuard, Vaultwarden, Grafana e outros passam a ter a imagem analisada.
+- **"Arquivo analisado só em parte":** a linha agora sai da própria mensagem do Semgrep, sem o
+  caminho completo do arquivo.
+- **Limite de tamanho da análise de código subiu de 5 MB para 8 MB por arquivo.** Cards maiores,
+  como o `ha-diorama` (cerca de 6 MB), passam a ser analisados pelo Semgrep e pelas buscas de código
+  ofuscado e de domínios. A varredura fica um pouco mais lenta nesses arquivos.
+
 ## 0.33.2
 
 - **Correção: as imagens dos add-ons não eram analisadas pelo Trivy.** O Supervisor não informa a

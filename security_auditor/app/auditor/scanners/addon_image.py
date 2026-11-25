@@ -50,7 +50,7 @@ class AddonImageScanner:
                 continue
             ctx.set_progress(self.name, ref)
             try:
-                data = await self._trivy(ctx, ref)
+                data = await self._trivy(ctx, ref, platform_of(addon.arch))
             except ToolTimeoutError as err:
                 findings.append(_not_scanned(addon, str(err)))
                 continue
@@ -63,10 +63,11 @@ class AddonImageScanner:
             await ctx.pause()
         return findings
 
-    async def _trivy(self, ctx: ScanContext, ref: str) -> dict[str, Any]:
+    async def _trivy(self, ctx: ScanContext, ref: str, platform: str | None = None) -> dict[str, Any]:
         res = await run_tool(
             [
                 "trivy", "image",
+                *(["--platform", platform] if platform else []),
                 "--image-src", "remote",
                 "--scanners", "vuln,secret",
                 "--format", "json",
@@ -85,6 +86,16 @@ class AddonImageScanner:
         if res.returncode != 0 or not res.stdout.strip().startswith("{"):
             raise RuntimeError(_trivy_error(res.stderr))
         return json.loads(res.stdout)
+
+
+# Arquitetura do Home Assistant -> plataforma OCI. Sem isso o Trivy escolhe linux/amd64 nas imagens
+# multiarquitetura: analisa a variante errada ou falha quando ela não existe.
+_PLATFORMS = {"aarch64": "linux/arm64", "amd64": "linux/amd64", "armv7": "linux/arm/v7", "armhf": "linux/arm/v6",
+              "i386": "linux/386"}
+
+
+def platform_of(arch: str | None) -> str | None:
+    return _PLATFORMS.get(arch or "")
 
 
 def image_ref(addon: AddonInfo) -> str | None:

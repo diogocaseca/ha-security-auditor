@@ -126,6 +126,8 @@ class AddonSourceScanner:
                                        f"Failed to download the add-on's code: {type(err).__name__}: {err}.")))
                 continue
             addon.set_source_image(src.config)
+            if addon.image is None and not addon.is_local_build:
+                await self._image_from_store(ctx, addon, src)
             ctx.register_component(ComponentType.ADDON, addon.slug, codigo_fonte=src.label, imagem=addon.image)
             findings.extend(_version_note(addon, src))
             findings.extend(evaluate_map(addon, src))
@@ -144,6 +146,27 @@ class AddonSourceScanner:
                 if f:
                     findings.append(f)
         return findings
+
+    async def _image_from_store(self, ctx: ScanContext, addon: AddonInfo, src: AddonSource) -> None:
+        """Imagem pelo config.yaml do repositório da loja, quando o do código-fonte não a declara.
+
+        Repositórios como os da comunidade (hassio-addons/app-*) têm ``version: dev`` e nenhum ``image`` no
+        código; o config.yaml com a imagem fica só no repositório da loja (hassio-addons/repository).
+        """
+        for owner, repo in addon.github_candidates():
+            if (owner, repo) == (src.owner, src.repo):
+                continue
+            try:
+                tree = await self._tree(ctx, owner, repo, "HEAD")
+            except (HttpError, EgressDeniedError, DownloadTooLargeError, UnsafeArchiveError,
+                    aiohttp.ClientError, TimeoutError, OSError) as err:
+                _LOGGER.debug("Repositório da loja %s/%s indisponível: %s", owner, repo, err)
+                continue
+            found = find_addon_dir(tree, addon.inner_slug) if tree is not None else None
+            if found is not None:
+                addon.set_source_image(found[1])
+                if addon.image:
+                    return
 
     # --- Localização do código ----------------------------------------------
 
