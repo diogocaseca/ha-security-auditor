@@ -1,5 +1,5 @@
 name: HA Security Auditor
-version: "0.33.3"
+version: "0.33.4"
 slug: security_auditor
 description: >-
   Audita integrações customizadas (HACS) e add-ons instalados e gera um
@@ -58,6 +58,7 @@ options:
   image_scan: true
   image_scan_skip: []
   stats_interval_minutes: 5
+  limite_arquivo_mb: 6
   adguard_url: ""
   adguard_username: ""
   adguard_password: ""
@@ -92,6 +93,7 @@ schema:
   image_scan_skip:
     - str
   stats_interval_minutes: int(0,60)
+  limite_arquivo_mb: int(1,64)
   adguard_url: str?
   adguard_username: str?
   adguard_password: password?

@@ -147,9 +147,9 @@ class ObfuscationScanner:
     async def scan(self, ctx: ScanContext) -> list[Finding]:
         inv: Inventory = ctx.inventory()
         comps = [c for c in [*inv.integrations, *inv.frontend] if c.name != "www"]
-        return await asyncio.to_thread(self._scan_all, inv, comps)
+        return await asyncio.to_thread(self._scan_all, inv, comps, ctx.options.max_file_bytes)
 
-    def _scan_all(self, inv: Inventory, comps: list[Component]) -> list[Finding]:
+    def _scan_all(self, inv: Inventory, comps: list[Component], max_bytes: int = MAX_ANALYZED_FILE) -> list[Finding]:
         findings: list[Finding] = []
         for comp in comps:
             for path in _all_files(comp.path):
@@ -160,7 +160,7 @@ class ObfuscationScanner:
                 if comp.component_type != ComponentType.INTEGRATION or path.suffix != ".py":
                     continue
                 try:
-                    if path.stat().st_size > MAX_ANALYZED_FILE:
+                    if path.stat().st_size > max_bytes:
                         continue
                     text = path.read_text(encoding="utf-8", errors="replace")
                 except OSError:

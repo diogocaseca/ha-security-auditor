@@ -47,6 +47,12 @@ configuration:
   stats_interval_minutes:
     name: Intervalo de coleta de estatísticas (minutos)
     description: CPU, memória e rede dos add-ons, para detectar picos de envio. 0 desativa.
+  limite_arquivo_mb:
+    name: Tamanho máximo de arquivo analisado (MB)
+    description: >-
+      Arquivos maiores ficam fora da análise de código (Semgrep e buscas de código ofuscado e de domínios)
+      e aparecem como "Arquivo grande não analisado". Subir o limite deixa a varredura mais lenta e usa mais
+      memória. Padrão 6.
   adguard_url:
     name: URL do AdGuard Home (Fase 3, opcional)
     description: >-

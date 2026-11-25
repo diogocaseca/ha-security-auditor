@@ -190,3 +190,28 @@ async def test_file_semgrep_could_not_open_is_analysed_in_a_copy(tmp_path, monke
     results, incomplete = await static_mod.run_semgrep(_ctx(tmp_path), [card], ("javascript",))
     assert len(seen) == 2 and incomplete == {}
     assert [r["path"] for r in results] == [str(card)]
+
+
+def test_file_size_limit_option():
+    from auditor.config import Options
+    assert Options.from_dict({}).max_file_bytes == 6 * 1024 * 1024
+    assert Options.from_dict({"limite_arquivo_mb": 12}).max_file_bytes == 12 * 1024 * 1024
+    assert Options.from_dict({"limite_arquivo_mb": 0}).max_file_mb == 1
+    assert Options.from_dict({"limite_arquivo_mb": 500}).max_file_mb == 64
+
+
+def test_code_hosts_reread_when_limit_changes(tmp_path):
+    from auditor import code_hosts
+    from auditor.inventory import discover
+
+    from .test_ajustes_regras import PY_RULES
+    rules = PY_RULES.parents[1]
+    comp = tmp_path / "config" / "custom_components" / "c"
+    comp.mkdir(parents=True)
+    (comp / "manifest.json").write_text('{"domain": "c", "name": "c", "version": "1"}')
+    (comp / "api.py").write_text('URL = "https://servidor-estranho.com/x"\n' + "#" * 2_000_000 + "\n")
+    cache = tmp_path / "cache"
+    small = code_hosts.build(discover(tmp_path / "config"), cache, rules, 1024 * 1024)
+    assert "servidor-estranho.com" not in small.per_component.get("integracao/c", {})
+    big = code_hosts.build(discover(tmp_path / "config"), cache, rules, 4 * 1024 * 1024)
+    assert "servidor-estranho.com" in big.per_component["integracao/c"]

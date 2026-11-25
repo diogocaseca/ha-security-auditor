@@ -851,7 +851,8 @@ class DnsScanner:
         intel.encrypted_dns, _ = await threat_intel.lookup(ctx.http, cache, "dns_cifrado", domains)
         ctx.set_progress(self.name, "domínios citados no código")
         try:
-            index = await asyncio.to_thread(code_hosts.build, ctx.inventory(), cache, ctx.paths.rules_dir)
+            index = await asyncio.to_thread(code_hosts.build, ctx.inventory(), cache, ctx.paths.rules_dir,
+                                            ctx.options.max_file_bytes)
             intel.users = index.users
         except OSError as err:
             _LOGGER.warning("Índice de domínios do código indisponível: %s", type(err).__name__)

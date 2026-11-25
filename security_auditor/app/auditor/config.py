@@ -99,6 +99,7 @@ class Options:
     image_scan: bool = True
     image_scan_skip: tuple[str, ...] = field(default_factory=tuple)
     stats_interval_minutes: int = 5
+    max_file_mb: int = 6  # arquivos maiores ficam fora do Semgrep e das buscas de ofuscação e de domínios
     dns_servers: tuple[DnsServer, ...] = field(default_factory=tuple)
     dns_client_ips: tuple[str, ...] = field(default_factory=tuple)
     dns_verify_tls: bool = True
@@ -124,6 +125,10 @@ class Options:
         m = _TIME.match(self.scan_time)
         h, mi = (m.group(1), m.group(2)) if m else DEFAULT_SCAN_TIME.split(":")
         return int(h), int(mi)
+
+    @property
+    def max_file_bytes(self) -> int:
+        return self.max_file_mb * 1024 * 1024
 
     @classmethod
     def from_dict(cls, raw: dict[str, Any]) -> Options:
@@ -152,6 +157,7 @@ class Options:
             image_scan=bool(raw.get("image_scan", True)),
             image_scan_skip=tuple(str(x).strip() for x in (raw.get("image_scan_skip") or []) if str(x).strip()),
             stats_interval_minutes=max(0, min(60, int(raw.get("stats_interval_minutes", 5)))),
+            max_file_mb=max(1, min(64, int(raw.get("limite_arquivo_mb", 6)))),
             dns_servers=_dns_servers(raw),
             dns_client_ips=tuple(str(x).strip() for x in (raw.get("dns_client_ips") or []) if str(x).strip()),
             dns_verify_tls=bool(raw.get("dns_verify_tls", True)),

@@ -16,7 +16,7 @@ _LOGGER = logging.getLogger(__name__)
 
 SKIP_DIRS = frozenset({"__pycache__", ".git", "node_modules"})
 SKIP_SUFFIXES = (".pyc", ".pyo")
-MAX_ANALYZED_FILE = 8 * 1024 * 1024  # acima disso Semgrep, ofuscação e domínios pulam o arquivo
+MAX_ANALYZED_FILE = 6 * 1024 * 1024  # padrão; o limite usado vem da opção limite_arquivo_mb
 _GITHUB_URL = re.compile(r"github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)")
 
 

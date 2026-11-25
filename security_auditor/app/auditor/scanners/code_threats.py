@@ -42,7 +42,8 @@ class CodeThreatScanner:
         if not comps:
             return []
         ctx.set_progress(self.name, "domínios citados no código")
-        index = await asyncio.to_thread(code_hosts.build, inv, ctx.paths.cache_dir, ctx.paths.rules_dir)
+        index = await asyncio.to_thread(code_hosts.build, inv, ctx.paths.cache_dir, ctx.paths.rules_dir,
+                                        ctx.options.max_file_bytes)
         per_comp = {code_hosts.label(c): c for c in comps}
         domains = {h for key in per_comp for h in index.per_component.get(key, {})}
         ctx.set_progress(self.name, "lista de ameaças")

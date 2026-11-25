@@ -32,6 +32,11 @@ configuration:
   stats_interval_minutes:
     name: Stats collection interval (minutes)
     description: 0 disables.
+  limite_arquivo_mb:
+    name: Maximum analysed file size (MB)
+    description: >-
+      Larger files are left out of the code analysis (Semgrep and the obfuscated code and domain searches) and
+      show up as "Large file not analysed". A higher limit makes the scan slower and use more memory. Default 6.
   adguard_url:
     name: AdGuard Home URL (phase 3, optional)
     description: Fill AdGuard, Pi-hole or both (queries are combined). Add-on DNS goes through HA, so queries cannot be attributed to a specific add-on.

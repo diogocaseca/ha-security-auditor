@@ -76,7 +76,8 @@ def hosts_in_text(text: str, tlds: frozenset[str]) -> set[str]:
     return {m.group(1) for rx in (_IN_URL, _QUOTED) for m in rx.finditer(low) if m.group(2) in tlds}
 
 
-def _scan_component(comp: Component, inv: Inventory, tlds: frozenset[str]) -> tuple[dict[str, str], list[str]]:
+def _scan_component(comp: Component, inv: Inventory, tlds: frozenset[str],
+                    max_bytes: int = MAX_ANALYZED_FILE) -> tuple[dict[str, str], list[str]]:
     """({host: primeiro arquivo (relativo a /config) onde aparece}, hosts vistos numa URL)."""
     found: dict[str, str] = {}
     in_url: set[str] = set()
@@ -84,7 +85,7 @@ def _scan_component(comp: Component, inv: Inventory, tlds: frozenset[str]) -> tu
         if not path.name.lower().endswith(_TEXT_SUFFIXES):
             continue
         try:
-            if path.stat().st_size > MAX_ANALYZED_FILE:
+            if path.stat().st_size > max_bytes:
                 continue
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError:
@@ -122,13 +123,14 @@ class CodeHosts:
         return out
 
 
-def build(inv: Inventory, cache_dir: Path, rules_dir: Path) -> CodeHosts:
-    """Índice de todos os componentes, com cache em disco: só relê os que mudaram desde a última vez."""
+def build(inv: Inventory, cache_dir: Path, rules_dir: Path, max_bytes: int = MAX_ANALYZED_FILE) -> CodeHosts:
+    """Índice de todos os componentes, com cache em disco: só relê os que mudaram desde a última vez
+    (ou todos, se o limite de tamanho mudou)."""
     tlds = load_tlds(rules_dir)
     path = cache_dir / "dominios_no_codigo.json"
     try:
         cached: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
-        if cached.get("versao") != CACHE_VERSION:
+        if cached.get("versao") != CACHE_VERSION or cached.get("limite", MAX_ANALYZED_FILE) != max_bytes:
             cached = {}
     except (OSError, json.JSONDecodeError):
         cached = {}
@@ -142,14 +144,14 @@ def build(inv: Inventory, cache_dir: Path, rules_dir: Path) -> CodeHosts:
         if old and old.get("foto") == fp:
             out[key] = old
             continue
-        hosts, urls = _scan_component(comp, inv, tlds)
+        hosts, urls = _scan_component(comp, inv, tlds, max_bytes)
         out[key] = {"foto": fp, "hosts": hosts, "url": urls}
         reread += 1
-    if reread or set(out) != set(entries):
+    if reread or set(out) != set(entries) or cached.get("limite") != max_bytes:
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
             tmp = path.with_suffix(".tmp")
-            tmp.write_text(json.dumps({"versao": CACHE_VERSION, "componentes": out}), encoding="utf-8")
+            tmp.write_text(json.dumps({"versao": CACHE_VERSION, "limite": max_bytes, "componentes": out}), encoding="utf-8")
             tmp.replace(path)
         except OSError as err:
             _LOGGER.warning("Não foi possível guardar o índice de domínios do código: %s", type(err).__name__)

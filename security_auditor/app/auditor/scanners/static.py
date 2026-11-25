@@ -16,7 +16,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from ..inventory import MAX_ANALYZED_FILE, Component, Inventory
+from ..inventory import Component, Inventory
 from ..models import ComponentType, Finding, Severity, en_text
 from ..resources import postponed
 from ..tools import run_tool
@@ -158,7 +158,7 @@ async def _semgrep_batch(ctx: ScanContext, configs: list[str], extra: list[str],
             "--json", "--quiet",
             "--metrics=off", "--disable-version-check", "--oss-only",
             "--no-git-ignore", "--x-ignore-semgrepignore-files", "--no-rewrite-rule-ids",
-            "--max-target-bytes", str(MAX_ANALYZED_FILE),
+            "--max-target-bytes", str(ctx.options.max_file_bytes),
             "--timeout", "30", "--timeout-threshold", "3",
             "--jobs", str(ctx.profile.semgrep_jobs),
             *extra,
@@ -302,8 +302,8 @@ class StaticAnalysisScanner:
                     size = f.stat().st_size
                 except OSError:
                     continue
-                if size > MAX_ANALYZED_FILE:
-                    findings.append(_big_file_finding(comp, inv, f, size))
+                if size > ctx.options.max_file_bytes:
+                    findings.append(_big_file_finding(comp, inv, f, size, ctx.options.max_file_mb))
                     continue
                 semgrep_targets.append(f)
 
@@ -572,7 +572,7 @@ def _symlink_findings(comp: Component, inv: Inventory) -> list[Finding]:
     ]
 
 
-def _big_file_finding(comp: Component, inv: Inventory, path: Path, size: int) -> Finding:
+def _big_file_finding(comp: Component, inv: Inventory, path: Path, size: int, limit_mb: int = 6) -> Finding:
     return Finding(
         component=comp.name,
         component_type=comp.component_type,
@@ -580,10 +580,15 @@ def _big_file_finding(comp: Component, inv: Inventory, path: Path, size: int) ->
         rule_id="auditor.arquivo-grande",
         severity=Severity.INFO,
         title="Arquivo grande não analisado",
-        explanation=f"O arquivo tem {size // 1024} KiB, acima do limite de análise estática.",
-        recommendation="Se o componente for pouco conhecido, revise este arquivo manualmente.",
+        explanation=(f"O arquivo tem {size // 1024} KiB, acima do limite de análise estática ({limit_mb} MB, opção "
+                     "limite_arquivo_mb)."),
+        recommendation=("Se o componente for pouco conhecido, revise este arquivo manualmente ou aumente o limite "
+                        "nas opções do app (a varredura fica mais lenta e usa mais memória)."),
         en=en_text("Large file not analysed",
-                   f"The file is {size // 1024} KiB, above the static analysis limit.", _MANUAL_REVIEW_EN),
+                   f"The file is {size // 1024} KiB, above the static analysis limit ({limit_mb} MB, option "
+                   "limite_arquivo_mb).",
+                   "If the component is not well known, review this file manually or raise the limit in the app "
+                   "options (the scan gets slower and uses more memory)."),
         file=inv.rel(path),
         source="auditor",
     )

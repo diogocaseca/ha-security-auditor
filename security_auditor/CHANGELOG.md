@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.33.4
+
+- **Nova opção `limite_arquivo_mb`** (padrão 6, de 1 a 64): tamanho máximo de cada arquivo na
+  análise de código (Semgrep e buscas de código ofuscado e de domínios). O padrão passa de 8 MB (0.33.3)
+  para 6 MB, que ainda cobre cards como o `ha-diorama` e pesa menos na máquina. Arquivos maiores aparecem como
+  "Arquivo grande não analisado", e o achado agora diz qual é o limite e onde mudá-lo. Ao mudar o limite,
+  o índice de domínios citados no código é refeito na varredura seguinte.
+
 ## 0.33.3
 
 Ajustes a partir da primeira varredura com o Trivy funcionando:

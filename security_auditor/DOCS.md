@@ -409,6 +409,7 @@ language.
 | `image_scan` | `true` | Scan the images with Trivy. It is the slowest step; it uses bandwidth and space in `/data`. |
 | `image_scan_skip` | `[]` | Slugs of add-ons whose images must not be scanned (e.g. `core_mosquitto`). |
 | `stats_interval_minutes` | `5` | CPU/memory/network collection interval. `0` turns it off. |
+| `limite_arquivo_mb` | `6` | Maximum size (1 to 64 MB) of each file in the code analysis. Larger ones show up as "Large file not analysed". Higher makes the scan slower and use more memory. |
 | `adguard_url` | empty | AdGuard Home address. E.g. `http://192.168.1.2:3000` or `http://a0d7b954-adguard:3000` (AdGuard as an add-on). |
 | `adguard_username` / `adguard_password` | empty | AdGuard Home login. The password is never logged. |
 | `pihole_url` | empty | Pi-hole v6 address. E.g. `http://pi.hole` or `http://192.168.1.3`. |

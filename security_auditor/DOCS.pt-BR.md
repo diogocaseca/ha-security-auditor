@@ -416,6 +416,7 @@ O Pi-hole v5 não é suportado (API antiga).
 | `image_scan` | `true` | Varre as imagens com o Trivy. É a etapa mais demorada; consome banda e espaço em `/data`. |
 | `image_scan_skip` | `[]` | Slugs de add-ons cujas imagens não devem ser varridas (ex.: `core_mosquitto`). |
 | `stats_interval_minutes` | `5` | Intervalo de coleta de CPU/memória/rede. `0` desativa. |
+| `limite_arquivo_mb` | `6` | Tamanho máximo (1 a 64 MB) de cada arquivo na análise de código. Maiores aparecem como "Arquivo grande não analisado". Mais alto deixa a varredura mais lenta e usa mais memória. |
 | `adguard_url` | vazio | Endereço do AdGuard Home. Ex.: `http://192.168.1.2:3000` ou `http://a0d7b954-adguard:3000` (AdGuard como add-on). |
 | `adguard_username` / `adguard_password` | vazio | Login do AdGuard Home. A senha nunca é registrada em log. |
 | `pihole_url` | vazio | Endereço do Pi-hole v6. Ex.: `http://pi.hole` ou `http://192.168.1.3`. |
