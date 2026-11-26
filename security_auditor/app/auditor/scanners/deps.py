@@ -11,6 +11,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 from packaging.requirements import InvalidRequirement, Requirement
 
@@ -121,21 +122,23 @@ class DependencyScanner:
             return findings
 
         ctx.set_progress(self.name, f"pip-audit em {len(pinned)} pacotes")
-        req_file = ctx.workdir / "requirements-auditoria.txt"
-        req_file.write_text("".join(f"{r.name}=={r.version}\n" for r in pinned), encoding="utf-8")
-        res = await run_tool(
-            [
-                "pip-audit", "-r", str(req_file), "--no-deps", "--disable-pip",
-                "-s", "osv", "-f", "json", "--progress-spinner", "off",
-                "--cache-dir", str(ctx.paths.cache_dir / "pip-audit"),
-            ],
-            home=ctx.workdir / "pip-audit-home",
-            timeout=PIP_AUDIT_TIMEOUT,
-        )
-        text = res.stdout
-        if res.returncode not in (0, 1) or "{" not in text:
-            raise RuntimeError(f"pip-audit terminou com código {res.returncode}: {res.stderr[-300:]}")
-        data = json.loads(text[text.index("{") :])
+        data: dict[str, Any] = {"dependencies": []}
+        for n, group in enumerate(audit_groups(pinned)):
+            req_file = ctx.workdir / f"requirements-auditoria-{n}.txt"
+            req_file.write_text("".join(f"{name}=={version}\n" for name, version in group), encoding="utf-8")
+            res = await run_tool(
+                [
+                    "pip-audit", "-r", str(req_file), "--no-deps", "--disable-pip",
+                    "-s", "osv", "-f", "json", "--progress-spinner", "off",
+                    "--cache-dir", str(ctx.paths.cache_dir / "pip-audit"),
+                ],
+                home=ctx.workdir / "pip-audit-home",
+                timeout=PIP_AUDIT_TIMEOUT,
+            )
+            text = res.stdout
+            if res.returncode not in (0, 1) or "{" not in text:
+                raise RuntimeError(f"pip-audit terminou com código {res.returncode}: {res.stderr[-300:]}")
+            data["dependencies"] += json.loads(text[text.index("{") :]).get("dependencies", [])
         findings.extend(findings_from_pip_audit(data, pinned))
         return findings
 
@@ -161,6 +164,27 @@ async def _check_malicious(ctx: ScanContext, named: dict[str, list[tuple[Compone
                          fingerprint_key=",".join(ids), category="dependencia_maliciosa")
                 for comp, raw in named.get(name, [])]
     return out
+
+
+def audit_groups(pinned: dict[PinnedReq, list[Component]]) -> list[list[tuple[str, str]]]:
+    """Listas para o pip-audit sem nomes repetidos (ele recusa a lista inteira se um pacote aparece duas vezes).
+
+    O mesmo pacote e versão pedidos por várias integrações (ou escritos de jeitos diferentes, como
+    ``tinytuya==1.21.1`` e ``TinyTuya == 1.21.1``) viram uma linha só; versões diferentes do mesmo pacote vão
+    para listas separadas.
+    """
+    versions: dict[str, list[str]] = {}
+    for req in pinned:
+        found = versions.setdefault(req.name, [])
+        if req.version not in found:
+            found.append(req.version)
+    groups: list[list[tuple[str, str]]] = []
+    for name in sorted(versions):
+        for i, version in enumerate(sorted(versions[name])):
+            if i == len(groups):
+                groups.append([])
+            groups[i].append((name, version))
+    return groups
 
 
 def findings_from_pip_audit(data: dict, pinned: dict[PinnedReq, list[Component]]) -> list[Finding]:

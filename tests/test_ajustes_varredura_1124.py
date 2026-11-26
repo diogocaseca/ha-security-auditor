@@ -268,3 +268,28 @@ async def test_bandit_still_runs_when_semgrep_fails(tmp_path, monkeypatch):
     assert "bandit rodou" in out
     (failed,) = [f for f in out if getattr(f, "rule_id", "") == "auditor.semgrep-falhou"]
     assert "semgrep quebrou" in failed.explanation
+
+
+def test_pip_audit_lists_have_no_repeated_package():
+    from auditor.scanners.deps import PinnedReq, audit_groups
+    pinned = {PinnedReq("tinytuya", "1.21.1", "tinytuya==1.21.1"): [],
+              PinnedReq("tinytuya", "1.21.1", "TinyTuya == 1.21.1"): [],
+              PinnedReq("tinytuya", "1.17.4", "tinytuya==1.17.4"): [],
+              PinnedReq("aiohttp", "3.9.0", "aiohttp==3.9.0"): []}
+    groups = audit_groups(pinned)
+    for g in groups:
+        names = [n for n, _ in g]
+        assert len(names) == len(set(names))
+    assert sorted(x for g in groups for x in g) == [("aiohttp", "3.9.0"), ("tinytuya", "1.17.4"),
+                                                   ("tinytuya", "1.21.1")]
+
+
+def test_big_files_run_alone_with_own_timeout(tmp_path):
+    from auditor.scanners.static import BIG_FILE, BIG_FILE_TIMEOUT, SEMGREP_TIMEOUT, _batches
+    small = [tmp_path / f"s{n}.js" for n in range(3)]
+    for f in small:
+        f.write_text("x\n")
+    big = tmp_path / "card.js"
+    big.write_bytes(b"x" * BIG_FILE)
+    batches = _batches([small[0], big, *small[1:]])
+    assert batches == [(small, SEMGREP_TIMEOUT), ([big], BIG_FILE_TIMEOUT)]

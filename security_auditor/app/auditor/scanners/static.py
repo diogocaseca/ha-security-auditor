@@ -28,6 +28,10 @@ PY_SUFFIXES = (".py",)
 JS_SUFFIXES = (".js", ".mjs", ".cjs", ".ts")
 SEMGREP_BATCH = 300
 SEMGREP_TIMEOUT = 1800
+# Arquivos grandes (bundles minificados) rodam um por vez e com tempo próprio: um deles travou um lote de 300
+# arquivos até o limite de 30 minutos e o lote inteiro ficou sem análise.
+BIG_FILE = 1024 * 1024
+BIG_FILE_TIMEOUT = 600
 BANDIT_TIMEOUT = 900
 
 SEVERITY_BY_LABEL = {
@@ -136,10 +140,10 @@ async def run_semgrep(
     extra: list[str] = []
     if ctx.profile.semgrep_max_memory_mb:
         extra += ["--max-memory", str(ctx.profile.semgrep_max_memory_mb)]
-    for i in range(0, len(targets), SEMGREP_BATCH):
-        if i:
+    for n, (batch, timeout) in enumerate(_batches(targets)):
+        if n:
             await ctx.pause()
-        data = await _semgrep_resilient(ctx, configs, extra, home, targets[i : i + SEMGREP_BATCH])
+        data = await _semgrep_resilient(ctx, configs, extra, home, batch, timeout)
         results.extend(data.get("results", []))
         for err in data.get("errors", []):
             path = err.get("path") or (err.get("spans") or [{}])[0].get("file")
@@ -150,8 +154,23 @@ async def run_semgrep(
     return results, incomplete
 
 
+def _size(path: Path) -> int:
+    try:
+        return path.stat().st_size
+    except OSError:
+        return 0
+
+
+def _batches(files: list[Path]) -> list[tuple[list[Path], int]]:
+    """Lotes de até ``SEMGREP_BATCH`` arquivos pequenos; cada arquivo grande num lote só, com tempo menor."""
+    small = [f for f in files if _size(f) < BIG_FILE]
+    big = [f for f in files if _size(f) >= BIG_FILE]
+    out = [(small[i : i + SEMGREP_BATCH], SEMGREP_TIMEOUT) for i in range(0, len(small), SEMGREP_BATCH)]
+    return out + [([f], BIG_FILE_TIMEOUT) for f in big]
+
+
 async def _semgrep_batch(ctx: ScanContext, configs: list[str], extra: list[str], home: Path,
-                         batch: list[Path]) -> dict[str, Any]:
+                         batch: list[Path], timeout: int = SEMGREP_TIMEOUT) -> dict[str, Any]:
     res = await run_tool(
         [
             "semgrep", "scan", *configs,
@@ -165,7 +184,7 @@ async def _semgrep_batch(ctx: ScanContext, configs: list[str], extra: list[str],
             *[str(p) for p in batch],
         ],
         home=home,
-        timeout=SEMGREP_TIMEOUT,
+        timeout=timeout,
     )
     if res.returncode not in (0, 1) or not res.stdout.strip():
         raise RuntimeError(f"semgrep terminou com código {res.returncode}: {res.stderr[-300:]}")
@@ -173,7 +192,7 @@ async def _semgrep_batch(ctx: ScanContext, configs: list[str], extra: list[str],
 
 
 async def _semgrep_resilient(ctx: ScanContext, configs: list[str], extra: list[str], home: Path,
-                             batch: list[Path]) -> dict[str, Any]:
+                             batch: list[Path], timeout: int = SEMGREP_TIMEOUT) -> dict[str, Any]:
     """Um lote do Semgrep que não se perde inteiro por causa de um arquivo.
 
     Se o Semgrep morrer (memória, por exemplo), o lote é dividido ao meio e repetido até isolar o arquivo, que
@@ -181,7 +200,7 @@ async def _semgrep_resilient(ctx: ScanContext, configs: list[str], extra: list[s
     custaria o mesmo tempo de novo): os arquivos do lote ficam marcados.
     """
     try:
-        return await _semgrep_batch(ctx, configs, extra, home, batch)
+        return await _semgrep_batch(ctx, configs, extra, home, batch, timeout)
     except ToolTimeoutError as err:
         return _batch_failure(batch, "Tempo esgotado", str(err))
     except (RuntimeError, ValueError) as err:
@@ -190,9 +209,9 @@ async def _semgrep_resilient(ctx: ScanContext, configs: list[str], extra: list[s
         _LOGGER.warning("Semgrep falhou num lote de %d arquivos; dividindo para achar o arquivo: %s", len(batch),
                         str(err)[:200])
         half = len(batch) // 2
-        first = await _semgrep_resilient(ctx, configs, extra, home, batch[:half])
+        first = await _semgrep_resilient(ctx, configs, extra, home, batch[:half], timeout)
         await ctx.pause()
-        second = await _semgrep_resilient(ctx, configs, extra, home, batch[half:])
+        second = await _semgrep_resilient(ctx, configs, extra, home, batch[half:], timeout)
         return {"results": first.get("results", []) + second.get("results", []),
                 "errors": first.get("errors", []) + second.get("errors", [])}
 
@@ -256,17 +275,13 @@ async def _retry_in_copies(ctx: ScanContext, configs: list[str], extra: list[str
         copies[str(copy)] = str(original)
     if not copies:
         return
-    paths = [Path(c) for c in copies]
     data: dict[str, Any] = {"results": [], "errors": []}
     try:
-        for i in range(0, len(paths), SEMGREP_BATCH):
+        for batch, timeout in _batches([Path(c) for c in copies]):
             await ctx.pause()
-            part = await _semgrep_batch(ctx, configs, extra, home, paths[i : i + SEMGREP_BATCH])
+            part = await _semgrep_resilient(ctx, configs, extra, home, batch, timeout)
             data["results"] += part.get("results", [])
             data["errors"] += part.get("errors", [])
-    except (RuntimeError, ValueError) as err:
-        _LOGGER.warning("Nova análise do Semgrep nas cópias falhou: %s", err)
-        return
     finally:
         shutil.rmtree(work, ignore_errors=True)
     errors: dict[str, dict[str, Any]] = {}

@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.33.7
+
+Ajustes a partir da primeira exportação com histórico, que mostrou os erros da varredura completa:
+
+- **Semgrep passava de 30 minutos num lote e perdia a análise de código** (`semgrep excedeu 1800s`).
+  Arquivos de 1 MB ou mais (bundles minificados de cards) agora rodam um por vez, com até 10 minutos
+  cada. Um arquivo lento fica marcado como "Tempo esgotado" sozinho, sem levar junto os outros 300 do
+  lote. Na 0.33.5 isso já não derrubava mais o Bandit, mas o lote inteiro ainda ficava sem análise.
+- **pip-audit falhava inteiro com pacotes repetidos** (`package tinytuya has duplicate requirements`):
+  o mesmo pacote pedido por duas integrações, ou escrito de jeitos diferentes, virava duas linhas, e
+  o pip-audit recusava a lista toda. Agora cada pacote e versão aparece uma vez só, e versões
+  diferentes do mesmo pacote vão para listas separadas.
+
 ## 0.33.6
 
 - **Exportar JSON:** passa a baixar a **última varredura completa** e **todas as verificações feitas
