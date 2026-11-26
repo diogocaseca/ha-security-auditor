@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.33.5
+
+- **Correção: a análise de código inteira se perdia por causa de um arquivo grande.** Com o limite em
+  6 MB, o `card.js` do ha-diorama passou a entrar no Semgrep, que chegou a mais de 2 GB de memória e
+  foi morto pelo sistema. O lote inteiro falhava, o Bandit nem rodava, e integrações e cards ficavam
+  sem nenhum achado de código, parecendo mais seguros do que são. Agora:
+  - o Semgrep tem sempre um teto de memória: de 512 MB a 1,5 GB, conforme a memória livre. Um arquivo
+    que passa do teto vira "Arquivo analisado só em parte (Out of memory)" e o resto segue;
+  - se mesmo assim um lote falhar, ele é dividido até isolar o arquivo problemático, que fica marcado
+    como não analisado;
+  - se o Semgrep falhar por completo, o Bandit continua, e aparece o achado **"Análise de código do
+    Semgrep não rodou"** (Média), com o erro.
+- **Exportar JSON com histórico:** o botão agora baixa num arquivo só a verificação aberta e as
+  anteriores guardadas, até 10, da mais nova para a mais antiga. Uma verificação de DNS ou parcial
+  vem junto da última varredura completa e dos erros dela. O endereço antigo `api/report.json`
+  continua exportando um relatório só.
+
 ## 0.33.4
 
 - **Nova opção `limite_arquivo_mb`** (padrão 6, de 1 a 64): tamanho máximo de cada arquivo na

@@ -133,6 +133,25 @@ async def test_web_report_json_and_download(web_client):
     assert (await client.get("/api/report.json?scan=../../etc")).status == 404
 
 
+async def test_web_export_brings_earlier_reports(aiohttp_client, paths, storage, masker):
+    engine = _engine(paths, storage, masker, Options(), [FakeScanner([make_finding()])])
+    first = await engine.run()
+    second = await engine.run()
+    app = create_app(storage, Scheduler(engine.run, 0, False), engine.progress,
+                     allowed_peers={ipaddress.ip_address("127.0.0.1")})
+    client = await aiohttp_client(app)
+    resp = await client.get("/api/export.json")
+    assert resp.status == 200 and "attachment" in resp.headers["Content-Disposition"]
+    assert "-historico-2.json" in resp.headers["Content-Disposition"]
+    data = await resp.json()
+    assert data["formato"] == "security-auditor-exportacao"
+    assert [r["scan_id"] for r in data["relatorios"]] == [second.scan_id, first.scan_id]
+    # A partir de uma varredura antiga: ela e as anteriores, nunca as mais novas.
+    older = await (await client.get(f"/api/export.json?scan={first.scan_id}")).json()
+    assert [r["scan_id"] for r in older["relatorios"]] == [first.scan_id]
+    assert (await client.get("/api/export.json?scan=../../etc")).status == 404
+
+
 async def test_web_scan_requires_csrf(web_client):
     client, sched = web_client
     assert (await client.post("/api/scan")).status == 403

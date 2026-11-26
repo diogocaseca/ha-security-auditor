@@ -70,7 +70,18 @@ class Profile:
 
     @property
     def semgrep_max_memory_mb(self) -> int:
-        return 768 if self.light else 0  # 0 = sem teto
+        """Teto de memória do Semgrep por arquivo, sempre definido.
+
+        Sem teto, um card minificado de alguns MB faz o Semgrep passar de 2 GB e ser morto pelo sistema, e o lote
+        inteiro se perde. Com teto, o Semgrep desiste só daquele arquivo ("Out of memory") e segue.
+        """
+        if self.light:
+            return 768
+        try:
+            available = _read_mem_available_mb()
+        except (OSError, ValueError):
+            return 1024
+        return int(max(512, min(1536, available / (self.semgrep_jobs + 1))))
 
     @property
     def trivy_parallel(self) -> int:

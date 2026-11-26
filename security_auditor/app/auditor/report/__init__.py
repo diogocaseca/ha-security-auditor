@@ -10,8 +10,8 @@ from typing import Any
 from jinja2 import Environment, FileSystemLoader, pass_context, select_autoescape
 
 from ..ai import finding_hosts
-from ..capabilities import LABELS as CAP_LABELS
 from ..allowlist import skip_entry_for
+from ..capabilities import LABELS as CAP_LABELS
 from ..i18n import HTML_LANG, Translator, normalize
 from ..models import ComponentType, ScanResult, Severity
 from ..scanners.dns import is_ignored
@@ -174,3 +174,20 @@ def render_html(
 
 def to_json(result: ScanResult) -> str:
     return json.dumps(result.to_dict(), ensure_ascii=False, indent=2)
+
+
+EXPORT_FORMAT = "security-auditor-exportacao"
+
+
+def export_json(results: list[ScanResult], exported_at: str, version: str) -> str:
+    """Exportação com vários relatórios (o escolhido e os anteriores guardados), do mais novo ao mais antigo.
+
+    Uma verificação de DNS ou parcial repete o que veio da última completa, mas não traz os erros dela; com o
+    histórico junto dá para ver o que cada varredura achou, quais etapas falharam e o que mudou entre elas.
+    """
+    return json.dumps({
+        "formato": EXPORT_FORMAT,
+        "versao_auditor": version,
+        "exportado_em": exported_at,
+        "relatorios": [r.to_dict() for r in results],
+    }, ensure_ascii=False, indent=2)

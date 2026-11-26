@@ -19,7 +19,7 @@ from typing import Any
 from ..inventory import Component, Inventory
 from ..models import ComponentType, Finding, Severity, en_text
 from ..resources import postponed
-from ..tools import run_tool
+from ..tools import ToolTimeoutError, run_tool
 from .base import ScanContext
 
 _LOGGER = logging.getLogger(__name__)
@@ -139,7 +139,7 @@ async def run_semgrep(
     for i in range(0, len(targets), SEMGREP_BATCH):
         if i:
             await ctx.pause()
-        data = await _semgrep_batch(ctx, configs, extra, home, targets[i : i + SEMGREP_BATCH])
+        data = await _semgrep_resilient(ctx, configs, extra, home, targets[i : i + SEMGREP_BATCH])
         results.extend(data.get("results", []))
         for err in data.get("errors", []):
             path = err.get("path") or (err.get("spans") or [{}])[0].get("file")
@@ -170,6 +170,37 @@ async def _semgrep_batch(ctx: ScanContext, configs: list[str], extra: list[str],
     if res.returncode not in (0, 1) or not res.stdout.strip():
         raise RuntimeError(f"semgrep terminou com código {res.returncode}: {res.stderr[-300:]}")
     return json.loads(res.stdout)
+
+
+async def _semgrep_resilient(ctx: ScanContext, configs: list[str], extra: list[str], home: Path,
+                             batch: list[Path]) -> dict[str, Any]:
+    """Um lote do Semgrep que não se perde inteiro por causa de um arquivo.
+
+    Se o Semgrep morrer (memória, por exemplo), o lote é dividido ao meio e repetido até isolar o arquivo, que
+    fica marcado como não analisado; os outros seguem normalmente. Estouro de tempo não é repetido (repetir
+    custaria o mesmo tempo de novo): os arquivos do lote ficam marcados.
+    """
+    try:
+        return await _semgrep_batch(ctx, configs, extra, home, batch)
+    except ToolTimeoutError as err:
+        return _batch_failure(batch, "Tempo esgotado", str(err))
+    except (RuntimeError, ValueError) as err:
+        if len(batch) == 1:
+            return _batch_failure(batch, "Falha do Semgrep", str(err))
+        _LOGGER.warning("Semgrep falhou num lote de %d arquivos; dividindo para achar o arquivo: %s", len(batch),
+                        str(err)[:200])
+        half = len(batch) // 2
+        first = await _semgrep_resilient(ctx, configs, extra, home, batch[:half])
+        await ctx.pause()
+        second = await _semgrep_resilient(ctx, configs, extra, home, batch[half:])
+        return {"results": first.get("results", []) + second.get("results", []),
+                "errors": first.get("errors", []) + second.get("errors", [])}
+
+
+def _batch_failure(batch: list[Path], kind: str, message: str) -> dict[str, Any]:
+    # Só a última linha útil: a mensagem do Semgrep traz um texto longo de ajuda.
+    text = " ".join(message.split())[-200:]
+    return {"results": [], "errors": [{"type": kind, "path": str(p), "message": text} for p in batch]}
 
 
 # Sintaxe nova de tipos (PEP 695, Python 3.12+) que o analisador de Python do Semgrep nem sempre entende. É
@@ -312,7 +343,12 @@ class StaticAnalysisScanner:
             findings.append(postponed("auditor", ComponentType.SYSTEM, "análise estática (Semgrep/Bandit)", reason))
             return findings
         ctx.set_progress(self.name, f"Semgrep em {len(semgrep_targets)} arquivos")
-        sg = await self._semgrep(ctx, inv, semgrep_targets)
+        try:
+            sg = await self._semgrep(ctx, inv, semgrep_targets)
+        except (RuntimeError, ValueError, OSError, ToolTimeoutError) as err:
+            # Sem o Semgrep, o Bandit (e o resto da varredura) continua: antes a etapa inteira se perdia.
+            _LOGGER.exception("Semgrep falhou; seguindo com o Bandit")
+            sg = [_semgrep_failed(err)]
         await ctx.pause()
         ctx.set_progress(self.name, f"Bandit em {len(bandit_dirs)} integrações")
         bd = await self._bandit(ctx, inv, bandit_dirs)
@@ -383,6 +419,27 @@ def _from_semgrep(r: dict[str, Any], inv: Inventory) -> Finding | None:
         line=start.get("line"),
         snippet=read_snippet(path, start.get("line"), end.get("line"), start.get("col"), end.get("col")),
         source="semgrep",
+    )
+
+
+def _semgrep_failed(err: Exception) -> Finding:
+    detail = " ".join(f"{type(err).__name__}: {err}".split())[-300:]
+    return Finding(
+        component="auditor",
+        component_type=ComponentType.SYSTEM,
+        category="analise_incompleta",
+        rule_id="auditor.semgrep-falhou",
+        severity=Severity.MEDIUM,
+        title="Análise de código do Semgrep não rodou",
+        explanation=("O Semgrep falhou e os achados de código desta varredura vêm só do Bandit (Python) e das "
+                     f"outras etapas. Integrações e cards podem parecer mais seguros do que são. Erro: {detail}"),
+        recommendation="Veja o log do app e rode a varredura completa de novo; se repetir, abra uma issue.",
+        en=en_text("Semgrep code analysis did not run",
+                   "Semgrep failed and this scan's code findings come only from Bandit (Python) and the other steps. "
+                   f"Integrations and cards may look safer than they are. Error: {detail}",
+                   "Check the app log and run the full scan again; if it repeats, open an issue."),
+        source="auditor",
+        extra={"fingerprint_key": "semgrep-falhou", "chave_estavel": True},
     )
 
 

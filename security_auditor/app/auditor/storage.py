@@ -403,6 +403,14 @@ class Storage:
         except (FileNotFoundError, ValueError, KeyError, json.JSONDecodeError):
             return None
 
+    def load_history(self, until: str, limit: int) -> list[ScanResult]:
+        """Relatórios guardados a partir de ``until`` (inclusive) para trás, do mais novo ao mais antigo."""
+        with self._conn() as conn:
+            ids = [r["scan_id"] for r in conn.execute(
+                "SELECT scan_id FROM scans WHERE scan_id <= ? ORDER BY scan_id DESC LIMIT ?", (until, max(1, limit))
+            ).fetchall()]
+        return [r for r in (self.load_scan(i) for i in ids) if r is not None]
+
     def load_latest(self) -> ScanResult | None:
         scan_id = self.latest_completed_id()
         return self.load_scan(scan_id) if scan_id else None

@@ -49,7 +49,8 @@ def test_profile_and_guard_from_options():
     g = guard_from_options(o)
     assert g.enabled and g.min_free_mb == 800 and g.max_load_per_cpu == 2.0
     assert not guard_from_options(Options(execution_modes=frozenset())).enabled
-    assert Profile().semgrep_jobs == 2 and Profile().semgrep_max_memory_mb == 0 and Profile().trivy_parallel == 0
+    assert Profile().semgrep_jobs == 2 and 512 <= Profile().semgrep_max_memory_mb <= 1536
+    assert Profile().trivy_parallel == 0
 
 
 # --- Prioridade baixa ------------------------------------------------------------------
@@ -157,7 +158,8 @@ async def test_light_profile_semgrep_args(tmp_path, monkeypatch):
     assert args[args.index("--jobs") + 1] == "1"
     assert args[args.index("--max-memory") + 1] == "768"
     await run_semgrep(_ctx(tmp_path), [target], ("python",))
-    assert seen[1][seen[1].index("--jobs") + 1] == "2" and "--max-memory" not in seen[1]
+    # Sempre com teto (sem ele um card grande derrubava o lote inteiro).
+    assert seen[1][seen[1].index("--jobs") + 1] == "2" and 512 <= int(seen[1][seen[1].index("--max-memory") + 1]) <= 1536
 
 
 async def test_light_profile_trivy_parallel(tmp_path, monkeypatch):

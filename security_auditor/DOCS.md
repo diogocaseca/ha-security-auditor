@@ -82,7 +82,8 @@ The page has the tabs **Components**, **DNS** (when AdGuard Home or Pi-hole is c
   ignored and opens the [ignore list](#ignore-list-and-allowlist) in its own view;
 - the **Scan history** tab, with status, duration and totals of each scan, 10 per page (click the
   date to open that report). The last `report_retention` scans are kept (default 10, up to 100);
-- the **Export JSON** button;
+- the **Export JSON** button, which downloads in a single file the open scan and the earlier stored ones
+  (up to 10, newest first). That way a DNS check comes together with the last full scan and its errors;
 - the **System / Light / Dark** theme selector;
 - the **EN | PT** language selector (English is the default). The choice is stored in the add-on
   and applies to any browser, including the HA mobile app. Findings also show in the chosen

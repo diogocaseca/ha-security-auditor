@@ -15,14 +15,14 @@ from typing import Any
 
 from aiohttp import web
 
-from .. import blocklist_update
+from .. import __version__, blocklist_update
 from ..ai import AiError, check_domain, finding_hosts
 from ..allowlist import reapply, skips_whole_component
 from ..blocklist import BlocklistError, validate_item
 from ..config import AllowlistEntry
 from ..i18n import LANGS, Bi, english, normalize
 from ..models import Severity
-from ..report import render_html, to_json
+from ..report import export_json, render_html, to_json
 from ..scanners.dns import ignore_pattern
 from ..scheduler import Scheduler
 from ..storage import Storage
@@ -51,6 +51,7 @@ _LIMITS = {"component": 200, "rule": 200, "path": 500, "reason": 500, "title": 3
 MAX_IGNORED = 500
 MAX_FINGERPRINTS = 5000  # achados guardados num item de "ignorar níveis"
 MAX_BLOCKLIST_ITEMS = 1000
+EXPORT_MAX_REPORTS = 10  # relatórios na exportação: o escolhido e os anteriores guardados
 _BLOCKLIST_FIELDS = ("id", "tipo", "github", "nome", "imagem", "versoes", "nivel", "categoria", "motivo")
 HISTORY_PAGE_SIZE = 10
 _SEVERITY_KEYS = [s.key for s in sorted(Severity, reverse=True)]
@@ -624,6 +625,21 @@ def create_app(
             resp.headers["Content-Disposition"] = f'attachment; filename="security-auditor-{result.scan_id}.json"'
         return resp
 
+    async def export(request: web.Request) -> web.StreamResponse:
+        """Relatório escolhido + os anteriores guardados (até ``report_retention``) num JSON só."""
+        scan_id = request.query.get("scan") or await asyncio.to_thread(storage.latest_completed_id)
+        if not scan_id:
+            raise web.HTTPNotFound(text="Nenhuma varredura concluída ainda")
+        results = await asyncio.to_thread(storage.load_history, scan_id, EXPORT_MAX_REPORTS)
+        if not results:
+            raise web.HTTPNotFound(text="Varredura não encontrada")
+        now = datetime.now(UTC).isoformat(timespec="seconds")
+        text = await asyncio.to_thread(export_json, results, now, __version__)
+        resp = web.Response(text=text, content_type="application/json", charset="utf-8")
+        resp.headers["Content-Disposition"] = (f'attachment; filename="security-auditor-{results[0].scan_id}'
+                                               f'-historico-{len(results)}.json"')
+        return resp
+
     async def scans(request: web.Request) -> web.Response:
         return web.json_response(await asyncio.to_thread(storage.list_scans, 100))
 
@@ -651,6 +667,7 @@ def create_app(
             web.put("/api/lista-negra/{item_id}", blocklist_edit),
             web.delete("/api/lista-negra/{item_id}", blocklist_remove),
             web.get("/api/report.json", report_json),
+            web.get("/api/export.json", export),
             web.get("/api/scans", scans),
             web.static("/static", _STATIC, follow_symlinks=False),
         ]

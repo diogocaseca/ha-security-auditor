@@ -215,3 +215,56 @@ def test_code_hosts_reread_when_limit_changes(tmp_path):
     assert "servidor-estranho.com" not in small.per_component.get("integracao/c", {})
     big = code_hosts.build(discover(tmp_path / "config"), cache, rules, 4 * 1024 * 1024)
     assert "servidor-estranho.com" in big.per_component["integracao/c"]
+
+
+async def test_semgrep_crash_isolates_the_file(tmp_path, monkeypatch):
+    # Um card enorme fazia o Semgrep ser morto por falta de memória e a análise de código inteira se perdia.
+    import json as _json
+
+    from auditor.scanners import static as static_mod
+    from auditor.tools import ToolResult
+
+    from .test_protecoes import _ctx
+    files = [tmp_path / f"f{n}.js" for n in range(5)]
+    for f in files:
+        f.write_text("eval(x)\n")
+    bad = str(files[3])
+
+    async def fake_run_tool(args, **kw):
+        targets = [a for a in args if a.endswith(".js")]
+        if bad in targets:
+            return ToolResult(2, "", "You are seeing this because the engine was killed.")
+        hits = [{"check_id": "auditor.js.eval-dinamico", "path": t, "start": {"line": 1}, "end": {"line": 1}}
+                for t in targets]
+        return ToolResult(1, _json.dumps({"results": hits, "errors": []}), "")
+
+    monkeypatch.setattr(static_mod, "run_tool", fake_run_tool)
+    results, incomplete = await static_mod.run_semgrep(_ctx(tmp_path), files, ("javascript",))
+    assert sorted(r["path"] for r in results) == sorted(str(f) for f in files if str(f) != bad)
+    assert list(incomplete) == [bad] and incomplete[bad]["tipo"] == "Falha do Semgrep"
+    assert "engine was killed" in incomplete[bad]["mensagem"]
+
+
+async def test_bandit_still_runs_when_semgrep_fails(tmp_path, monkeypatch):
+    from auditor.scanners import static as static_mod
+    from auditor.scanners.static import StaticAnalysisScanner
+
+    from .test_protecoes import _ctx
+    comp = tmp_path / "config" / "custom_components" / "c"
+    comp.mkdir(parents=True)
+    (comp / "manifest.json").write_text('{"domain": "c", "name": "c", "version": "1"}')
+    (comp / "__init__.py").write_text("x = 1\n")
+
+    async def broken(*a, **kw):
+        raise RuntimeError("semgrep quebrou")
+
+    async def fake_bandit(self, ctx, inv, dirs):
+        return ["bandit rodou"]
+
+    monkeypatch.setattr(static_mod, "run_semgrep", broken)
+    monkeypatch.setattr(StaticAnalysisScanner, "_bandit", fake_bandit)
+    monkeypatch.setattr(static_mod, "_merge_same_line", lambda sg, bd: [*sg, *bd])
+    out = await StaticAnalysisScanner().scan(_ctx(tmp_path))
+    assert "bandit rodou" in out
+    (failed,) = [f for f in out if getattr(f, "rule_id", "") == "auditor.semgrep-falhou"]
+    assert "semgrep quebrou" in failed.explanation
