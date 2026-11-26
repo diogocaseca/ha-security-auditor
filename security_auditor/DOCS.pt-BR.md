@@ -86,9 +86,10 @@ frontend, add-ons etc. Os **componentes mais novos vêm primeiro**: a tabela é 
 - a aba **Histórico de verificações**, com status, duração e totais de cada verificação, 10 por
   página (clique na data para abrir aquele relatório). Ficam guardadas as últimas
   `report_retention` verificações (padrão 10, até 100);
-- o botão **Exportar JSON**, que baixa num arquivo só a verificação aberta e as anteriores guardadas
-  (até 10, da mais nova para a mais antiga). Assim uma verificação de DNS vem junto da última
-  varredura completa, com os erros dela;
+- o botão **Exportar JSON**, que baixa num arquivo só a última varredura completa e todas as
+  verificações feitas depois dela até o momento da exportação (parciais, de DNS, canceladas ou com
+  erro), da mais nova para a mais antiga. A última varredura completa nunca é apagada pela limpeza do
+  histórico;
 - o seletor de tema **Sistema / Claro / Escuro**;
 - o seletor de idioma **EN | PT** (inglês é o padrão). A escolha fica guardada no add-on e
   vale em qualquer navegador. Os achados também aparecem no idioma escolhido (relatórios

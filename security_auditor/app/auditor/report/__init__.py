@@ -180,7 +180,8 @@ EXPORT_FORMAT = "security-auditor-exportacao"
 
 
 def export_json(results: list[ScanResult], exported_at: str, version: str) -> str:
-    """Exportação com vários relatórios (o escolhido e os anteriores guardados), do mais novo ao mais antigo.
+    """Exportação com vários relatórios (a última varredura completa e as verificações depois dela), do mais novo
+    ao mais antigo.
 
     Uma verificação de DNS ou parcial repete o que veio da última completa, mas não traz os erros dela; com o
     histórico junto dá para ver o que cada varredura achou, quais etapas falharam e o que mudou entre elas.

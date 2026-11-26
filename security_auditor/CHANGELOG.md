@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.33.6
+
+- **Exportar JSON:** passa a baixar a **última varredura completa** e **todas as verificações feitas
+  depois dela** até o momento da exportação (parciais, de DNS, canceladas ou com erro), da mais nova
+  para a mais antiga. Antes eram a verificação aberta e as 9 anteriores.
+- A limpeza do histórico (`report_retention`) nunca apaga a última varredura completa concluída, que
+  é a base das parciais, das de DNS e da exportação.
+
 ## 0.33.5
 
 - **Correção: a análise de código inteira se perdia por causa de um arquivo grande.** Com o limite em

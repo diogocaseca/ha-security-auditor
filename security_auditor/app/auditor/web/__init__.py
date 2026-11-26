@@ -51,7 +51,6 @@ _LIMITS = {"component": 200, "rule": 200, "path": 500, "reason": 500, "title": 3
 MAX_IGNORED = 500
 MAX_FINGERPRINTS = 5000  # achados guardados num item de "ignorar níveis"
 MAX_BLOCKLIST_ITEMS = 1000
-EXPORT_MAX_REPORTS = 10  # relatórios na exportação: o escolhido e os anteriores guardados
 _BLOCKLIST_FIELDS = ("id", "tipo", "github", "nome", "imagem", "versoes", "nivel", "categoria", "motivo")
 HISTORY_PAGE_SIZE = 10
 _SEVERITY_KEYS = [s.key for s in sorted(Severity, reverse=True)]
@@ -626,18 +625,15 @@ def create_app(
         return resp
 
     async def export(request: web.Request) -> web.StreamResponse:
-        """Relatório escolhido + os anteriores guardados (até ``report_retention``) num JSON só."""
-        scan_id = request.query.get("scan") or await asyncio.to_thread(storage.latest_completed_id)
-        if not scan_id:
-            raise web.HTTPNotFound(text="Nenhuma varredura concluída ainda")
-        results = await asyncio.to_thread(storage.load_history, scan_id, EXPORT_MAX_REPORTS)
+        """A última varredura completa e todas as verificações feitas depois dela, até agora, num JSON só."""
+        results = await asyncio.to_thread(storage.load_since_last_full)
         if not results:
-            raise web.HTTPNotFound(text="Varredura não encontrada")
+            raise web.HTTPNotFound(text="Nenhuma varredura concluída ainda")
         now = datetime.now(UTC).isoformat(timespec="seconds")
         text = await asyncio.to_thread(export_json, results, now, __version__)
         resp = web.Response(text=text, content_type="application/json", charset="utf-8")
         resp.headers["Content-Disposition"] = (f'attachment; filename="security-auditor-{results[0].scan_id}'
-                                               f'-historico-{len(results)}.json"')
+                                               f'-desde-a-completa-{len(results)}.json"')
         return resp
 
     async def scans(request: web.Request) -> web.Response:

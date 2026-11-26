@@ -223,7 +223,8 @@ EN: dict[str, str] = {
     " (todo dia às {hora})": " (daily at {hora})",
     "Agendamento desativado": "Scheduling disabled",
     "Exportar JSON": "Export JSON",
-    "Esta varredura e as anteriores guardadas, num JSON só": "This scan and the earlier stored ones, in a single JSON",
+    "A última varredura completa e todas as verificações depois dela, num JSON só":
+        "The last full scan and every check run after it, in a single JSON",
     "Varrer agora": "Scan now",
     "Cancelando…": "Cancelling…",
     "Cancelar varredura": "Cancel scan",

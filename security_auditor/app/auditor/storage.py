@@ -403,11 +403,17 @@ class Storage:
         except (FileNotFoundError, ValueError, KeyError, json.JSONDecodeError):
             return None
 
-    def load_history(self, until: str, limit: int) -> list[ScanResult]:
-        """Relatórios guardados a partir de ``until`` (inclusive) para trás, do mais novo ao mais antigo."""
+    def load_since_last_full(self) -> list[ScanResult]:
+        """A última varredura completa concluída e todas as verificações feitas depois dela (parciais, DNS,
+        canceladas ou com erro), da mais nova para a mais antiga. Sem varredura completa, todas as guardadas."""
         with self._conn() as conn:
+            row = conn.execute(
+                "SELECT scan_id FROM scans WHERE kind = 'completa' AND status = 'concluida' "
+                "ORDER BY scan_id DESC LIMIT 1"
+            ).fetchone()
+            since = row["scan_id"] if row else ""
             ids = [r["scan_id"] for r in conn.execute(
-                "SELECT scan_id FROM scans WHERE scan_id <= ? ORDER BY scan_id DESC LIMIT ?", (until, max(1, limit))
+                "SELECT scan_id FROM scans WHERE scan_id >= ? ORDER BY scan_id DESC", (since,)
             ).fetchall()]
         return [r for r in (self.load_scan(i) for i in ids) if r is not None]
 
@@ -430,13 +436,19 @@ class Storage:
         path.unlink(missing_ok=True)
 
     def prune(self, keep: int) -> int:
-        """Mantém só os ``keep`` relatórios mais recentes."""
+        """Mantém só os ``keep`` relatórios mais recentes, e sempre a última varredura completa concluída (as
+        parciais e as de DNS se baseiam nela, e a exportação começa nela)."""
         with self._conn() as conn:
+            full = conn.execute(
+                "SELECT scan_id FROM scans WHERE kind = 'completa' AND status = 'concluida' "
+                "ORDER BY scan_id DESC LIMIT 1"
+            ).fetchone()
             old = [
                 r["scan_id"]
                 for r in conn.execute(
                     "SELECT scan_id FROM scans ORDER BY scan_id DESC LIMIT -1 OFFSET ?", (keep,)
                 ).fetchall()
+                if not full or r["scan_id"] != full["scan_id"]
             ]
             for scan_id in old:
                 conn.execute("DELETE FROM scans WHERE scan_id = ?", (scan_id,))

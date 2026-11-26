@@ -47,7 +47,7 @@
       {% endif %}
     </span>
     {% if result %}
-      <a class="btn btn-ghost" href="api/export.json?scan={{ result.scan_id }}" title="{{ _("Esta varredura e as anteriores guardadas, num JSON só") }}">{{ _("Exportar JSON") }}</a>
+      <a class="btn btn-ghost" href="api/export.json" title="{{ _("A última varredura completa e todas as verificações depois dela, num JSON só") }}">{{ _("Exportar JSON") }}</a>
     {% endif %}
     <button class="btn btn-primary" id="scan-now" type="button" {% if status.running %}disabled{% endif %}>
       {{ _("Varrendo…") if status.running else _("Varrer agora") }}

@@ -133,23 +133,34 @@ async def test_web_report_json_and_download(web_client):
     assert (await client.get("/api/report.json?scan=../../etc")).status == 404
 
 
-async def test_web_export_brings_earlier_reports(aiohttp_client, paths, storage, masker):
+async def test_web_export_from_last_full_scan_until_now(aiohttp_client, paths, storage, masker):
     engine = _engine(paths, storage, masker, Options(), [FakeScanner([make_finding()])])
-    first = await engine.run()
-    second = await engine.run()
+    older = await engine.run()
+    full = await engine.run()
+    later = await engine.run()
+    with storage._conn() as conn:  # a última vira uma verificação de DNS, feita depois da completa
+        conn.execute("UPDATE scans SET kind = 'dns' WHERE scan_id = ?", (later.scan_id,))
     app = create_app(storage, Scheduler(engine.run, 0, False), engine.progress,
                      allowed_peers={ipaddress.ip_address("127.0.0.1")})
     client = await aiohttp_client(app)
     resp = await client.get("/api/export.json")
     assert resp.status == 200 and "attachment" in resp.headers["Content-Disposition"]
-    assert "-historico-2.json" in resp.headers["Content-Disposition"]
     data = await resp.json()
     assert data["formato"] == "security-auditor-exportacao"
-    assert [r["scan_id"] for r in data["relatorios"]] == [second.scan_id, first.scan_id]
-    # A partir de uma varredura antiga: ela e as anteriores, nunca as mais novas.
-    older = await (await client.get(f"/api/export.json?scan={first.scan_id}")).json()
-    assert [r["scan_id"] for r in older["relatorios"]] == [first.scan_id]
-    assert (await client.get("/api/export.json?scan=../../etc")).status == 404
+    assert [r["scan_id"] for r in data["relatorios"]] == [later.scan_id, full.scan_id]
+    assert older.scan_id not in resp.headers["Content-Disposition"]
+
+
+async def test_prune_keeps_last_full_scan(paths, storage, masker):
+    engine = _engine(paths, storage, masker, Options(), [FakeScanner([make_finding()])])
+    full = await engine.run()
+    checks = [await engine.run() for _ in range(3)]
+    with storage._conn() as conn:
+        for c in checks:
+            conn.execute("UPDATE scans SET kind = 'parcial' WHERE scan_id = ?", (c.scan_id,))
+    storage.prune(2)
+    kept = [s["scan_id"] for s in storage.list_scans()]
+    assert full.scan_id in kept and checks[-1].scan_id in kept and checks[0].scan_id not in kept
 
 
 async def test_web_scan_requires_csrf(web_client):
