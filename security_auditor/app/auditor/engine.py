@@ -227,7 +227,10 @@ class ScanEngine:
         for meta in ctx.components.values():
             meta.setdefault("capacidades", [])
         provisional = summarize(result.findings, ctx.components)
-        result.findings += capability_changes(result.findings, provisional, self.storage, result.started_at)
+        only = (set() if result.kind == KIND_DNS else {(t["tipo"], t["nome"]) for t in result.targets}
+                if result.kind == "parcial" else None)
+        result.findings += capability_changes(result.findings, provisional, self.storage, result.started_at,
+                                              reliable=_code_analysis_ran(result), only=only)
         self._sanitize(result)
         apply_allowlist(result.findings, self.options.allowlist + tuple(self.storage.ignore_entries()))
         compare(result, self.storage.load_latest())
@@ -331,3 +334,12 @@ def _dedupe(findings: list[Finding]) -> list[Finding]:
         else:
             current.extra["sources"] = sources
     return [best[k] for k in order]
+
+
+def _code_analysis_ran(result: ScanResult) -> bool:
+    """A análise de código (Semgrep/Bandit) rodou por inteiro: sem erro da etapa, sem falha do Semgrep e sem a
+    etapa adiada. Só então o perfil de capacidades da varredura serve de base para comparar atualizações."""
+    if any(e.startswith("analise_estatica") for e in result.errors):
+        return False
+    return not any(f.rule_id == "auditor.semgrep-falhou"
+                   or (f.rule_id == "auditor.etapa-adiada" and "estática" in f.title) for f in result.findings)

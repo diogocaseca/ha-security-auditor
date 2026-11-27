@@ -293,3 +293,60 @@ def test_big_files_run_alone_with_own_timeout(tmp_path):
     big.write_bytes(b"x" * BIG_FILE)
     batches = _batches([small[0], big, *small[1:]])
     assert batches == [(small, SEMGREP_TIMEOUT), ([big], BIG_FILE_TIMEOUT)]
+
+
+@pytest.mark.parametrize("message, line, text", [
+    ("Syntax error at line /tmp/a/semgrep-compat/149/ groups-visualizer.1.0.0.js:14: `/-->/g` was unexpected",
+     14, "Syntax error at line 14: `/-->/g` was unexpected"),
+    ("Timeout when running auditor.js.eval-dinamico on /tmp/a/semgrep-compat/149/ groups-visualizer.1.0.0.js:",
+     None, "Timeout when running auditor.js.eval-dinamico"),
+])
+def test_semgrep_message_drops_the_copy_path(message, line, text):
+    from auditor.scanners.static import _semgrep_error
+    path = "/tmp/a/semgrep-compat/149/ groups-visualizer.1.0.0.js"
+    out = _semgrep_error({"type": "Syntax error", "message": message}, path)
+    assert out["linha"] == line and out["mensagem"] == text
+
+
+def test_rewrite_match_case_and_nested_type_params():
+    from auditor.scanners.static import rewrite_new_syntax
+    src = '''type Hook[K: Key, P: LockPort[Any]] = Callable[[str, K], Awaitable[None]]
+match = re.match("x", y)
+def f(action_type, data):
+    match action_type:
+        case "a" | "b":
+            return eval(data)
+        case {"k": valor} if valor > 1:  # guarda
+            return valor
+        case Ponto(x=0) as p:
+            return p
+        case [primeiro, *resto]:
+            return resto
+        case _:
+            pass
+    match data[
+        "chave"
+    ]:
+        case 1:
+            pass
+'''
+    out = rewrite_new_syntax(src)
+    assert out is not None and out.count("\n") == src.count("\n")
+    compile(out, "x.py", "exec")
+    assert "Hook = Callable" in out and 'match = re.match("x", y)' in out
+    assert '    if action_type:' in out and '        if {"k": valor} and valor > 1:' in out
+    assert "        if Ponto(x=0):" in out and "            return eval(data)" in out
+
+
+def test_out_of_memory_explains_the_size_limit_was_not_the_problem(tmp_path):
+    from auditor.scanners.static import _incomplete_finding
+    card = tmp_path / "card.js"
+    card.write_bytes(b"x" * 6_226_394)
+    comp = type("C", (), {"name": "ha-diorama", "component_type": "frontend"})
+    f = _incomplete_finding(comp, "www/community/ha-diorama/card.js", card,
+                            {"tipo": "Out of memory", "linha": None, "mensagem": "Exceeded memory limit"}, 682, 10)
+    assert "6080 KiB" in f.explanation and "limite de tamanho de 10 MB" in f.explanation
+    assert "(682 MB)" in f.explanation and "Aumentar o limite de tamanho não muda isso" in f.explanation
+    assert "size limit of 10 MB" in f.en["explanation"]
+    plain = _incomplete_finding(comp, "x.js", card, {"tipo": "PartialParsing", "linha": 3, "mensagem": ""})
+    assert "limite de tamanho" not in plain.explanation

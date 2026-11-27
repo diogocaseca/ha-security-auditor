@@ -19,7 +19,7 @@ from ..inventory import Component, Inventory
 from ..models import ComponentType, Finding, Severity, en_text
 from ..tools import run_tool
 from .base import ScanContext
-from .deps_malicious import malicious_ids, normalize, texts, typosquat_of
+from .deps_malicious import malicious_details, malicious_ids, malicious_verdict, normalize, texts, typosquat_of
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -158,11 +158,24 @@ async def _check_malicious(ctx: ScanContext, named: dict[str, list[tuple[Compone
     except Exception as err:  # noqa: BLE001 - a consulta é um extra: sem ela, o resto do scanner segue
         _LOGGER.warning("Consulta de pacotes maliciosos na OSV falhou: %s", type(err).__name__)
         return out
+    details = await malicious_details(ctx.http, [i for ids in bad.values() for i in ids])
     for name, ids in sorted(bad.items()):
-        sev, title, why, todo, en = texts("malicioso", ids=", ".join(ids))
-        out += [_finding(comp, raw, sev, "auditor.deps.pacote-malicioso", title, why, todo, en=en,
-                         fingerprint_key=",".join(ids), category="dependencia_maliciosa")
-                for comp, raw in named.get(name, [])]
+        affected = [a for i in ids if i in details for a in details[i]] if all(i in details for i in ids) else None
+        for comp, raw in named.get(name, []):
+            verdict, versions = malicious_verdict(raw, name, affected)
+            listed = ", ".join(versions) or "versões não informadas"
+            if verdict == "afetada":
+                sev, title, why, todo, en = texts("malicioso", ids=", ".join(ids))
+                rule, key = "auditor.deps.pacote-malicioso", ",".join(ids)
+            elif verdict == "faixa":
+                sev, title, why, todo, en = texts("malicioso_faixa", ids=", ".join(ids), versoes=listed, pedido=raw)
+                rule, key = "auditor.deps.pacote-malicioso-faixa", ",".join(ids)
+            else:
+                sev, title, why, todo, en = texts("malicioso_outra_versao", ids=", ".join(ids), versoes=listed,
+                                                  pedido=raw)
+                rule, key = "auditor.deps.pacote-malicioso-outra-versao", ",".join(ids)
+            out.append(_finding(comp, raw, sev, rule, title, why, todo, en=en, fingerprint_key=key,
+                                category="dependencia_maliciosa"))
     return out
 
 

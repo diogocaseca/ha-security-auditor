@@ -182,10 +182,18 @@ def build_chains(findings: list[Finding]) -> list[Finding]:
     return out
 
 
-def capability_changes(findings: list[Finding], components: list[Any], storage: Any, now: str) -> list[Finding]:
+def capability_changes(findings: list[Finding], components: list[Any], storage: Any, now: str,
+                       reliable: bool = True, only: set[tuple[str, str]] | None = None) -> list[Finding]:
     """Atualiza o perfil guardado e devolve os achados de capacidade nova trazida por atualização.
 
     Só compara quando a versão muda: novas regras do próprio auditor não viram alerta.
+
+    ``reliable=False`` (a análise de código falhou nesta varredura): o perfil guardado não é tocado. Sem isso o
+    perfil "vazio" da varredura com falha virava a base, e na atualização seguinte tudo parecia capacidade nova.
+    Alertas já pendentes da mesma versão continuam aparecendo.
+
+    ``only``: componentes analisados de novo nesta varredura (parcial: os que mudaram; DNS: nenhum). Os outros
+    vieram da varredura anterior e não atualizam o perfil.
     """
     prof = profile(findings)
     out: list[Finding] = []
@@ -197,6 +205,11 @@ def capability_changes(findings: list[Finding], components: list[Any], storage: 
         now_caps = set(caps)
         version = str(comp.metadata.get("versao") or "")
         row = storage.capability_row(*key)
+        if not reliable or (only is not None and key not in only):
+            if row is not None and row["added"] and row["previous"] is not None and version == row["version"]:
+                added = set(row["added"])
+                out.append(_change_finding(comp, sorted(added), row["previous"], version, caps))
+            continue
         if row is None:
             storage.save_capabilities(*key, version, now_caps, set(), None, now)
             continue

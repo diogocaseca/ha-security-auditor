@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.33.8
+
+Ajustes a partir da primeira varredura completa sem erros (27/11):
+
+- **Falso positivo crítico: "Dependência catalogada como pacote malicioso" no `num2words==0.5.14`
+  (sentient).** O aviso MAL-2025-6794 vale só para as versões 0.5.15 e 0.5.16, publicadas quando a
+  conta do autor foi invadida. O auditor consultava a OSV pelo nome do pacote e não conferia a
+  versão. Agora ele baixa o aviso pelo id, enviando só o id, e compara as versões aqui dentro:
+  - versão pedida entre as maliciosas, ou pacote malicioso por inteiro: **Crítica**, como antes;
+  - faixa pedida (por exemplo `>=0.5.10`) que aceita uma versão maliciosa: **Média**, para conferir
+    a versão instalada;
+  - versão pedida fora das maliciosas: **Informativa**, só para registrar que o pacote já teve
+    versões invadidas.
+- **"Atualização trouxe capacidade nova" falso:** a varredura de 26/11, em que a análise de código
+  falhou, gravou "nenhuma capacidade" como perfil das versões antigas. Na atualização seguinte, tudo
+  pareceu novo (ha_mcp_tools, battery_notes, localthings, sentient, bodymiscale). Agora o perfil só
+  é atualizado quando a análise de código rodou por inteiro, e nas verificações parciais só para
+  os componentes analisados de novo. Nas de DNS, nunca.
+- **Python com `match`/`case`** (Python 3.10) e com `type` de colchetes aninhados
+  (`type Hook[K: Key, P: Port[Any]] = ...`): também são analisados numa cópia reescrita, como já
+  acontecia com `type X = ...`.
+- **"Arquivo analisado só em parte" por memória ou tempo** agora explica que o arquivo passou no
+  `limite_arquivo_mb` e entrou na análise, mas parou no teto de memória do Semgrep (com o valor
+  usado na máquina) ou no tempo de uma regra. Também deixa claro que aumentar o limite de tamanho
+  não resolve. É o caso do `card.js` do ha-diorama.
+- **Mensagens do Semgrep** não mostram mais o caminho da cópia temporária
+  (`/tmp/.../semgrep-compat/...`), mesmo quando o nome do arquivo tem espaço.
+
 ## 0.33.7
 
 Ajustes a partir da primeira exportação com histórico, que mostrou os erros da varredura completa:

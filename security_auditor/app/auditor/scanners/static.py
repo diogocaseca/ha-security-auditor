@@ -148,7 +148,7 @@ async def run_semgrep(
         for err in data.get("errors", []):
             path = err.get("path") or (err.get("spans") or [{}])[0].get("file")
             if path and path not in incomplete:
-                incomplete[path] = _semgrep_error(err)
+                incomplete[path] = _semgrep_error(err, path)
     if retry := [Path(p) for p, err in incomplete.items() if p.endswith(".py") or _unreadable(err)]:
         await _retry_in_copies(ctx, configs, extra, home, retry, results, incomplete)
     return results, incomplete
@@ -226,18 +226,39 @@ def _batch_failure(batch: list[Path], kind: str, message: str) -> dict[str, Any]
 # padrão nas integrações atuais (``type MinhaConfigEntry = ConfigEntry[...]``) e fazia o arquivo inteiro ficar
 # sem análise. Numa cópia, a linha vira a forma antiga equivalente para a análise (sem mudar o número de
 # linhas); os achados voltam para o arquivo original.
+_BRACKETS = r"\[(?:[^\[\]\n]|\[[^\[\]\n]*\])*\]"  # [T, K: list[int]] (um nível de colchete dentro)
 _NEW_SYNTAX = (
-    (re.compile(r"^(\s*)type\s+(\w+)\s*(?:\[[^\]\n]*\])?\s*=", re.MULTILINE), r"\1\2 ="),
-    (re.compile(r"^(\s*(?:async\s+)?def\s+\w+)\s*\[[^\]\n]*\]\s*\(", re.MULTILINE), r"\1("),
-    (re.compile(r"^(\s*class\s+\w+)\s*\[[^\]\n]*\]", re.MULTILINE), r"\1"),
+    (re.compile(r"^(\s*)type\s+(\w+)\s*(?:" + _BRACKETS + r")?\s*=", re.MULTILINE), r"\1\2 ="),
+    (re.compile(r"^(\s*(?:async\s+)?def\s+\w+)\s*" + _BRACKETS + r"\s*\(", re.MULTILINE), r"\1("),
+    (re.compile(r"^(\s*class\s+\w+)\s*" + _BRACKETS, re.MULTILINE), r"\1"),
 )
+# match/case (Python 3.10): na cópia, "match x:" vira "if x:" e cada "case padrão:" vira "if padrão:" (a guarda
+# "if" vira "and" e o "as nome" sai). O corpo continua indentado igual, então segue sendo Python válido, e as
+# regras enxergam o código dentro de cada caso.
+_MATCH = re.compile(r"^(\s*)match\s+(?![=.,)\]:])(.*(?::\s*(?:#.*)?|[\[(]\s*))$")
+_CASE = re.compile(r"^(\s*)case\s+(?![=.,)\]:])(.*):\s*(#.*)?$")
+
+
+def _rewrite_match(text: str) -> str:
+    out = []
+    for line in text.split("\n"):
+        if m := _MATCH.match(line):
+            line = f"{m.group(1)}if {m.group(2)}"
+        elif m := _CASE.match(line):
+            pattern = re.sub(r"\s+as\s+\w+", "", m.group(2))
+            pattern = re.sub(r"\s+if\s+", " and ", pattern, count=1)
+            line = f"{m.group(1)}if {pattern}:"
+        out.append(line)
+    return "\n".join(out)
 
 
 def rewrite_new_syntax(text: str) -> str | None:
-    """Troca a sintaxe nova de tipos pela antiga; None se não havia nada para trocar."""
+    """Troca a sintaxe nova (tipos da PEP 695 e match/case) pela antiga; None se não havia nada para trocar."""
     out = text
     for pattern, repl in _NEW_SYNTAX:
         out = pattern.sub(repl, out)
+    if re.search(r"^\s*match\s", out, re.MULTILINE):
+        out = _rewrite_match(out)
     return out if out != text else None
 
 
@@ -288,7 +309,7 @@ async def _retry_in_copies(ctx: ScanContext, configs: list[str], extra: list[str
     for err in data.get("errors", []):
         path = err.get("path") or (err.get("spans") or [{}])[0].get("file")
         if path in copies and copies[path] not in errors:
-            errors[copies[path]] = _semgrep_error(err)
+            errors[copies[path]] = _semgrep_error(err, path)
     fixed = {original for original in copies.values() if original not in errors}
     # Os achados da cópia valem quando ela foi analisada por inteiro ou quando o original nem foi aberto.
     use = fixed | {o for o in copies.values() if _unreadable(incomplete.get(o) or {})}
@@ -311,8 +332,8 @@ _ERROR_LINE = re.compile(r"\bat line \S*?:(\d+)\b")
 _ERROR_PATH = re.compile(r"(?<=at line )\S*?:(?=\d+\b)")
 
 
-def _semgrep_error(err: dict[str, Any]) -> dict[str, Any]:
-    """Tipo, linha e mensagem (primeira linha, curta) de um erro do Semgrep num arquivo."""
+def _semgrep_error(err: dict[str, Any], path: str | None = None) -> dict[str, Any]:
+    """Tipo, linha e mensagem (curta) de um erro do Semgrep num arquivo; ``path`` sai da mensagem."""
     kind = err.get("type", "erro")
     if isinstance(kind, list):  # ["PartialParsing", [trechos]]
         kind = kind[0] if kind else "erro"
@@ -321,6 +342,14 @@ def _semgrep_error(err: dict[str, Any]) -> dict[str, Any]:
         spans = err["type"][1] or []
     line = (spans[0].get("start") or {}).get("line") if spans and isinstance(spans[0], dict) else None
     message = " ".join(str(err.get("message") or "").split())
+    path = path or err.get("path")
+    if path:
+        # O caminho pode ter espaços e, numa cópia, é o da pasta temporária: sai inteiro da mensagem.
+        if not isinstance(line, int) and (m := re.search(re.escape(str(path)) + r":(\d+)", message)):
+            line = int(m.group(1))
+        message = message.replace(f"at line {path}:", "at line ")
+        message = re.sub(r"\s*\bon " + re.escape(str(path)) + r":?", "", message)
+        message = " ".join(message.replace(str(path), "").split())
     if not isinstance(line, int) and (m := _ERROR_LINE.search(message)):
         line = int(m.group(1))
     # A mensagem traz o caminho completo do arquivo; o achado já mostra o arquivo.
@@ -379,7 +408,8 @@ class StaticAnalysisScanner:
             p = Path(path)
             comp = inv.owner_of(p)
             if comp:
-                results.append(_incomplete_finding(comp, inv.rel(p), p, err))
+                results.append(_incomplete_finding(comp, inv.rel(p), p, err, ctx.profile.semgrep_max_memory_mb,
+                                                   ctx.options.max_file_mb))
         return results
 
     # --- Bandit -------------------------------------------------------------
@@ -458,8 +488,34 @@ def _semgrep_failed(err: Exception) -> Finding:
     )
 
 
-def _incomplete_finding(comp: Any, rel: str, path: Path, err: dict[str, Any]) -> Finding:
+def _limits_note(kind: str, path: Path, memory_mb: int | None, limit_mb: int | None) -> tuple[str, str]:
+    """Explicação para quem aumentou o limite de tamanho e mesmo assim vê o arquivo "só em parte"."""
+    if kind not in ("Out of memory", "Tempo esgotado", "Timeout"):
+        return "", ""
+    size = _size(path) // 1024
+    limit = f" de {limit_mb} MB" if limit_mb else ""
+    limit_en = f" of {limit_mb} MB" if limit_mb else ""
+    if kind == "Out of memory":
+        cap = f"{memory_mb} MB" if memory_mb else "o teto"
+        cap_en = f"{memory_mb} MB" if memory_mb else "the cap"
+        return ((f" O arquivo ({size} KiB) passou no limite de tamanho{limit} e entrou na análise, mas o Semgrep "
+                 f"precisou de mais memória que o teto dele nesta máquina ({cap}) e desistiu deste arquivo. "
+                 "Aumentar o limite de tamanho não muda isso. O teto existe porque um arquivo assim já levou o "
+                 "Semgrep a passar de 2 GB e derrubou a análise inteira."),
+                (f" The file ({size} KiB) passed the size limit{limit_en} and entered the analysis, but Semgrep "
+                 f"needed more memory than its cap on this machine ({cap_en}) and gave up on this file. Raising the "
+                 "size limit does not change this. The cap exists because a file like this once took Semgrep past "
+                 "2 GB and brought the whole analysis down."))
+    return ((f" O arquivo ({size} KiB) passou no limite de tamanho{limit} e entrou na análise, mas uma regra passou "
+             "do tempo máximo nele. Aumentar o limite de tamanho não muda isso; as outras regras rodaram."),
+            (f" The file ({size} KiB) passed the size limit{limit_en} and entered the analysis, but one rule went "
+             "over the time limit on it. Raising the size limit does not change this; the other rules ran."))
+
+
+def _incomplete_finding(comp: Any, rel: str, path: Path, err: dict[str, Any], memory_mb: int | None = None,
+                        limit_mb: int | None = None) -> Finding:
     kind, line, message = err["tipo"], err.get("linha"), err.get("mensagem") or ""
+    note, note_en = _limits_note(kind, path, memory_mb, limit_mb)
     where = f" na linha {line}" if line else ""
     where_en = f" at line {line}" if line else ""
     bandit = (" O Bandit, que usa o analisador do próprio Python, continua analisando o arquivo."
@@ -476,11 +532,11 @@ def _incomplete_finding(comp: Any, rel: str, path: Path, err: dict[str, Any]) ->
         title="Arquivo analisado só em parte",
         explanation=(f"O Semgrep não conseguiu analisar o arquivo inteiro ({kind}{where}). É comum em scripts "
                      "minificados ou com sintaxe muito nova, mas também pode ser proposital para fugir da análise."
-                     + bandit + detail),
+                     + note + bandit + detail),
         recommendation="Se o componente for pouco conhecido, revise este arquivo manualmente.",
         en=en_text("File only partially analysed",
                    f"Semgrep could not analyse the whole file ({kind}{where_en}). This is common in minified scripts "
-                   "or with very new syntax, but it can also be deliberate to evade analysis." + bandit_en
+                   "or with very new syntax, but it can also be deliberate to evade analysis." + note_en + bandit_en
                    + detail_en,
                    _MANUAL_REVIEW_EN),
         file=rel,

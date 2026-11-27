@@ -93,3 +93,20 @@ async def test_new_capability_in_update(paths, storage, masker):
     # Continua enquanto a versão não muda; some quando a próxima atualização não traz nada novo.
     assert len(change(await run("1.1", [_f("minha", URL), _f("minha", SECRETS, 2), _f("minha", SHELL, 3)]))) == 1
     assert change(await run("1.2", [_f("minha", URL), _f("minha", SECRETS, 2), _f("minha", SHELL, 3)])) == []
+
+
+async def test_failed_code_analysis_does_not_become_the_baseline(paths, storage, masker):
+    # 26/11: o Semgrep falhou, a varredura gravou "nenhuma capacidade" para a versão antiga e, na atualização
+    # seguinte, tudo pareceu capacidade nova.
+    from auditor.scanners.static import _semgrep_failed
+
+    async def run(version, findings):
+        return await _engine(paths, storage, masker, Options(), [Scanner(version, findings)]).run()
+
+    def change(result):
+        return [f for f in result.findings if f.rule_id == "auditor.capacidade-nova"]
+
+    full = [_f("minha", URL), _f("minha", SHELL, 3)]
+    assert change(await run("1.0", full)) == []
+    assert change(await run("1.0", [_semgrep_failed(RuntimeError("morto"))])) == []  # análise falhou
+    assert change(await run("1.1", full)) == []  # comparado com a 1.0 boa: nada novo

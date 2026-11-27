@@ -72,3 +72,44 @@ async def test_osv_failure_does_not_break_the_scanner(tmp_path):
     paths = _paths(tmp_path, ["reqeusts>=2"])
     findings = await DependencyScanner().scan(_ctx(paths, tmp_path, http=FakeOsv({}, fail=True)))
     assert "auditor.deps.typosquatting" in {f.rule_id for f in findings}
+
+
+NUM2WORDS = [{"package": {"name": "num2words", "ecosystem": "PyPI"}, "versions": ["0.5.15", "0.5.16"],
+              "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0.5.15"}, {"last_affected": "0.5.16"}]}]}]
+
+
+class FakeOsvDetails(FakeOsv):
+    def __init__(self, bad, details):
+        super().__init__(bad)
+        self.details, self.gets = details, []
+
+    async def get_json(self, url, headers=None, **kw):
+        self.gets.append(url)
+        return {"id": url.rsplit("/", 1)[-1], "affected": self.details[url.rsplit("/", 1)[-1]]}
+
+
+@pytest.mark.parametrize("requirement, rule, severity", [
+    # sentient pede a 0.5.14; só a 0.5.15 e a 0.5.16 foram maliciosas (conta do autor invadida)
+    ("num2words==0.5.14", "auditor.deps.pacote-malicioso-outra-versao", Severity.INFO),
+    ("num2words==0.5.15", "auditor.deps.pacote-malicioso", Severity.CRITICAL),
+    ("num2words>=0.5.10", "auditor.deps.pacote-malicioso-faixa", Severity.MEDIUM),
+    ("num2words<0.5.15", "auditor.deps.pacote-malicioso-outra-versao", Severity.INFO),
+])
+async def test_malicious_check_compares_versions(tmp_path, requirement, rule, severity):
+    paths = _paths(tmp_path, [requirement])
+    osv = FakeOsvDetails({"num2words": ["MAL-2025-6794"]}, {"MAL-2025-6794": NUM2WORDS})
+    findings = await DependencyScanner().scan(_ctx(paths, tmp_path, http=osv))
+    (f,) = [f for f in findings if f.rule_id.startswith("auditor.deps.pacote")]
+    assert (f.rule_id, f.severity) == (rule, severity)
+    assert osv.gets == ["https://api.osv.dev/v1/vulns/MAL-2025-6794"]  # só o id vai
+    assert severity is Severity.CRITICAL or "0.5.15, 0.5.16" in f.explanation
+
+
+async def test_malicious_package_without_versions_is_always_critical(tmp_path):
+    paths = _paths(tmp_path, ["0requests==1.0"])
+    whole = [{"package": {"name": "0requests", "ecosystem": "PyPI"},
+              "ranges": [{"type": "ECOSYSTEM", "events": [{"introduced": "0"}]}]}]
+    osv = FakeOsvDetails({"0requests": ["MAL-2026-15859"]}, {"MAL-2026-15859": whole})
+    findings = await DependencyScanner().scan(_ctx(paths, tmp_path, http=osv))
+    (f,) = [f for f in findings if f.rule_id.startswith("auditor.deps.pacote")]
+    assert f.rule_id == "auditor.deps.pacote-malicioso" and f.severity is Severity.CRITICAL
